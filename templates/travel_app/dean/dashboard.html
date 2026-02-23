@@ -1,0 +1,1300 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --dean-primary:   #1565c0;
+            --dean-dark:      #0d47a1;
+            --dean-light:     #e3f2fd;
+            --dean-accent:    #00b0ff;
+            --dean-success:   #2e7d32;
+            --dean-warning:   #f57f17;
+            --dean-danger:    #c62828;
+            --dean-surface:   #f4f7fb;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background: var(--dean-surface);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.93rem;
+        }
+
+        /* ── NAVBAR ── */
+        .navbar {
+            background: linear-gradient(135deg, var(--dean-dark) 0%, var(--dean-primary) 100%);
+            box-shadow: 0 2px 12px rgba(13,71,161,0.25);
+            padding: 0.6rem 1.5rem;
+        }
+        .navbar-brand { font-weight: 800; letter-spacing: 0.5px; }
+        .nav-link { font-size: 0.88rem; font-weight: 500; }
+        .notif-badge {
+            background: #ff1744;
+            color: white;
+            border-radius: 50%;
+            font-size: 0.65rem;
+            padding: 2px 5px;
+            position: absolute;
+            top: 2px;
+            right: -4px;
+        }
+
+        /* ── HERO BANNER ── */
+        .dean-hero {
+            background: linear-gradient(135deg, var(--dean-dark) 0%, var(--dean-primary) 55%, var(--dean-accent) 100%);
+            padding: 2rem 0 5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .dean-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 0; right: 0;
+            height: 55px;
+            background: var(--dean-surface);
+            clip-path: ellipse(55% 100% at 50% 100%);
+        }
+        .dean-hero .deco-icon {
+            position: absolute;
+            right: 3%;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16rem;
+            opacity: 0.06;
+            color: white;
+        }
+        .hero-avatar {
+            width: 70px; height: 70px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: 3px solid rgba(255,255,255,0.5);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; font-weight: 800; color: white;
+            backdrop-filter: blur(4px);
+            flex-shrink: 0;
+        }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.78rem; color: white;
+        }
+
+        /* ── MAIN CONTENT PULL-UP ── */
+        .main-wrap { margin-top: -3rem; position: relative; z-index: 10; }
+
+        /* ── STAT CARDS ── */
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.25rem 1.5rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+            border-left: 5px solid transparent;
+            display: flex; align-items: center; gap: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            height: 100%;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,0.11); }
+        .stat-card.pending  { border-color: var(--dean-warning); }
+        .stat-card.approved { border-color: var(--dean-success); }
+        .stat-card.rejected { border-color: var(--dean-danger); }
+        .stat-card.total    { border-color: var(--dean-primary); }
+        .stat-icon {
+            width: 52px; height: 52px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; flex-shrink: 0;
+        }
+        .stat-icon.pending  { background: #fff8e1; color: var(--dean-warning); }
+        .stat-icon.approved { background: #e8f5e9; color: var(--dean-success); }
+        .stat-icon.rejected { background: #ffebee; color: var(--dean-danger); }
+        .stat-icon.total    { background: #e3f2fd; color: var(--dean-primary); }
+        .stat-num { font-size: 2rem; font-weight: 800; line-height: 1; }
+        .stat-label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+        .stat-sub { font-size: 0.78rem; color: #aaa; margin-top: 2px; }
+
+        /* ── CARDS ── */
+        .dash-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        .dash-card-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1.5px solid #f0f0f0;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .dash-card-header h6 {
+            margin: 0; font-weight: 700; font-size: 0.92rem;
+            color: #1a237e; display: flex; align-items: center; gap: 0.5rem;
+        }
+        .dash-card-body { padding: 1.25rem; }
+
+        /* ── APPROVAL ITEMS ── */
+        .approval-item {
+            border: 1.5px solid #e8edf5;
+            border-radius: 12px;
+            padding: 1rem 1.15rem;
+            margin-bottom: 0.85rem;
+            background: #fafcff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .approval-item:hover { border-color: var(--dean-accent); box-shadow: 0 2px 12px rgba(0,176,255,0.1); }
+        .approval-item:last-child { margin-bottom: 0; }
+        .traveler-avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: var(--dean-light);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem; font-weight: 700; color: var(--dean-primary);
+            flex-shrink: 0;
+        }
+        .purpose-text {
+            color: #555; font-size: 0.82rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            max-width: 320px;
+        }
+        .travel-meta { font-size: 0.78rem; color: #999; }
+        .travel-meta span { margin-right: 0.75rem; }
+
+        /* ── BATCH SELECT ── */
+        .batch-bar {
+            background: var(--dean-light);
+            border: 1.5px solid #90caf9;
+            border-radius: 10px;
+            padding: 0.65rem 1rem;
+            margin-bottom: 1rem;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .batch-bar.active { display: flex; }
+
+        /* ── APPROVAL WARNING MODAL ── */
+        .warning-list { max-height: 200px; overflow-y: auto; }
+
+        /* ── CALENDAR ── */
+        .mini-calendar { width: 100%; border-collapse: collapse; }
+        .mini-calendar th {
+            text-align: center; font-size: 0.72rem;
+            font-weight: 700; color: #888; padding: 0.4rem 0;
+            text-transform: uppercase;
+        }
+        .mini-calendar td {
+            text-align: center; padding: 0.3rem;
+            font-size: 0.82rem; border-radius: 8px;
+            cursor: default; position: relative;
+        }
+        .mini-calendar td.today {
+            background: var(--dean-primary); color: white;
+            font-weight: 700; border-radius: 50%;
+            width: 30px; margin: auto;
+        }
+        .mini-calendar td.has-travel { background: #e3f2fd; color: var(--dean-primary); font-weight: 600; }
+        .mini-calendar td.has-pending { background: #fff8e1; color: var(--dean-warning); font-weight: 600; }
+        .mini-calendar td.other-month { color: #ccc; }
+        .cal-dot {
+            width: 5px; height: 5px; border-radius: 50%;
+            display: inline-block; margin: 1px;
+        }
+
+        /* ── BUDGET BAR ── */
+        .budget-bar-wrap {
+            background: #f5f5f5;
+            border-radius: 8px; height: 10px; overflow: hidden;
+        }
+        .budget-bar-fill {
+            height: 100%; border-radius: 8px;
+            transition: width 1s ease;
+        }
+
+        /* ── EMPLOYEE HISTORY ── */
+        .employee-row {
+            display: flex; align-items: center;
+            padding: 0.75rem 0; border-bottom: 1px solid #f5f5f5;
+            gap: 0.75rem; cursor: pointer;
+        }
+        .employee-row:last-child { border-bottom: none; }
+        .employee-row:hover { background: #fafcff; border-radius: 8px; padding-left: 0.5rem; }
+
+        /* ── TABS ── */
+        .dean-tabs .nav-link {
+            border: none; border-radius: 8px;
+            font-size: 0.83rem; font-weight: 600; color: #888;
+            padding: 0.4rem 0.9rem;
+        }
+        .dean-tabs .nav-link.active {
+            background: var(--dean-primary); color: white;
+        }
+        .dean-tabs .nav-link .badge {
+            font-size: 0.65rem; padding: 0.2em 0.5em;
+            border-radius: 10px; margin-left: 4px;
+        }
+
+        /* ── STATUS BADGES ── */
+        .badge-pending  { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; font-size: 0.75rem; }
+        .badge-approved { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; font-size: 0.75rem; }
+        .badge-rejected { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; font-size: 0.75rem; }
+
+        /* ── REMARKS SECTION ── */
+        .remarks-toggle { font-size: 0.8rem; cursor: pointer; color: var(--dean-primary); }
+        .remarks-area { display: none; margin-top: 0.5rem; }
+
+        /* ── COMMENT THREAD ── */
+        .comment-bubble {
+            background: #f0f4ff; border-radius: 12px 12px 12px 4px;
+            padding: 0.6rem 0.9rem; font-size: 0.85rem;
+            color: #333; display: inline-block; max-width: 90%;
+        }
+        .comment-bubble.dean-comment {
+            background: #e3f2fd; border-radius: 12px 12px 4px 12px;
+        }
+        .comment-time { font-size: 0.72rem; color: #bbb; margin-top: 2px; }
+
+        /* ── CHART CONTAINER ── */
+        .chart-wrap { position: relative; }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            text-align: center; padding: 2.5rem 1rem;
+            color: #bbb;
+        }
+        .empty-state i { font-size: 3rem; opacity: 0.4; }
+        .empty-state p { margin-top: 0.75rem; font-size: 0.9rem; }
+
+        /* ── SCROLLABLE LIST ── */
+        .scroll-list { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+        .scroll-list::-webkit-scrollbar { width: 4px; }
+        .scroll-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+
+        /* ── URGENCY BADGE ── */
+        .urgency-high   { color: #c62828; font-size: 0.72rem; font-weight: 700; }
+        .urgency-medium { color: #f57f17; font-size: 0.72rem; font-weight: 700; }
+        .urgency-low    { color: #888;    font-size: 0.72rem; }
+
+        /* ── SECTION DIVIDER ── */
+        .section-label {
+            font-size: 0.7rem; font-weight: 700; color: #aaa;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            padding: 0.5rem 0 0.25rem;
+        }
+
+        .btn-approve {
+            background: #e8f5e9; color: #2e7d32; border: 1.5px solid #a5d6a7;
+            border-radius: 8px; font-size: 0.8rem; font-weight: 600; padding: 0.3rem 0.8rem;
+            transition: background 0.2s;
+        }
+        .btn-approve:hover { background: #c8e6c9; color: #1b5e20; }
+
+        .btn-reject {
+            background: #ffebee; color: #c62828; border: 1.5px solid #ef9a9a;
+            border-radius: 8px; font-size: 0.8rem; font-weight: 600; padding: 0.3rem 0.8rem;
+            transition: background 0.2s;
+        }
+        .btn-reject:hover { background: #ffcdd2; color: #b71c1c; }
+
+        .btn-view {
+            background: #e3f2fd; color: var(--dean-primary); border: 1.5px solid #90caf9;
+            border-radius: 8px; font-size: 0.8rem; font-weight: 600; padding: 0.3rem 0.8rem;
+            transition: background 0.2s;
+        }
+        .btn-view:hover { background: #bbdefb; }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ NAVBAR ═══════════════════════════ -->
+<nav class="navbar navbar-dark navbar-expand-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#">
+            <i class="bi bi-airplane-fill me-2"></i>BISU Travel
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
+                </li>
+
+                <!-- New Travel button - same style as other nav items but prominent -->
+                <li class="nav-item">
+                    <a href="{% url 'travel_app:dean_create_travel' %}" 
+                    class="nav-link fw-semibold">
+                        <i class="bi bi-plus-circle-fill me-1"></i>New Travel
+                    </a>
+                </li>
+
+                <li class="nav-item position-relative">
+                    <a class="nav-link" href="{% url 'travel_app:dean_notifications' %}">
+                        <i class="bi bi-bell me-1"></i>Notifications
+                        {% if unread_notifications > 0 %}
+                        <span class="notif-badge">{{ unread_notifications }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>{{ user.first_name }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-person me-2"></i>Profile</a></li>
+                        <li><hr class="dropdown-menu-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'accounts:logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- ═══════════════════════════ HERO ═══════════════════════════ -->
+<div class="dean-hero">
+    <div class="container">
+        <div class="d-flex align-items-center gap-3">
+            <div class="hero-avatar">
+                {{ user.first_name|slice:":1" }}{{ user.last_name|slice:":1" }}
+            </div>
+            <div class="text-white">
+                <h3 class="fw-bold mb-1">Dean's Dashboard</h3>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="hero-badge"><i class="bi bi-person-badge"></i>{{ user.get_full_name }}</span>
+                    {% if user.college %}
+                    <span class="hero-badge"><i class="bi bi-building"></i>{{ user.college.name }}</span>
+                    {% endif %}
+                    {% if user.campus %}
+                    <span class="hero-badge"><i class="bi bi-geo-alt"></i>{{ user.campus.name }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="deco-icon"><i class="bi bi-mortarboard-fill"></i></div>
+</div>
+
+<!-- ═══════════════════════════ MAIN CONTENT ═══════════════════════════ -->
+<div class="container main-wrap pb-5">
+
+    <!-- Flash Messages -->
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- ── STAT CARDS ── -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="stat-card pending">
+                <div class="stat-icon pending"><i class="bi bi-hourglass-split"></i></div>
+                <div>
+                    <div class="stat-num text-warning">{{ pending_count }}</div>
+                    <div class="stat-label">Pending</div>
+                    <div class="stat-sub">Awaiting your approval</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card approved">
+                <div class="stat-icon approved"><i class="bi bi-check-circle-fill"></i></div>
+                <div>
+                    <div class="stat-num text-success">{{ approved_count }}</div>
+                    <div class="stat-label">Approved</div>
+                    <div class="stat-sub">This year</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card rejected">
+                <div class="stat-icon rejected"><i class="bi bi-x-circle-fill"></i></div>
+                <div>
+                    <div class="stat-num text-danger">{{ rejected_count }}</div>
+                    <div class="stat-label">Rejected</div>
+                    <div class="stat-sub">This year</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card total">
+                <div class="stat-icon total"><i class="bi bi-collection-fill"></i></div>
+                <div>
+                    <div class="stat-num text-primary">{{ total_count }}</div>
+                    <div class="stat-label">Total</div>
+                    <div class="stat-sub">{{ this_month_count }} this month</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MAIN GRID ── -->
+    <div class="row g-4">
+
+        <!-- ══ LEFT: PENDING APPROVALS ══ -->
+        <div class="col-lg-7">
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <h6><i class="bi bi-clipboard-check"></i> Pending Approvals
+                        {% if pending_count > 0 %}
+                        <span class="badge" style="background:#fff8e1;color:#f57f17;border:1px solid #ffe082;">
+                            {{ pending_count }}
+                        </span>
+                        {% endif %}
+                    </h6>
+                    <!-- Tabs: Pending / Approved / Rejected -->
+                    <ul class="nav dean-tabs" id="approvalTabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" onclick="filterTab('pending', this)">
+                                Pending
+                                {% if pending_count > 0 %}
+                                <span class="badge bg-warning text-dark">{{ pending_count }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="filterTab('approved', this)">Approved</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="filterTab('rejected', this)">Rejected</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="dash-card-body">
+
+                    <!-- Batch bar (shows when checkboxes selected) -->
+                    <div class="batch-bar" id="batchBar">
+                        <div>
+                            <i class="bi bi-check2-square me-2 text-primary"></i>
+                            <span id="selectedCount">0</span> selected
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-approve btn-sm" onclick="batchAction('approve')">
+                                <i class="bi bi-check-all me-1"></i> Approve Selected
+                            </button>
+                            <button class="btn btn-reject btn-sm" onclick="batchAction('reject')">
+                                <i class="bi bi-x-lg me-1"></i> Reject Selected
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                        <select class="form-select form-select-sm" style="width:auto;" id="filterType" onchange="applyFilters()">
+                            <option value="">All Types</option>
+                            <option value="in">In-Province</option>
+                            <option value="out">Out-of-Province</option>
+                        </select>
+                        <select class="form-select form-select-sm" style="width:auto;" id="filterDuration" onchange="applyFilters()">
+                            <option value="">All Durations</option>
+                            <option value="1">1 Day</option>
+                            <option value="2-3">2-3 Days</option>
+                            <option value="4+">4+ Days</option>
+                        </select>
+                        <input type="text" class="form-control form-control-sm" style="width:160px;"
+                               placeholder="Search employee..." id="filterSearch" oninput="applyFilters()">
+                    </div>
+
+                    <!-- Approval List -->
+                    <div class="scroll-list" id="approvalList">
+
+                        {% if pending_travels %}
+                            {% for travel in pending_travels %}
+                            <div class="approval-item" 
+                                 data-status="pending"
+                                 data-type="{% if travel.is_out_of_province %}out{% else %}in{% endif %}"
+                                 data-days="{{ travel.get_duration_days }}"
+                                 data-employee="{{ travel.travel_order.created_by.get_full_name|lower }}">
+
+                                <div class="d-flex align-items-start gap-3">
+                                    <!-- Checkbox -->
+                                    <input type="checkbox" class="form-check-input mt-1 travel-checkbox"
+                                           value="{{ travel.id }}" onchange="updateBatchBar()">
+
+                                    <!-- Avatar -->
+                                    <div class="traveler-avatar">
+                                        {{ travel.travel_order.created_by.first_name|slice:":1" }}{{ travel.travel_order.created_by.last_name|slice:":1" }}
+                                    </div>
+
+                                    <!-- Info -->
+                                    <div class="flex-grow-1 min-width-0">
+                                        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                                            <div>
+                                                <strong style="font-size:0.92rem;">{{ travel.destination }}</strong>
+                                                {% if travel.is_out_of_province %}
+                                                <span class="badge bg-warning text-dark ms-1" style="font-size:0.7rem;">Out-of-Province</span>
+                                                {% endif %}
+
+                                                <!-- Urgency indicator -->
+                                                {% with days_until=travel.start_date|timeuntil %}
+                                                {% if travel.start_date <= today_plus_3 %}
+                                                <span class="urgency-high ms-1"><i class="bi bi-exclamation-circle-fill"></i> URGENT</span>
+                                                {% elif travel.start_date <= today_plus_7 %}
+                                                <span class="urgency-medium ms-1"><i class="bi bi-exclamation-circle"></i> Soon</span>
+                                                {% endif %}
+                                                {% endwith %}
+                                            </div>
+                                            <div class="d-flex gap-1">
+                                                <a href="{% url 'travel_app:travel_detail' travel.id %}" class="btn btn-view">
+                                                    <i class="bi bi-eye me-1"></i>View
+                                                </a>
+                                                <button class="btn btn-approve" onclick="openApproveModal({{ travel.id }}, '{{ travel.destination }}', '{{ travel.travel_order.created_by.get_full_name }}')">
+                                                    <i class="bi bi-check-lg me-1"></i>Approve
+                                                </button>
+                                                <button class="btn btn-reject" onclick="openRejectModal({{ travel.id }}, '{{ travel.destination }}')">
+                                                    <i class="bi bi-x-lg me-1"></i>Reject
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Employee & Purpose -->
+                                        <div class="mt-1">
+                                            <span class="text-muted" style="font-size:0.82rem;">
+                                                <i class="bi bi-person me-1"></i>{{ travel.travel_order.created_by.get_full_name }}
+                                            </span>
+                                        </div>
+                                        <div class="purpose-text mt-1">
+                                            <i class="bi bi-journal-text me-1 text-muted"></i>{{ travel.purpose }}
+                                        </div>
+
+                                        <!-- Meta info -->
+                                        <div class="travel-meta mt-2">
+                                            <span><i class="bi bi-calendar3 me-1"></i>{{ travel.start_date|date:"M d" }} – {{ travel.end_date|date:"M d, Y" }}</span>
+                                            <span><i class="bi bi-clock me-1"></i>{{ travel.get_duration_days }} day{{ travel.get_duration_days|pluralize }}</span>
+                                            <span><i class="bi bi-cash me-1"></i>₱{{ travel.itinerary.estimated_total|floatformat:0 }}</span>
+                                            <span><i class="bi bi-send me-1"></i>{{ travel.created_at|timesince }} ago</span>
+                                        </div>
+
+                                        <!-- Comments toggle -->
+                                        <div class="mt-2">
+                                            <span class="remarks-toggle" onclick="toggleComments({{ travel.id }})">
+                                                <i class="bi bi-chat-dots me-1"></i>
+                                                Comments ({{ travel.travel_order.comments.count }})
+                                            </span>
+                                        </div>
+
+                                        <!-- Comment thread (collapsible) -->
+                                        <div id="comments-{{ travel.id }}" class="remarks-area mt-2">
+                                            {% for comment in travel.travel_order.comments.all %}
+                                            <div class="d-flex {% if comment.author == user %}justify-content-end{% endif %} mb-2">
+                                                <div>
+                                                    <div class="comment-bubble {% if comment.author == user %}dean-comment{% endif %}">
+                                                        <strong style="font-size:0.75rem;">{{ comment.author.get_full_name }}</strong><br>
+                                                        {{ comment.message }}
+                                                    </div>
+                                                    <div class="comment-time {% if comment.author == user %}text-end{% endif %}">
+                                                        {{ comment.created_at|timesince }} ago
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% empty %}
+                                            <p class="text-muted" style="font-size:0.82rem;">No comments yet.</p>
+                                            {% endfor %}
+
+                                            <!-- Add comment -->
+                                            <form method="post" action="{% url 'travel_app:add_comment' travel.travel_order.id %}" class="mt-2">
+                                                {% csrf_token %}
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" name="message" class="form-control" placeholder="Add a comment..." required>
+                                                    <button type="submit" class="btn btn-primary btn-sm">
+                                                        <i class="bi bi-send"></i>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+
+                        {% else %}
+                        <div class="empty-state" id="pendingEmpty">
+                            <i class="bi bi-clipboard-check"></i>
+                            <p>No pending approvals! 🎉<br><small>All caught up.</small></p>
+                        </div>
+                        {% endif %}
+
+                        <!-- Approved travels (hidden by default) -->
+                        {% for travel in approved_travels %}
+                        <div class="approval-item d-none" data-status="approved">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="traveler-avatar">
+                                    {{ travel.travel_order.created_by.first_name|slice:":1" }}{{ travel.travel_order.created_by.last_name|slice:":1" }}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>{{ travel.destination }}</strong>
+                                            <span class="badge badge-approved ms-1">Approved</span>
+                                        </div>
+                                        <a href="{% url 'travel_app:travel_detail' travel.id %}" class="btn btn-view btn-sm">View</a>
+                                    </div>
+                                    <div class="purpose-text mt-1">{{ travel.purpose }}</div>
+                                    <div class="travel-meta mt-1">
+                                        <span><i class="bi bi-person me-1"></i>{{ travel.travel_order.created_by.get_full_name }}</span>
+                                        <span><i class="bi bi-calendar3 me-1"></i>{{ travel.start_date|date:"M d" }} – {{ travel.end_date|date:"M d, Y" }}</span>
+                                        <span><i class="bi bi-check-circle me-1 text-success"></i>{{ travel.travel_order.dean_approval_date|date:"M d, Y" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                        <!-- Rejected travels (hidden by default) -->
+                        {% for travel in rejected_travels %}
+                        <div class="approval-item d-none" data-status="rejected">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="traveler-avatar" style="background:#ffebee;color:#c62828;">
+                                    {{ travel.travel_order.created_by.first_name|slice:":1" }}{{ travel.travel_order.created_by.last_name|slice:":1" }}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>{{ travel.destination }}</strong>
+                                            <span class="badge badge-rejected ms-1">Rejected</span>
+                                        </div>
+                                        <a href="{% url 'travel_app:travel_detail' travel.id %}" class="btn btn-view btn-sm">View</a>
+                                    </div>
+                                    <div class="purpose-text mt-1">{{ travel.purpose }}</div>
+                                    <div class="travel-meta mt-1">
+                                        <span><i class="bi bi-person me-1"></i>{{ travel.travel_order.created_by.get_full_name }}</span>
+                                        <span><i class="bi bi-calendar3 me-1"></i>{{ travel.start_date|date:"M d, Y" }}</span>
+                                        {% if travel.travel_order.rejection_reason %}
+                                        <span class="text-danger"><i class="bi bi-x-circle me-1"></i>{{ travel.travel_order.rejection_reason|truncatechars:50 }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ RIGHT COLUMN ══ -->
+        <div class="col-lg-5">
+
+            <!-- Statistics Charts -->
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <h6><i class="bi bi-bar-chart-fill"></i> Statistics</h6>
+                    <select class="form-select form-select-sm" style="width:auto;" id="statsYear" onchange="loadStats()">
+                        {% for year in available_years %}
+                        <option value="{{ year }}" {% if year == current_year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="dash-card-body">
+                    <!-- Donut: Approval Rate -->
+                    <div class="row g-3">
+                        <div class="col-5">
+                            <p class="section-label mb-1">Approval Rate</p>
+                            <div class="chart-wrap" style="height:130px;">
+                                <canvas id="donutChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-7">
+                            <p class="section-label mb-1">This Month</p>
+                            <div style="font-size:0.82rem;">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Approved</span>
+                                    <strong>{{ this_month_approved }}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>Rejected</span>
+                                    <strong>{{ this_month_rejected }}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-warning"><i class="bi bi-hourglass-split me-1"></i>Pending</span>
+                                    <strong>{{ pending_count }}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted"><i class="bi bi-clock me-1"></i>Avg. Time</span>
+                                    <strong>{{ avg_approval_time }}d</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Trend Line Chart -->
+                    <p class="section-label mt-3 mb-1">Monthly Trend</p>
+                    <div class="chart-wrap" style="height:110px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+
+                    <!-- Top Travelers Bar -->
+                    <p class="section-label mt-3 mb-2">Top Travelers</p>
+                    {% for emp in top_travelers %}
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="traveler-avatar" style="width:28px;height:28px;font-size:0.7rem;">
+                            {{ emp.first_name|slice:":1" }}{{ emp.last_name|slice:":1" }}
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between" style="font-size:0.8rem;">
+                                <span>{{ emp.get_full_name }}</span>
+                                <span class="text-muted">{{ emp.travel_count }}</span>
+                            </div>
+                            <div class="budget-bar-wrap mt-1">
+                                <div class="budget-bar-fill bg-primary"
+                                     style="width: {{ emp.travel_pct }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted" style="font-size:0.82rem;">No travel data yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- College Budget Tracking -->
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <h6><i class="bi bi-wallet2"></i> College Budget {{ current_year }}</h6>
+                </div>
+                <div class="dash-card-body">
+                    {% if college_budget %}
+                    <div class="d-flex justify-content-between mb-1" style="font-size:0.85rem;">
+                        <span class="text-muted">Allocated</span>
+                        <strong>₱{{ college_budget.total_budget|floatformat:0 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1" style="font-size:0.85rem;">
+                        <span class="text-muted">Used (Approved Travels)</span>
+                        <strong class="{% if college_budget.utilization_percentage > 80 %}text-danger{% elif college_budget.utilization_percentage > 60 %}text-warning{% else %}text-success{% endif %}">
+                            ₱{{ college_budget.spent_budget|floatformat:0 }}
+                        </strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+                        <span class="text-muted">Remaining</span>
+                        <strong class="text-success">₱{{ college_budget.remaining_budget|floatformat:0 }}</strong>
+                    </div>
+                    <div class="budget-bar-wrap">
+                        <div class="budget-bar-fill {% if college_budget.utilization_percentage > 80 %}bg-danger{% elif college_budget.utilization_percentage > 60 %}bg-warning{% else %}bg-success{% endif %}"
+                             style="width: {{ college_budget.utilization_percentage }}%">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1" style="font-size:0.75rem; color:#aaa;">
+                        <span>0%</span>
+                        <span>{{ college_budget.utilization_percentage }}% used</span>
+                        <span>100%</span>
+                    </div>
+                    {% if college_budget.utilization_percentage > 80 %}
+                    <div class="alert alert-danger py-2 mt-2 mb-0" style="font-size:0.82rem;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        Budget nearly exhausted! Consider rejecting non-essential travels.
+                    </div>
+                    {% elif college_budget.utilization_percentage > 60 %}
+                    <div class="alert alert-warning py-2 mt-2 mb-0" style="font-size:0.82rem;">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Over 60% of budget used. Monitor remaining approvals.
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="empty-state py-3">
+                        <i class="bi bi-wallet2" style="font-size:2rem;"></i>
+                        <p class="mt-2 mb-0" style="font-size:0.85rem;">No budget allocation found.<br>Contact admin to set up.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Mini Calendar -->
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <h6><i class="bi bi-calendar3"></i> Travel Calendar</h6>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="changeMonth(-1)">‹</button>
+                        <span id="calMonthLabel" class="fw-bold" style="font-size:0.85rem; line-height:2;"></span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="changeMonth(1)">›</button>
+                    </div>
+                </div>
+                <div class="dash-card-body">
+                    <table class="mini-calendar" id="miniCal"></table>
+                    <div class="d-flex gap-3 mt-2" style="font-size:0.75rem;">
+                        <span><span class="cal-dot" style="background:#1565c0;"></span> Today</span>
+                        <span><span class="cal-dot" style="background:#e3f2fd;border:1px solid #90caf9;"></span> Approved Travel</span>
+                        <span><span class="cal-dot" style="background:#fff8e1;border:1px solid #ffe082;"></span> Pending</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employee Travel History -->
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <h6><i class="bi bi-people-fill"></i> Employee History</h6>
+                    <input type="text" class="form-control form-control-sm" style="width:140px;"
+                           placeholder="Search..." oninput="filterEmployees(this.value)">
+                </div>
+                <div class="dash-card-body p-0">
+                    <div class="scroll-list px-3">
+                        {% for emp in college_employees %}
+                        <div class="employee-row" onclick="viewEmployeeHistory({{ emp.id }}, '{{ emp.get_full_name }}')"
+                             data-name="{{ emp.get_full_name|lower }}">
+                            <div class="traveler-avatar">
+                                {{ emp.first_name|slice:":1" }}{{ emp.last_name|slice:":1" }}
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-600" style="font-size:0.88rem;">{{ emp.get_full_name }}</div>
+                                <div style="font-size:0.75rem; color:#aaa;">
+                                    {{ emp.travel_count }} travel{{ emp.travel_count|pluralize }}
+                                    {% if emp.has_pending_liquidation %}
+                                    <span class="text-danger ms-2"><i class="bi bi-exclamation-circle-fill"></i> Pending Liquidation</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <i class="bi bi-chevron-right text-muted" style="font-size:0.8rem;"></i>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state py-3">
+                            <i class="bi bi-people"></i>
+                            <p>No employees found in your college.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /col-lg-5 -->
+    </div><!-- /row -->
+</div><!-- /container -->
+
+<!-- ═══ APPROVE MODAL ═══ -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-success"><i class="bi bi-check-circle-fill me-2"></i>Confirm Approval</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'travel_app:dean_approve' %}">
+                {% csrf_token %}
+                <input type="hidden" name="travel_id" id="approveId">
+                <input type="hidden" name="action" value="approve">
+                <div class="modal-body">
+                    <p>You are about to approve the travel to <strong id="approveDestination"></strong> for <strong id="approveEmployee"></strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Remarks <span class="text-muted fw-normal">(Optional)</span></label>
+                        <textarea name="remarks" class="form-control" rows="3"
+                                  placeholder="Add any remarks or conditions..."></textarea>
+                    </div>
+                    <div class="alert alert-success py-2 mb-0" style="font-size:0.85rem;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        After approval, the travel order will be forwarded to the Director for final approval.
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-lg me-1"></i>Confirm Approval
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ REJECT MODAL ═══ -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger"><i class="bi bi-x-circle-fill me-2"></i>Reject Travel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'travel_app:dean_approve' %}">
+                {% csrf_token %}
+                <input type="hidden" name="travel_id" id="rejectId">
+                <input type="hidden" name="action" value="reject">
+                <div class="modal-body">
+                    <p>You are about to reject: <strong id="rejectDestination"></strong></p>
+                    <div class="mb-0">
+                        <label class="form-label fw-600">Reason for Rejection <span class="text-muted fw-normal">(Optional)</span></label>
+                        <textarea name="rejection_reason" class="form-control" rows="3"
+                                  placeholder="Provide a reason to help the employee understand..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-lg me-1"></i>Confirm Rejection
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ BATCH WARNING MODAL ═══ -->
+<div class="modal fade" id="batchModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-check2-all me-2"></i>Batch Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'travel_app:dean_batch_approve' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" id="batchAction">
+                <input type="hidden" name="travel_ids" id="batchIds">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Warning:</strong> You are about to <span id="batchActionLabel"></span>
+                        <strong id="batchCountLabel"></strong> travel requests at once.
+                        Make sure you have reviewed each one carefully.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Remarks <span class="text-muted fw-normal">(Optional - applies to all)</span></label>
+                        <textarea name="batch_remarks" class="form-control" rows="2"
+                                  placeholder="Remarks applied to all selected travels..."></textarea>
+                    </div>
+                    <p class="section-label mb-2">Selected Travels:</p>
+                    <div class="warning-list" id="batchTravelList"></div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="batchConfirmBtn">Confirm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ EMPLOYEE HISTORY MODAL ═══ -->
+<div class="modal fade" id="employeeHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-person-lines-fill me-2"></i><span id="empHistoryName"></span> - Travel History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="empHistoryBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════════
+const approved = {{ approved_count }};
+const rejected = {{ rejected_count }};
+const pending  = {{ pending_count }};
+
+// Donut Chart
+new Chart(document.getElementById('donutChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Approved', 'Rejected', 'Pending'],
+        datasets: [{
+            data: [approved, rejected, pending],
+            backgroundColor: ['#2e7d32', '#c62828', '#f57f17'],
+            borderWidth: 0,
+            hoverOffset: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: ctx => ` ${ctx.label}: ${ctx.raw}`
+                }
+            }
+        }
+    }
+});
+
+// Monthly Trend Chart
+const monthLabels = {{ monthly_labels|safe }};
+const monthData   = {{ monthly_data|safe }};
+
+new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+        labels: monthLabels,
+        datasets: [{
+            label: 'Approvals',
+            data: monthData,
+            borderColor: '#1565c0',
+            backgroundColor: 'rgba(21,101,192,0.08)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#1565c0',
+            fill: true,
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+            y: {
+                beginAtZero: true,
+                ticks: { font: { size: 10 }, stepSize: 1 },
+                grid: { color: '#f0f0f0' }
+            }
+        }
+    }
+});
+
+// ═══════════════════════════════════════════════════
+// TAB FILTER
+// ═══════════════════════════════════════════════════
+function filterTab(status, el) {
+    document.querySelectorAll('#approvalTabs .nav-link').forEach(l => l.classList.remove('active'));
+    el.classList.add('active');
+
+    document.querySelectorAll('.approval-item').forEach(item => {
+        if (item.dataset.status === status) {
+            item.classList.remove('d-none');
+        } else {
+            item.classList.add('d-none');
+        }
+    });
+
+    // Uncheck all when switching tabs
+    document.querySelectorAll('.travel-checkbox').forEach(cb => cb.checked = false);
+    updateBatchBar();
+}
+
+// ═══════════════════════════════════════════════════
+// FILTERS
+// ═══════════════════════════════════════════════════
+function applyFilters() {
+    const typeVal     = document.getElementById('filterType').value;
+    const durationVal = document.getElementById('filterDuration').value;
+    const searchVal   = document.getElementById('filterSearch').value.toLowerCase();
+
+    document.querySelectorAll('.approval-item[data-status="pending"]').forEach(item => {
+        let show = true;
+
+        if (typeVal && item.dataset.type !== typeVal) show = false;
+
+        if (durationVal) {
+            const d = parseInt(item.dataset.days);
+            if (durationVal === '1' && d !== 1) show = false;
+            if (durationVal === '2-3' && (d < 2 || d > 3)) show = false;
+            if (durationVal === '4+' && d < 4) show = false;
+        }
+
+        if (searchVal && !item.dataset.employee.includes(searchVal)) show = false;
+
+        item.classList.toggle('d-none', !show);
+    });
+}
+
+// ═══════════════════════════════════════════════════
+// BATCH APPROVAL
+// ═══════════════════════════════════════════════════
+function updateBatchBar() {
+    const checked = document.querySelectorAll('.travel-checkbox:checked');
+    const bar     = document.getElementById('batchBar');
+    document.getElementById('selectedCount').textContent = checked.length;
+    bar.classList.toggle('active', checked.length > 0);
+}
+
+function batchAction(action) {
+    const checked = document.querySelectorAll('.travel-checkbox:checked');
+    if (checked.length === 0) return;
+
+    const ids = Array.from(checked).map(cb => cb.value);
+    document.getElementById('batchIds').value = ids.join(',');
+    document.getElementById('batchAction').value = action;
+    document.getElementById('batchCountLabel').textContent = ids.length;
+    document.getElementById('batchActionLabel').textContent = action === 'approve' ? 'approve' : 'reject';
+    document.getElementById('batchConfirmBtn').className = action === 'approve' ? 'btn btn-success' : 'btn btn-danger';
+    document.getElementById('batchConfirmBtn').textContent = action === 'approve' ? 'Approve All' : 'Reject All';
+
+    // List selected travels
+    const list = document.getElementById('batchTravelList');
+    list.innerHTML = Array.from(checked).map(cb => {
+        const item = cb.closest('.approval-item');
+        const dest = item.querySelector('strong').textContent;
+        return `<div class="py-1 border-bottom" style="font-size:0.85rem;">
+            <i class="bi bi-dot"></i> ${dest}
+        </div>`;
+    }).join('');
+
+    new bootstrap.Modal(document.getElementById('batchModal')).show();
+}
+
+// ═══════════════════════════════════════════════════
+// INDIVIDUAL APPROVE / REJECT MODALS
+// ═══════════════════════════════════════════════════
+function openApproveModal(travelId, destination, employee) {
+    document.getElementById('approveId').value = travelId;
+    document.getElementById('approveDestination').textContent = destination;
+    document.getElementById('approveEmployee').textContent = employee;
+    new bootstrap.Modal(document.getElementById('approveModal')).show();
+}
+
+function openRejectModal(travelId, destination) {
+    document.getElementById('rejectId').value = travelId;
+    document.getElementById('rejectDestination').textContent = destination;
+    new bootstrap.Modal(document.getElementById('rejectModal')).show();
+}
+
+// ═══════════════════════════════════════════════════
+// COMMENTS
+// ═══════════════════════════════════════════════════
+function toggleComments(travelId) {
+    const el = document.getElementById('comments-' + travelId);
+    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+}
+
+// ═══════════════════════════════════════════════════
+// EMPLOYEE HISTORY MODAL
+// ═══════════════════════════════════════════════════
+function viewEmployeeHistory(empId, empName) {
+    document.getElementById('empHistoryName').textContent = empName;
+    document.getElementById('empHistoryBody').innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Loading travel history...</p>
+        </div>`;
+
+    new bootstrap.Modal(document.getElementById('employeeHistoryModal')).show();
+
+    fetch(`/travel/dean/employee-history/${empId}/`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.travels.length === 0) {
+                document.getElementById('empHistoryBody').innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-luggage"></i>
+                        <p>No travels found for this employee.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="row g-3 mb-3">
+                    <div class="col-4 text-center">
+                        <div class="fw-bold fs-4 text-primary">${data.total}</div>
+                        <div class="text-muted" style="font-size:0.75rem;">TOTAL</div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="fw-bold fs-4 text-success">${data.approved}</div>
+                        <div class="text-muted" style="font-size:0.75rem;">APPROVED</div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="fw-bold fs-4 text-warning">${data.pending}</div>
+                        <div class="text-muted" style="font-size:0.75rem;">PENDING</div>
+                    </div>
+                </div>`;
+
+            data.travels.forEach(t => {
+                const statusClass = t.status === 'APPROVED' ? 'badge-approved' :
+                                    t.status === 'REJECTED' ? 'badge-rejected' : 'badge-pending';
+                html += `
+                <div class="approval-item mb-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>${t.destination}</strong>
+                            <span class="badge ${statusClass} ms-2">${t.status_display}</span>
+                            ${t.has_pending_liquidation ? '<span class="badge bg-danger ms-1">Liquidation Pending</span>' : ''}
+                        </div>
+                        <a href="/travel/employee/travel/${t.id}/" class="btn btn-view btn-sm">View</a>
+                    </div>
+                    <div class="travel-meta mt-1">
+                        <span><i class="bi bi-calendar3 me-1"></i>${t.dates}</span>
+                        <span><i class="bi bi-cash me-1"></i>₱${t.budget}</span>
+                    </div>
+                </div>`;
+            });
+
+            document.getElementById('empHistoryBody').innerHTML = html;
+        })
+        .catch(() => {
+            document.getElementById('empHistoryBody').innerHTML = `
+                <div class="alert alert-danger">Failed to load travel history.</div>`;
+        });
+}
+
+function filterEmployees(val) {
+    document.querySelectorAll('.employee-row').forEach(row => {
+        row.style.display = row.dataset.name.includes(val.toLowerCase()) ? '' : 'none';
+    });
+}
+
+// ═══════════════════════════════════════════════════
+// MINI CALENDAR
+// ═══════════════════════════════════════════════════
+const travelDates = {{ travel_dates_json|safe }};
+let calDate = new Date();
+
+function renderCalendar() {
+    const year  = calDate.getFullYear();
+    const month = calDate.getMonth();
+    const today = new Date();
+    const label = calDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    document.getElementById('calMonthLabel').textContent = label;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    let html = '<thead><tr>';
+    ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => {
+        html += `<th>${d}</th>`;
+    });
+    html += '</tr></thead><tbody><tr>';
+
+    for (let i = 0; i < firstDay; i++) html += '<td></td>';
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+        const travel  = travelDates[dateStr];
+
+        let cls = '';
+        let dots = '';
+        if (isToday) cls = 'today';
+        else if (travel) {
+            cls = travel.type === 'pending' ? 'has-pending' : 'has-travel';
+            dots = `<br><span class="cal-dot" style="background:${travel.type === 'pending' ? '#f57f17' : '#1565c0'};"></span>`;
+        }
+
+        html += `<td class="${cls}" title="${travel ? travel.label : ''}">${day}${dots}</td>`;
+
+        if ((firstDay + day) % 7 === 0) html += '</tr><tr>';
+    }
+
+    html += '</tr></tbody>';
+    document.getElementById('miniCal').innerHTML = html;
+}
+
+function changeMonth(dir) {
+    calDate.setMonth(calDate.getMonth() + dir);
+    renderCalendar();
+}
+
+renderCalendar();
+</script>
+</body>
+</html>

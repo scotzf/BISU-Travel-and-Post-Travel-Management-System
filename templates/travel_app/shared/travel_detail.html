@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        /* ── ROLE-BASED THEME VARS ── */
+        {% if user.role == 'DEAN' %}
+        :root {
+            --theme-primary: #1565c0;
+            --theme-dark:    #0d47a1;
+            --theme-light:   #e3f2fd;
+            --theme-accent:  #00b0ff;
+            --theme-surface: #f4f7fb;
+        }
+        {% elif user.role in 'DIRECTOR,PRESIDENT' %}
+        :root {
+            --theme-primary: #4a148c;
+            --theme-dark:    #38006b;
+            --theme-light:   #f3e5f5;
+            --theme-accent:  #ce93d8;
+            --theme-surface: #faf6ff;
+        }
+        {% elif user.role in 'DEPT_SEC,CAMPUS_SEC' %}
+        :root {
+            --theme-primary: #00695c;
+            --theme-dark:    #004d40;
+            --theme-light:   #e0f2f1;
+            --theme-accent:  #4db6ac;
+            --theme-surface: #f4faf9;
+        }
+        {% elif user.role == 'BUDGET' %}
+        :root {
+            --theme-primary: #e65100;
+            --theme-dark:    #bf360c;
+            --theme-light:   #fbe9e7;
+            --theme-accent:  #ffb74d;
+            --theme-surface: #fff8f5;
+        }
+        {% elif user.role == 'CASHIER' %}
+        :root {
+            --theme-primary: #558b2f;
+            --theme-dark:    #33691e;
+            --theme-light:   #f1f8e9;
+            --theme-accent:  #aed581;
+            --theme-surface: #f6faf0;
+        }
+        {% else %}
+        :root {
+            --theme-primary: #1e7e34;
+            --theme-dark:    #155724;
+            --theme-light:   #d4edda;
+            --theme-accent:  #5cb85c;
+            --theme-surface: #f8f9fa;
+        }
+        {% endif %}
+
+        * { box-sizing: border-box; }
+
+        body {
+            background: var(--theme-surface);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.93rem;
+        }
+
+        /* ── NAVBAR ── */
+        .navbar {
+            background: linear-gradient(135deg, var(--theme-dark) 0%, var(--theme-primary) 100%);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+            padding: 0.6rem 1.5rem;
+        }
+        .navbar-brand { font-weight: 800; letter-spacing: 0.5px; }
+
+        /* ── HERO STRIP ── */
+        .detail-hero {
+            background: linear-gradient(135deg, var(--theme-dark) 0%, var(--theme-primary) 60%, var(--theme-accent) 100%);
+            padding: 1.75rem 0 4.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .detail-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 0; right: 0;
+            height: 50px;
+            background: var(--theme-surface);
+            clip-path: ellipse(55% 100% at 50% 100%);
+        }
+        .detail-hero .deco-icon {
+            position: absolute; right: 3%; top: 50%;
+            transform: translateY(-50%);
+            font-size: 14rem; opacity: 0.06; color: white;
+        }
+        .hero-status-pill {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.3rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.78rem; font-weight: 700;
+            border: 1.5px solid rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.15);
+            color: white;
+            backdrop-filter: blur(4px);
+        }
+        .hero-meta-badge {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 14px;
+            padding: 0.2rem 0.65rem;
+            font-size: 0.75rem; color: rgba(255,255,255,0.9);
+        }
+
+        /* ── PULL-UP CONTENT ── */
+        .main-wrap { margin-top: -2.5rem; position: relative; z-index: 10; }
+
+        /* ── CARDS ── */
+        .detail-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+            margin-bottom: 1.25rem;
+        }
+        .card-section-title {
+            font-size: 0.78rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            color: var(--theme-primary);
+            padding-bottom: 0.6rem;
+            border-bottom: 2px solid var(--theme-light);
+            margin-bottom: 1.1rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+
+        /* ── BUDGET WIDGET ── */
+        .budget-widget {
+            background: linear-gradient(135deg, var(--theme-dark) 0%, var(--theme-primary) 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .budget-widget .budget-amount {
+            font-size: 2rem; font-weight: 800; line-height: 1.1;
+        }
+
+        /* ── QUICK INFO ── */
+        .quick-info-item {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 0.85rem;
+        }
+        .quick-info-item:last-child { border-bottom: none; }
+        .quick-info-item .qi-icon {
+            width: 28px; height: 28px;
+            border-radius: 8px;
+            background: var(--theme-light);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--theme-primary);
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        /* ── DOCUMENT ITEMS ── */
+        .doc-item {
+            border: 1.5px solid #edf0f5;
+            border-radius: 12px;
+            padding: 0.9rem 1.1rem;
+            margin-bottom: 0.75rem;
+            background: #fafcff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .doc-item:hover {
+            border-color: var(--theme-accent);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+        }
+        .doc-item:last-child { margin-bottom: 0; }
+        .doc-icon {
+            width: 38px; height: 38px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; flex-shrink: 0;
+        }
+        .doc-icon.pdf    { background: #fff0f0; color: #e53935; }
+        .doc-icon.excel  { background: #f0fff4; color: #2e7d32; }
+        .doc-icon.letter { background: #fffde7; color: #f57f17; }
+        .doc-icon.fin    { background: #e8f5e9; color: #2e7d32; }
+        .doc-icon.post   { background: #e3f2fd; color: #1565c0; }
+        .doc-icon.liq    { background: #fce4ec; color: #c62828; }
+
+        /* ── DOC SECTION HEADERS ── */
+        .doc-section-label {
+            font-size: 0.72rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            color: #aaa; margin: 1rem 0 0.6rem;
+        }
+        .doc-section-label:first-child { margin-top: 0; }
+
+        /* ── REPLACED DOCS ── */
+        .doc-item.replaced {
+            opacity: 0.5;
+            background: #f9f9f9;
+        }
+
+        /* ── ACTION BUTTONS ── */
+        .btn-doc-action {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.28rem 0.65rem;
+            border-radius: 7px;
+            font-size: 0.78rem; font-weight: 600;
+            border: 1.5px solid;
+            transition: background 0.15s;
+            text-decoration: none;
+        }
+        .btn-view-doc {
+            background: var(--theme-light);
+            border-color: var(--theme-accent);
+            color: var(--theme-primary);
+        }
+        .btn-view-doc:hover {
+            background: var(--theme-accent);
+            color: white;
+        }
+        .btn-download-doc {
+            background: #f5f5f5;
+            border-color: #ddd;
+            color: #555;
+        }
+        .btn-download-doc:hover {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        /* ── PARTICIPANT BADGES ── */
+        .participant-chip {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            background: var(--theme-light);
+            color: var(--theme-primary);
+            border: 1px solid var(--theme-accent);
+            border-radius: 20px;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem; font-weight: 600;
+        }
+
+        /* ── UPLOAD BTN ── */
+        .btn-upload {
+            background: var(--theme-primary);
+            color: white;
+            border: none;
+            border-radius: 9px;
+            padding: 0.4rem 1rem;
+            font-size: 0.82rem; font-weight: 600;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .btn-upload:hover { background: var(--theme-dark); color: white; }
+
+        /* ── CASHIER NOTICE ── */
+        .cashier-notice {
+            background: var(--theme-light);
+            border: 1.5px solid var(--theme-accent);
+            border-radius: 12px;
+            padding: 0.9rem 1.1rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--theme-dark);
+        }
+
+        /* ── STATUS COLORS ── */
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.25rem 0.7rem;
+            border-radius: 20px;
+            font-size: 0.75rem; font-weight: 700;
+        }
+        .status-approved  { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .status-pending   { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
+        .status-rejected  { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+
+        /* ── MISSING DOCS ALERT ── */
+        .missing-alert {
+            background: #fff8e1;
+            border: 1.5px solid #ffe082;
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.84rem;
+        }
+
+        /* ── LIQUIDATION SUMMARY ── */
+        .liq-summary-row {
+            display: flex; justify-content: space-between;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 0.86rem;
+        }
+        .liq-summary-row:last-child { border-bottom: none; }
+
+        /* ── ROLE CHIP ── */
+        .viewer-role-chip {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.35);
+            border-radius: 12px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.72rem; color: white; font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════ NAVBAR ═══════════════ -->
+<nav class="navbar navbar-dark navbar-expand-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="
+            {% if user.role == 'DEAN' %}{% url 'travel_app:dean_dashboard' %}
+            {% elif user.role == 'DIRECTOR' %}{% url 'travel_app:director_dashboard' %}
+            {% elif user.role == 'PRESIDENT' %}{% url 'travel_app:president_dashboard' %}
+            {% elif user.role in 'DEPT_SEC,CAMPUS_SEC' %}{% url 'travel_app:secretary_dashboard' %}
+            {% elif user.role == 'BUDGET' %}{% url 'travel_app:budget_dashboard' %}
+            {% elif user.role == 'CASHIER' %}{% url 'travel_app:cashier_dashboard' %}
+            {% else %}{% url 'travel_app:employee_dashboard' %}{% endif %}">
+            <i class="bi bi-airplane-fill me-2"></i>BISU Travel
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+                <li class="nav-item">
+                    <a class="nav-link" href="
+                        {% if user.role == 'DEAN' %}{% url 'travel_app:dean_dashboard' %}
+                        {% elif user.role == 'DIRECTOR' %}{% url 'travel_app:director_dashboard' %}
+                        {% elif user.role == 'PRESIDENT' %}{% url 'travel_app:president_dashboard' %}
+                        {% elif user.role in 'DEPT_SEC,CAMPUS_SEC' %}{% url 'travel_app:secretary_dashboard' %}
+                        {% elif user.role == 'BUDGET' %}{% url 'travel_app:budget_dashboard' %}
+                        {% elif user.role == 'CASHIER' %}{% url 'travel_app:cashier_dashboard' %}
+                        {% else %}{% url 'travel_app:employee_dashboard' %}{% endif %}">
+                        <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>{{ user.first_name }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-person me-2"></i>Profile</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'accounts:logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="detail-hero">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div class="text-white">
+                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                    <span class="viewer-role-chip">
+                        <i class="bi bi-person-badge"></i>
+                        {{ user.get_full_name }} &middot; {{ user.get_role_display }}
+                    </span>
+                    {% if travel.is_out_of_province %}
+                    <span class="hero-meta-badge"><i class="bi bi-signpost-split"></i> Out-of-Province</span>
+                    {% endif %}
+                </div>
+                <h2 class="fw-bold mb-1">{{ travel.destination }}</h2>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <span class="hero-meta-badge"><i class="bi bi-calendar3"></i> {{ travel.start_date|date:"M d" }} – {{ travel.end_date|date:"M d, Y" }}</span>
+                    <span class="hero-meta-badge"><i class="bi bi-clock"></i> {{ travel.get_duration_days }} day{{ travel.get_duration_days|pluralize }}</span>
+                    <span class="hero-meta-badge"><i class="bi bi-building"></i> {{ travel.initiating_office }}</span>
+                </div>
+            </div>
+            <div class="d-flex flex-column align-items-end gap-2">
+                {% if travel.travel_order.status == 'APPROVED' %}
+                <span class="hero-status-pill"><i class="bi bi-check-circle-fill"></i> {{ travel.travel_order.get_status_display }}</span>
+                {% elif travel.travel_order.status == 'REJECTED' %}
+                <span class="hero-status-pill"><i class="bi bi-x-circle-fill"></i> {{ travel.travel_order.get_status_display }}</span>
+                {% else %}
+                <span class="hero-status-pill"><i class="bi bi-hourglass-split"></i> {{ travel.travel_order.get_status_display }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="deco-icon"><i class="bi bi-airplane"></i></div>
+</div>
+
+<!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+<div class="container main-wrap pb-5">
+
+    <!-- Flash Messages -->
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Cashier notice -->
+    {% if can_download_financial_only %}
+    <div class="cashier-notice">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        <strong>Cashier View:</strong> You can view and download financial documents (DV & BURS) for this travel.
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+
+        <!-- ═══ LEFT COLUMN ═══ -->
+        <div class="col-lg-8">
+
+            <!-- TRAVEL INFO CARD -->
+            <div class="detail-card">
+                <div class="card-section-title">
+                    <i class="bi bi-info-circle-fill"></i> Travel Information
+                </div>
+                <p class="mb-2"><strong>Purpose:</strong></p>
+                <p class="text-muted mb-3" style="line-height:1.6;">{{ travel.purpose }}</p>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block mb-1">Initiating Office</small>
+                        <span class="fw-600">{{ travel.initiating_office }}</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block mb-1">Funding Office</small>
+                        <span class="fw-600">{{ travel.funding_office|default:travel.initiating_office }}</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block mb-1">Prepayment</small>
+                        <span class="fw-600">{{ travel.get_prepayment_option_display }}</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block mb-1">Travel Type</small>
+                        <span class="fw-600">{% if travel.is_out_of_province %}Out-of-Province{% else %}In-Province{% endif %}</span>
+                    </div>
+                </div>
+
+                <small class="text-muted d-block mb-2">Participants</small>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for participant in travel.participants_group.users.all %}
+                    <span class="participant-chip">
+                        <i class="bi bi-person-fill"></i>{{ participant.get_full_name }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- DOCUMENT HUB CARD — hidden for cashier (they only see financial section below) -->
+            {% if not can_download_financial_only %}
+            <div class="detail-card">
+                <div class="card-section-title">
+                    <i class="bi bi-folder2-open"></i> Document Hub
+                </div>
+
+                <!-- ── PRE-TRAVEL DOCS ── -->
+                <div class="doc-section-label">Pre-Travel Documents</div>
+
+                {% if travel.travel_order.initiation %}
+                <div class="doc-item">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="doc-icon pdf"><i class="bi bi-file-pdf-fill"></i></div>
+                        <div class="flex-grow-1">
+                            <div class="fw-600 mb-1" style="font-size:0.88rem;">
+                                Initiation Document
+                                <span class="badge bg-success ms-1" style="font-size:0.65rem;">✓ Uploaded</span>
+                            </div>
+                            <small class="text-muted">{{ travel.travel_order.initiation.get_document_type_display }} &middot; Issued by {{ travel.travel_order.initiation.issuer }}</small><br>
+                            <small class="text-muted">{{ travel.travel_order.initiation.uploaded_at|date:"M d, Y" }}</small>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <a href="{{ travel.travel_order.initiation.file.url }}" target="_blank" class="btn-doc-action btn-view-doc">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            <a href="{{ travel.travel_order.initiation.file.url }}" download class="btn-doc-action btn-download-doc">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="doc-item" style="background:#fafafa;">
+                    <span class="text-muted" style="font-size:0.83rem;"><i class="bi bi-dash-circle me-2"></i>No initiation document uploaded</span>
+                </div>
+                {% endif %}
+
+                {% if travel.itinerary.file %}
+                <div class="doc-item">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="doc-icon excel"><i class="bi bi-file-earmark-spreadsheet-fill"></i></div>
+                        <div class="flex-grow-1">
+                            <div class="fw-600 mb-1" style="font-size:0.88rem;">
+                                Itinerary of Travel
+                                <span class="badge bg-success ms-1" style="font-size:0.65rem;">✓ Uploaded</span>
+                            </div>
+                            <small class="text-muted">Budget: ₱{{ travel.itinerary.estimated_total|floatformat:2 }} &middot; {{ travel.itinerary.estimated_days }} day{{ travel.itinerary.estimated_days|pluralize }}, {{ travel.itinerary.estimated_nights }} night{{ travel.itinerary.estimated_nights|pluralize }}</small>
+                        </div>
+                        <div class="d-flex gap-1">
+                            {% if travel.itinerary.file.name|slice:"-5:" == '.xlsx' or travel.itinerary.file.name|slice:"-4:" == '.xls' %}
+                            <a href="{{ travel.itinerary.file.url }}" download class="btn-doc-action btn-download-doc">
+                                <i class="bi bi-download"></i> Excel
+                            </a>
+                            {% else %}
+                            <a href="{{ travel.itinerary.file.url }}" target="_blank" class="btn-doc-action btn-view-doc">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            <a href="{{ travel.itinerary.file.url }}" download class="btn-doc-action btn-download-doc">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if travel.letter_request and travel.letter_request.file %}
+                <div class="doc-item">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="doc-icon letter"><i class="bi bi-envelope-paper-fill"></i></div>
+                        <div class="flex-grow-1">
+                            <div class="fw-600 mb-1" style="font-size:0.88rem;">
+                                Letter Request to President
+                                <span class="badge ms-1" style="font-size:0.65rem;
+                                    {% if travel.letter_request.status == 'APPROVED' %}background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;
+                                    {% elif travel.letter_request.status == 'REJECTED' %}background:#ffebee;color:#c62828;border:1px solid #ef9a9a;
+                                    {% else %}background:#fff8e1;color:#f57f17;border:1px solid #ffe082;{% endif %}">
+                                    {{ travel.letter_request.get_status_display }}
+                                </span>
+                            </div>
+                            <small class="text-muted">Out-of-Province Justification</small>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <a href="{{ travel.letter_request.file.url }}" target="_blank" class="btn-doc-action btn-view-doc">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            <a href="{{ travel.letter_request.file.url }}" download class="btn-doc-action btn-download-doc">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- ── FINANCIAL DOCS ── -->
+                <div class="doc-section-label mt-3">Financial Documents</div>
+
+                {% if financial_docs_grouped %}
+                    {% if financial_docs_grouped.DV %}
+                        <p class="mb-1" style="font-size:0.78rem;font-weight:700;color:#555;">Disbursement Voucher (DV)</p>
+                        {% for doc in financial_docs_grouped.DV %}
+                        <div class="doc-item {% if doc.status == 'REPLACED' %}replaced{% endif %}">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="doc-icon fin"><i class="bi bi-file-earmark-check-fill"></i></div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-600 mb-1" style="font-size:0.88rem;">
+                                        DV
+                                        {% if doc.status == 'REPLACED' %}
+                                        <span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Replaced</span>
+                                        {% else %}
+                                        <span class="badge bg-success ms-1" style="font-size:0.65rem;">Current</span>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ doc.upload_date|date:"M d, Y · g:i A" }} · {{ doc.uploaded_by.get_full_name }}</small>
+                                    {% if doc.notes %}<br><small class="text-muted">{{ doc.notes }}</small>{% endif %}
+                                </div>
+                                <div class="d-flex gap-1">
+                                    <a href="{{ doc.file.url }}" target="_blank" class="btn-doc-action btn-view-doc">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="{{ doc.file.url }}" download class="btn-doc-action btn-download-doc">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="missing-alert d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <span><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i><strong>DV</strong> not yet uploaded</span>
+                        {% if can_upload_financial %}
+                        <button type="button" class="btn-upload" data-bs-toggle="modal" data-bs-target="#uploadFinancialModal" onclick="setDocType('DV')">
+                            <i class="bi bi-upload me-1"></i> Upload DV
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if financial_docs_grouped.BURS %}
+                        <p class="mb-1 mt-2" style="font-size:0.78rem;font-weight:700;color:#555;">Budget Utilization Request and Status (BURS)</p>
+                        {% for doc in financial_docs_grouped.BURS %}
+                        <div class="doc-item {% if doc.status == 'REPLACED' %}replaced{% endif %}">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="doc-icon fin"><i class="bi bi-file-earmark-bar-graph-fill"></i></div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-600 mb-1" style="font-size:0.88rem;">
+                                        BURS
+                                        {% if doc.status == 'REPLACED' %}
+                                        <span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Replaced</span>
+                                        {% else %}
+                                        <span class="badge bg-success ms-1" style="font-size:0.65rem;">Current</span>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ doc.upload_date|date:"M d, Y · g:i A" }} · {{ doc.uploaded_by.get_full_name }}</small>
+                                    {% if doc.notes %}<br><small class="text-muted">{{ doc.notes }}</small>{% endif %}
+                                </div>
+                                <div class="d-flex gap-1">
+                                    <a href="{{ doc.file.url }}" target="_blank" class="btn-doc-action btn-view-doc">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="{{ doc.file.url }}" download class="btn-doc-action btn-download-doc">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="missing-alert d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+                        <span><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i><strong>BURS</strong> not yet uploaded</span>
+                        {% if can_upload_financial %}
+                        <button type="button" class="btn-upload" data-bs-toggle="modal" data-bs-target="#uploadFinancialModal" onclick="setDocType('BURS')">
+                            <i class="bi bi-upload me-1"></i> Upload BURS
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% else %}
+                <div class="missing-alert">
+                    <i class="bi bi-info-circle me-2"></i>No financial documents uploaded yet.
+                    {% if can_upload_financial %}
+                    <div class="mt-2">
+                        <button type="button" class="btn-upload" data-bs-toggle="modal" data-bs-target="#uploadFinancialModal">
+                            <i class="bi bi-upload me-1"></i> Upload Financial Documents
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- ── POST-TRAVEL DOCS (only after travel ends) ── -->
+                {% if is_completed %}
+                <div class="doc-section-label mt-3">Post-Travel Documents</div>
+
+                {% if missing_docs %}
+                <div class="missing-alert mb-2">
+                    <strong><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Missing Required Documents:</strong>
+                    <ul class="mb-0 mt-1 ps-3">
+                        {% for key, value in missing_docs.items %}
+                        <li style="font-size:0.83rem;">{{ value }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if post_travel_docs %}
+                    {% for doc in post_travel_docs %}
+                    <div class="doc-item">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="doc-icon post"><i class="bi bi-file-earmark-check-fill"></i></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-600 mb-1" style="font-size:0.88rem;">{{ doc.get_document_type_display }}</div>
+                                <small class="text-muted">{{ doc.submit_date|date:"M d, Y · g:i A" }}</small>
+                                {% if doc.notes %}<br><small class="text-muted">{{ doc.notes }}</small>{% endif %}
+                            </div>
+                            <div class="d-flex gap-1">
+                                <a href="{{ doc.file.url }}" target="_blank" class="btn-doc-action btn-view-doc">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <a href="{{ doc.file.url }}" download class="btn-doc-action btn-download-doc">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted" style="font-size:0.84rem;">No post-travel documents uploaded yet.</p>
+                {% endif %}
+
+                {% if can_upload_post_travel %}
+                <button type="button" class="btn-upload mt-2" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
+                    <i class="bi bi-upload me-1"></i> Upload Post-Travel Document
+                </button>
+                {% endif %}
+
+                <!-- ── LIQUIDATION ── -->
+                <div class="doc-section-label mt-3">Liquidation Report</div>
+
+                {% if has_liquidation %}
+                <div class="doc-item" style="border-color:#a5d6a7; background:#f9fffe;">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="doc-icon liq"><i class="bi bi-calculator-fill"></i></div>
+                        <div class="flex-grow-1">
+                            <div class="fw-600 mb-1" style="font-size:0.88rem;">
+                                Liquidation Report
+                                <span class="badge bg-success ms-1" style="font-size:0.65rem;">Submitted</span>
+                            </div>
+                            <div class="liq-summary-row">
+                                <span class="text-muted">Total Spent</span>
+                                <strong>₱{{ travel.liquidation_report.total_amount_spent|floatformat:2 }}</strong>
+                            </div>
+                            <div class="liq-summary-row">
+                                <span class="text-muted">Cash Advance</span>
+                                <strong>₱{{ travel.liquidation_report.cash_advance|floatformat:2 }}</strong>
+                            </div>
+                            {% if travel.liquidation_report.amount_refunded > 0 %}
+                            <div class="liq-summary-row">
+                                <span class="text-danger fw-600">To Refund</span>
+                                <strong class="text-danger">₱{{ travel.liquidation_report.amount_refunded|floatformat:2 }}</strong>
+                            </div>
+                            {% elif travel.liquidation_report.amount_to_be_reimbursed > 0 %}
+                            <div class="liq-summary-row">
+                                <span class="text-success fw-600">To Reimburse</span>
+                                <strong class="text-success">₱{{ travel.liquidation_report.amount_to_be_reimbursed|floatformat:2 }}</strong>
+                            </div>
+                            {% else %}
+                            <div class="liq-summary-row">
+                                <span class="text-muted">Balance</span>
+                                <strong>₱0.00 (Exact match)</strong>
+                            </div>
+                            {% endif %}
+                            <small class="text-muted d-block mt-1">Submitted: {{ travel.liquidation_report.submit_date|date:"F d, Y" }}</small>
+                        </div>
+                        {% if travel.liquidation_report.file %}
+                        <div class="d-flex gap-1">
+                            <a href="{{ travel.liquidation_report.file.url }}" target="_blank" class="btn-doc-action btn-view-doc">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            <a href="{{ travel.liquidation_report.file.url }}" download class="btn-doc-action btn-download-doc">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="missing-alert">
+                    <i class="bi bi-exclamation-circle me-2"></i>Liquidation report not yet submitted.
+                </div>
+                {% if can_upload_liquidation %}
+                <button type="button" class="btn-upload mt-1" data-bs-toggle="modal" data-bs-target="#liquidationModal">
+                    <i class="bi bi-file-earmark-check me-1"></i> Submit Liquidation Report
+                </button>
+                {% endif %}
+                {% endif %}
+                {% endif %}
+                <!-- end is_completed -->
+
+            </div>
+            <!-- end Document Hub -->
+            {% endif %}
+            <!-- end not cashier -->
+
+            <!-- CASHIER: Financial docs only -->
+            {% if can_download_financial_only %}
+            <div class="detail-card">
+                <div class="card-section-title">
+                    <i class="bi bi-cash-stack"></i> Financial Documents
+                </div>
+                {% if financial_docs_grouped %}
+                    {% if financial_docs_grouped.DV %}
+                    <p class="mb-1" style="font-size:0.78rem;font-weight:700;color:#555;">Disbursement Voucher (DV)</p>
+                    {% for doc in financial_docs_grouped.DV %}
+                    <div class="doc-item {% if doc.status == 'REPLACED' %}replaced{% endif %}">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="doc-icon fin"><i class="bi bi-file-earmark-check-fill"></i></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-600 mb-1" style="font-size:0.88rem;">DV
+                                    {% if doc.status == 'REPLACED' %}<span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Replaced</span>
+                                    {% else %}<span class="badge bg-success ms-1" style="font-size:0.65rem;">Current</span>{% endif %}
+                                </div>
+                                <small class="text-muted">{{ doc.upload_date|date:"M d, Y · g:i A" }}</small>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <a href="{{ doc.file.url }}" target="_blank" class="btn-doc-action btn-view-doc"><i class="bi bi-eye"></i> View</a>
+                                <a href="{{ doc.file.url }}" download class="btn-doc-action btn-download-doc"><i class="bi bi-download"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if financial_docs_grouped.BURS %}
+                    <p class="mb-1 mt-2" style="font-size:0.78rem;font-weight:700;color:#555;">BURS</p>
+                    {% for doc in financial_docs_grouped.BURS %}
+                    <div class="doc-item {% if doc.status == 'REPLACED' %}replaced{% endif %}">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="doc-icon fin"><i class="bi bi-file-earmark-bar-graph-fill"></i></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-600 mb-1" style="font-size:0.88rem;">BURS
+                                    {% if doc.status == 'REPLACED' %}<span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Replaced</span>
+                                    {% else %}<span class="badge bg-success ms-1" style="font-size:0.65rem;">Current</span>{% endif %}
+                                </div>
+                                <small class="text-muted">{{ doc.upload_date|date:"M d, Y · g:i A" }}</small>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <a href="{{ doc.file.url }}" target="_blank" class="btn-doc-action btn-view-doc"><i class="bi bi-eye"></i> View</a>
+                                <a href="{{ doc.file.url }}" download class="btn-doc-action btn-download-doc"><i class="bi bi-download"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                {% else %}
+                <div class="missing-alert"><i class="bi bi-info-circle me-2"></i>No financial documents available yet.</div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        </div>
+        <!-- end left col -->
+
+        <!-- ═══ RIGHT COLUMN ═══ -->
+        <div class="col-lg-4">
+
+            <!-- BUDGET WIDGET -->
+            <div class="budget-widget">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 fw-700" style="opacity:0.85;">Budget Overview</h6>
+                    <i class="bi bi-wallet2-fill" style="font-size:1.3rem;opacity:0.5;"></i>
+                </div>
+                <div class="budget-amount">₱{{ estimated_budget|floatformat:2 }}</div>
+                <small style="opacity:0.75;">Estimated Budget</small>
+                {% if travel.payroll and total_budget != estimated_budget %}
+                <hr style="border-color:rgba(255,255,255,0.2); margin:0.75rem 0;">
+                <div class="d-flex justify-content-between" style="font-size:0.82rem;opacity:0.85;">
+                    <span>Group Total ({{ travel.participants_group.users.count }} person{{ travel.participants_group.users.count|pluralize }})</span>
+                    <strong>₱{{ total_budget|floatformat:2 }}</strong>
+                </div>
+                {% endif %}
+                {% if is_participant and travel.travel_order.status in 'PENDING_DEAN,PENDING_DIRECTOR' and not is_ongoing and not is_completed %}
+                <button type="button" class="btn btn-sm btn-light mt-3 w-100" data-bs-toggle="modal" data-bs-target="#editBudgetModal">
+                    <i class="bi bi-pencil me-1"></i> Edit Budget
+                </button>
+                {% endif %}
+            </div>
+
+            <!-- QUICK INFO -->
+            <div class="detail-card">
+                <div class="card-section-title">
+                    <i class="bi bi-lightning-fill"></i> Quick Info
+                </div>
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-hash"></i></div>
+                    <div><small class="text-muted d-block" style="font-size:0.7rem;">Travel ID</small><strong>#{{ travel.id }}</strong></div>
+                </div>
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-calendar-plus"></i></div>
+                    <div><small class="text-muted d-block" style="font-size:0.7rem;">Created</small><strong>{{ travel.created_at|date:"M d, Y" }}</strong></div>
+                </div>
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-flag-fill"></i></div>
+                    <div>
+                        <small class="text-muted d-block" style="font-size:0.7rem;">Status</small>
+                        {% if travel.travel_order.status == 'APPROVED' %}
+                        <span class="status-pill status-approved"><i class="bi bi-check-circle-fill"></i> {{ travel.travel_order.get_status_display }}</span>
+                        {% elif travel.travel_order.status == 'REJECTED' %}
+                        <span class="status-pill status-rejected"><i class="bi bi-x-circle-fill"></i> {{ travel.travel_order.get_status_display }}</span>
+                        {% else %}
+                        <span class="status-pill status-pending"><i class="bi bi-hourglass-split"></i> {{ travel.travel_order.get_status_display }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if is_completed %}
+                <div class="quick-info-item">
+                    <div class="qi-icon" style="background:#e8f5e9;color:#2e7d32;"><i class="bi bi-check2-all"></i></div>
+                    <div><small class="text-muted d-block" style="font-size:0.7rem;">Travel Phase</small><strong class="text-success">Completed</strong></div>
+                </div>
+                {% elif is_ongoing %}
+                <div class="quick-info-item">
+                    <div class="qi-icon" style="background:#fff8e1;color:#f57f17;"><i class="bi bi-geo-alt-fill"></i></div>
+                    <div><small class="text-muted d-block" style="font-size:0.7rem;">Travel Phase</small><strong class="text-warning">Ongoing</strong></div>
+                </div>
+                {% else %}
+                <div class="quick-info-item">
+                    <div class="qi-icon" style="background:#e3f2fd;color:#1565c0;"><i class="bi bi-calendar-event-fill"></i></div>
+                    <div><small class="text-muted d-block" style="font-size:0.7rem;">Travel Phase</small><strong class="text-primary">Upcoming</strong></div>
+                </div>
+                {% endif %}
+                {% if travel.travel_order.approved_by_dean %}
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-person-check-fill"></i></div>
+                    <div>
+                        <small class="text-muted d-block" style="font-size:0.7rem;">Dean Approval</small>
+                        <strong>{{ travel.travel_order.approved_by_dean.get_full_name }}</strong><br>
+                        <small class="text-muted">{{ travel.travel_order.dean_approval_date|date:"M d, Y" }}</small>
+                    </div>
+                </div>
+                {% endif %}
+                {% if travel.travel_order.approved_by_director %}
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-person-check-fill"></i></div>
+                    <div>
+                        <small class="text-muted d-block" style="font-size:0.7rem;">Director Approval</small>
+                        <strong>{{ travel.travel_order.approved_by_director.get_full_name }}</strong><br>
+                        <small class="text-muted">{{ travel.travel_order.director_approval_date|date:"M d, Y" }}</small>
+                    </div>
+                </div>
+                {% endif %}
+                {% if travel.travel_order.rejection_reason %}
+                <div class="quick-info-item">
+                    <div class="qi-icon" style="background:#ffebee;color:#c62828;"><i class="bi bi-x-circle-fill"></i></div>
+                    <div>
+                        <small class="text-muted d-block" style="font-size:0.7rem;">Rejection Reason</small>
+                        <span class="text-danger" style="font-size:0.83rem;">{{ travel.travel_order.rejection_reason }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- DOCUMENT STATUS SUMMARY (non-cashier only) -->
+            {% if not can_download_financial_only %}
+            <div class="detail-card">
+                <div class="card-section-title">
+                    <i class="bi bi-clipboard2-check-fill"></i> Document Status
+                </div>
+                <div class="quick-info-item">
+                    <div class="qi-icon {% if travel.travel_order.initiation %}' style='background:#e8f5e9;color:#2e7d32;{% endif %}"><i class="bi bi-file-text-fill"></i></div>
+                    <div class="flex-grow-1 d-flex justify-content-between align-items-center">
+                        <span style="font-size:0.83rem;">Initiation Doc</span>
+                        {% if travel.travel_order.initiation %}
+                        <span class="badge bg-success" style="font-size:0.65rem;">✓</span>
+                        {% else %}
+                        <span class="badge bg-secondary" style="font-size:0.65rem;">Missing</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-file-earmark-spreadsheet-fill"></i></div>
+                    <div class="flex-grow-1 d-flex justify-content-between align-items-center">
+                        <span style="font-size:0.83rem;">Itinerary</span>
+                        {% if travel.itinerary.file %}
+                        <span class="badge bg-success" style="font-size:0.65rem;">✓</span>
+                        {% else %}
+                        <span class="badge bg-secondary" style="font-size:0.65rem;">Missing</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-file-earmark-check-fill"></i></div>
+                    <div class="flex-grow-1 d-flex justify-content-between align-items-center">
+                        <span style="font-size:0.83rem;">DV</span>
+                        {% if financial_docs_grouped.DV %}
+                        <span class="badge bg-success" style="font-size:0.65rem;">✓</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark" style="font-size:0.65rem;">Pending</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-file-earmark-bar-graph-fill"></i></div>
+                    <div class="flex-grow-1 d-flex justify-content-between align-items-center">
+                        <span style="font-size:0.83rem;">BURS</span>
+                        {% if financial_docs_grouped.BURS %}
+                        <span class="badge bg-success" style="font-size:0.65rem;">✓</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark" style="font-size:0.65rem;">Pending</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if is_completed %}
+                {% for key, value in required_docs.items %}
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-clipboard-check-fill"></i></div>
+                    <div class="flex-grow-1 d-flex justify-content-between align-items-center">
+                        <span style="font-size:0.83rem;">{{ value|truncatechars:28 }}</span>
+                        {% if key not in missing_docs %}
+                        <span class="badge bg-success" style="font-size:0.65rem;">✓</span>
+                        {% else %}
+                        <span class="badge bg-danger" style="font-size:0.65rem;">Missing</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                <div class="quick-info-item">
+                    <div class="qi-icon"><i class="bi bi-calculator-fill"></i></div>
+                    <div class="flex-grow-1 d-flex justify-content-between align-items-center">
+                        <span style="font-size:0.83rem;">Liquidation</span>
+                        {% if has_liquidation %}
+                        <span class="badge bg-success" style="font-size:0.65rem;">✓</span>
+                        {% else %}
+                        <span class="badge bg-danger" style="font-size:0.65rem;">Missing</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        </div>
+        <!-- end right col -->
+    </div>
+</div>
+
+<!-- ═══ UPLOAD POST-TRAVEL DOCUMENT MODAL ═══ -->
+{% if can_upload_post_travel %}
+<div class="modal fade" id="uploadDocModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Upload Post-Travel Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'travel_app:upload_post_travel_document' travel.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Document Type <span class="text-danger">*</span></label>
+                        <select name="doc_type" class="form-select" required>
+                            <option value="">-- Select Type --</option>
+                            <option value="COMPLETED">Certificate of Travel Completed</option>
+                            <option value="RECEIPTS">Certificate of Not Requiring Receipts</option>
+                            <option value="APPEARANCE">Certificate of Appearance</option>
+                            <option value="ACTUAL_ITINERARY">Actual Itinerary of Travel</option>
+                            <option value="REPORT">Post Activity Report</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">File <span class="text-danger">*</span></label>
+                        <input type="file" name="file" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Notes <span class="text-muted fw-normal">(Optional)</span></label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══ LIQUIDATION MODAL ═══ -->
+{% if can_upload_liquidation %}
+<div class="modal fade" id="liquidationModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-calculator me-2"></i>Submit Liquidation Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'travel_app:submit_liquidation' travel.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Total Amount Spent (₱) <span class="text-danger">*</span></label>
+                        <input type="number" name="total_spent" class="form-control" step="0.01" min="0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Upload Report <span class="text-muted fw-normal">(Optional)</span></label>
+                        <input type="file" name="file" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Notes <span class="text-muted fw-normal">(Optional)</span></label>
+                        <textarea name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══ UPLOAD FINANCIAL DOCUMENT MODAL ═══ -->
+{% if can_upload_financial %}
+<div class="modal fade" id="uploadFinancialModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-cash-stack me-2"></i>Upload Financial Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'travel_app:upload_financial_document' travel.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Document Type <span class="text-danger">*</span></label>
+                        <select name="doc_type" id="financial_doc_type" class="form-select" required>
+                            <option value="">-- Select Type --</option>
+                            <option value="DV">Disbursement Voucher (DV)</option>
+                            <option value="BURS">Budget Utilization Request and Status (BURS)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">File <span class="text-danger">*</span></label>
+                        <input type="file" name="file" class="form-control" required accept=".pdf,.doc,.docx,.xls,.xlsx">
+                        <small class="text-muted">PDF, Word, or Excel files accepted</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Notes <span class="text-muted fw-normal">(Optional)</span></label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i>Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══ EDIT BUDGET MODAL ═══ -->
+{% if is_participant and travel.travel_order.status in 'PENDING_DEAN,PENDING_DIRECTOR' and not is_ongoing and not is_completed %}
+<div class="modal fade" id="editBudgetModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-pencil-fill me-2"></i>Edit Budget Breakdown</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'travel_app:edit_travel_budget' travel.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info py-2" style="font-size:0.85rem;">
+                        <i class="bi bi-info-circle me-1"></i> Adjust these values if the auto-extracted budget was incorrect.
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-600">Number of Meals</label>
+                            <input type="number" name="estimated_meals" class="form-control" value="{{ travel.itinerary.estimated_meals_count }}" min="0" required>
+                            <small class="text-muted">@ ₱{{ travel.itinerary.region_rate.meal_rate }} per meal</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-600">Number of Days</label>
+                            <input type="number" name="estimated_days" class="form-control" value="{{ travel.itinerary.estimated_days }}" min="1" required>
+                            <small class="text-muted">@ ₱{{ travel.itinerary.region_rate.incidental_rate }} per day (incidentals)</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-600">Number of Nights</label>
+                            <input type="number" name="estimated_nights" class="form-control" value="{{ travel.itinerary.estimated_nights }}" min="0" required>
+                            <small class="text-muted">@ ₱{{ travel.itinerary.region_rate.lodging_rate }} per night</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-600">Transportation (₱)</label>
+                            <input type="number" name="estimated_transportation" class="form-control" value="{{ travel.itinerary.estimated_transportation }}" min="0" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-600">Other Expenses (₱)</label>
+                            <input type="number" name="estimated_other" class="form-control" value="{{ travel.itinerary.estimated_other_expenses }}" min="0" required>
+                            <small class="text-muted">Registration fees, materials, etc.</small>
+                        </div>
+                    </div>
+                    <div class="alert alert-secondary mt-3 py-2" style="font-size:0.85rem;">
+                        <strong>Current Total:</strong> ₱{{ travel.itinerary.estimated_total|floatformat:2 }}
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg me-1"></i>Update Budget</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function setDocType(type) {
+    const el = document.getElementById('financial_doc_type');
+    if (el) el.value = type;
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --dean-primary: #1565c0;
+            --dean-dark:    #0d47a1;
+            --dean-light:   #e3f2fd;
+            --dean-accent:  #00b0ff;
+            --dean-surface: #f4f7fb;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--dean-surface);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.93rem;
+        }
+
+        /* NAVBAR */
+        .navbar {
+            background: linear-gradient(135deg, var(--dean-dark) 0%, var(--dean-primary) 100%);
+            box-shadow: 0 2px 12px rgba(13,71,161,0.25);
+            padding: 0.6rem 1.5rem;
+        }
+        .navbar-brand { font-weight: 800; }
+
+        /* HERO */
+        .create-hero {
+            background: linear-gradient(135deg, var(--dean-dark) 0%, var(--dean-primary) 55%, var(--dean-accent) 100%);
+            padding: 1.75rem 0 4.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .create-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 0; right: 0;
+            height: 50px;
+            background: var(--dean-surface);
+            clip-path: ellipse(55% 100% at 50% 100%);
+        }
+        .create-hero .deco-icon {
+            position: absolute; right: 3%; top: 50%;
+            transform: translateY(-50%);
+            font-size: 14rem; opacity: 0.06; color: white;
+        }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.78rem; color: white;
+        }
+
+        /* PULL-UP */
+        .main-wrap { margin-top: -2.5rem; position: relative; z-index: 10; }
+
+        /* STEP CARDS */
+        .step-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+            margin-bottom: 1.25rem;
+            overflow: hidden;
+        }
+        .step-card-header {
+            background: var(--dean-light);
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1.5px solid #bbdefb;
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+        .step-number {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: var(--dean-primary);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: 800;
+            flex-shrink: 0;
+        }
+        .step-card-header h6 {
+            margin: 0; font-weight: 700; color: var(--dean-dark); font-size: 0.9rem;
+        }
+        .step-card-body { padding: 1.25rem; }
+
+        /* FORM STYLES */
+        .form-label {
+            font-weight: 600; font-size: 0.83rem; color: #444; margin-bottom: 0.3rem;
+        }
+        .form-control, .form-select {
+            border-radius: 9px;
+            border: 1.5px solid #e0e7ef;
+            font-size: 0.88rem;
+            padding: 0.5rem 0.75rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--dean-accent);
+            box-shadow: 0 0 0 3px rgba(0,176,255,0.12);
+        }
+        .form-text { font-size: 0.76rem; }
+
+        /* FILE UPLOAD */
+        .file-upload-area {
+            border: 2px dashed #bbdefb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fafcff;
+        }
+        .file-upload-area:hover {
+            border-color: var(--dean-accent);
+            background: var(--dean-light);
+        }
+        .file-upload-area input[type="file"] {
+            position: absolute; opacity: 0; width: 100%; height: 100%;
+            top: 0; left: 0; cursor: pointer;
+        }
+        .file-upload-area .file-icon {
+            font-size: 2rem; color: var(--dean-primary); opacity: 0.6; margin-bottom: 0.5rem;
+        }
+        .file-name-display {
+            font-size: 0.82rem; color: var(--dean-primary); font-weight: 600;
+            margin-top: 0.5rem; display: none;
+        }
+
+        /* OUT-OF-PROVINCE SECTION */
+        .oop-section {
+            background: #fff8e1;
+            border: 1.5px solid #ffe082;
+            border-radius: 12px;
+            padding: 1.1rem;
+            margin-top: 0.75rem;
+            display: none;
+        }
+
+        /* DEAN INFO BOX */
+        .dean-info-box {
+            background: var(--dean-light);
+            border: 1.5px solid #90caf9;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.85rem;
+        }
+        .dean-info-box .dean-avatar-sm {
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            background: var(--dean-primary);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.85rem; flex-shrink: 0;
+        }
+
+        /* SUBMIT BUTTON */
+        .btn-submit-travel {
+            background: linear-gradient(135deg, var(--dean-dark) 0%, var(--dean-primary) 100%);
+            color: white; border: none;
+            border-radius: 12px;
+            padding: 0.75rem 2rem;
+            font-size: 0.95rem; font-weight: 700;
+            transition: opacity 0.2s, transform 0.2s;
+            width: 100%;
+        }
+        .btn-submit-travel:hover {
+            opacity: 0.9; transform: translateY(-2px); color: white;
+        }
+
+        /* NOTE ABOUT SELF-APPROVAL */
+        .self-approval-note {
+            background: #e8f5e9;
+            border: 1.5px solid #a5d6a7;
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            font-size: 0.83rem;
+            color: #1b5e20;
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-dark navbar-expand-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#">
+            <i class="bi bi-airplane-fill me-2"></i>BISU Travel
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+    <li class="nav-item">
+        <a class="nav-link active" href="{% url 'travel_app:dean_dashboard' %}">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+        </a>
+    </li>
+
+    <li class="nav-item">
+        <a href="{% url 'travel_app:dean_create_travel' %}" 
+           class="nav-link fw-semibold">
+            <i class="bi bi-plus-circle-fill me-1"></i>Create My Travel
+        </a>
+    </li>
+
+    <li class="nav-item position-relative">
+        <a class="nav-link" href="{% url 'travel_app:dean_notifications' %}">
+            <i class="bi bi-bell me-1"></i>Notifications
+            {% if unread_notifications > 0 %}
+            <span class="notif-badge">{{ unread_notifications }}</span>
+            {% endif %}
+        </a>
+    </li>
+
+    <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+            <i class="bi bi-person-circle me-1"></i>{{ user.first_name }}
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'accounts:profile' %}">
+                <i class="bi bi-person me-2"></i>Profile</a></li>
+            <li><hr class="dropdown-menu-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'accounts:logout' %}">
+                <i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+        </ul>
+    </li>
+</ul>
+        </div>
+    </div>
+</nav>
+
+<!-- HERO -->
+<div class="create-hero">
+    <div class="container">
+        <div class="text-white">
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="hero-badge"><i class="bi bi-mortarboard-fill"></i> Dean's Travel Request</span>
+                {% if user.college %}
+                <span class="hero-badge"><i class="bi bi-building"></i>{{ user.college.name }}</span>
+                {% endif %}
+            </div>
+            <h2 class="fw-bold mb-1">Create Travel Request</h2>
+            <p style="opacity:0.8; font-size:0.88rem; margin:0;">Submit a new official travel request for yourself</p>
+        </div>
+    </div>
+    <div class="deco-icon"><i class="bi bi-airplane-engines"></i></div>
+</div>
+
+<!-- MAIN -->
+<div class="container main-wrap pb-5">
+
+    <!-- Flash Messages -->
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+
+            <!-- DEAN INFO BOX -->
+            <div class="dean-info-box d-flex align-items-center gap-3">
+                <div class="dean-avatar-sm">
+                    {{ user.first_name|slice:":1" }}{{ user.last_name|slice:":1" }}
+                </div>
+                <div>
+                    <strong>{{ user.get_full_name }}</strong> &middot; Dean
+                    {% if user.college %}&middot; {{ user.college.name }}{% endif %}<br>
+                    <span style="color:#555;">You are creating a travel request for yourself. You will be the sole participant.</span>
+                </div>
+            </div>
+
+            <!-- SELF-APPROVAL NOTE -->
+            <div class="self-approval-note mb-3">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <strong>Note:</strong> As Dean, you can approve your own travel request. After submission, your travel will appear in your pending approvals queue where you can approve it and forward it to the Director.
+            </div>
+
+            <form method="post" action="{% url 'travel_app:dean_create_travel' %}" enctype="multipart/form-data" id="createTravelForm">
+                {% csrf_token %}
+
+                <!-- STEP 1: INITIATION DOCUMENT -->
+                <div class="step-card">
+                    <div class="step-card-header">
+                        <div class="step-number">1</div>
+                        <h6><i class="bi bi-file-earmark-text me-1"></i> Initiation Document</h6>
+                    </div>
+                    <div class="step-card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Document Type <span class="text-danger">*</span></label>
+                                <select name="doc_type" class="form-select" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="MEMORANDUM">Memo</option>
+                                    <option value="LETTER">Request Letter</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Issuer <span class="text-danger">*</span></label>
+                                <input type="text" name="issuer" class="form-control" placeholder="Who issued this document?" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Date Issued <span class="text-danger">*</span></label>
+                                <input type="date" name="date_issued" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Upload Document <span class="text-danger">*</span></label>
+                                <div class="file-upload-area position-relative" id="initiationUploadArea">
+                                    <input type="file" name="initiation_file" id="initiation_file" accept=".pdf,.doc,.docx" required onchange="showFileName(this, 'initiationFileName')">
+                                    <div class="file-icon"><i class="bi bi-file-earmark-arrow-up"></i></div>
+                                    <div style="font-size:0.82rem;color:#888;">Click to upload PDF or Word</div>
+                                    <div class="file-name-display" id="initiationFileName"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: TRAVEL DETAILS -->
+                <div class="step-card">
+                    <div class="step-card-header">
+                        <div class="step-number">2</div>
+                        <h6><i class="bi bi-geo-alt-fill me-1"></i> Travel Details</h6>
+                    </div>
+                    <div class="step-card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Destination <span class="text-danger">*</span></label>
+                                <input type="text" name="destination" class="form-control" placeholder="e.g. Cebu City, Cebu" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                                <input type="date" name="start_date" class="form-control" id="start_date" required onchange="validateDates()">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">End Date <span class="text-danger">*</span></label>
+                                <input type="date" name="end_date" class="form-control" id="end_date" required onchange="validateDates()">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Purpose <span class="text-danger">*</span></label>
+                                <textarea name="purpose" class="form-control" rows="3" placeholder="Describe the purpose of this official travel..." required></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Initiating Office</label>
+                                <input type="text" name="initiating_office" class="form-control"
+                                       value="{{ user.college.name|default:'' }}" placeholder="Your college/office">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Funding Office</label>
+                                <input type="text" name="funding_office" class="form-control"
+                                       value="{{ user.college.name|default:'' }}" placeholder="Funding office (if different)">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Prepayment Option <span class="text-danger">*</span></label>
+                                <select name="prepayment_option" class="form-select" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="PREPAYMENT">Prepayment</option>
+                                    <option value="NOT">No Prepayment</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="is_out_of_province" id="isOutOfProvince" onchange="toggleOopSection()">
+                                    <label class="form-check-label" for="isOutOfProvince">
+                                        <strong>Out-of-Province Travel</strong><br>
+                                        <small class="text-muted">Check if traveling outside Bohol</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Out-of-Province Section -->
+                        <div class="oop-section" id="oopSection">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                <strong style="font-size:0.88rem;">Out-of-Province Requirements</strong>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Justification <span class="text-danger">*</span></label>
+                                    <textarea name="justification" id="justificationField" class="form-control" rows="3"
+                                              placeholder="Explain why out-of-province travel is necessary..."></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Letter Request to President <span class="text-danger">*</span></label>
+                                    <div class="file-upload-area position-relative" id="letterUploadArea">
+                                        <input type="file" name="letter_file" id="letter_file" accept=".pdf,.doc,.docx" onchange="showFileName(this, 'letterFileName')">
+                                        <div class="file-icon"><i class="bi bi-envelope-paper"></i></div>
+                                        <div style="font-size:0.82rem;color:#888;">Upload Letter Request PDF or Word</div>
+                                        <div class="file-name-display" id="letterFileName"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: DOCUMENTS -->
+                <div class="step-card">
+                    <div class="step-card-header">
+                        <div class="step-number">3</div>
+                        <h6><i class="bi bi-folder2-open me-1"></i> Supporting Documents</h6>
+                    </div>
+                    <div class="step-card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Travel Order Document <span class="text-danger">*</span></label>
+                                <div class="file-upload-area position-relative" id="toUploadArea">
+                                    <input type="file" name="travel_order_file" id="travel_order_file" accept=".pdf,.doc,.docx" required onchange="showFileName(this, 'toFileName')">
+                                    <div class="file-icon"><i class="bi bi-file-earmark-ruled"></i></div>
+                                    <div style="font-size:0.82rem;color:#888;">Upload Travel Order document</div>
+                                    <div class="file-name-display" id="toFileName"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Itinerary of Travel <span class="text-danger">*</span></label>
+                                <div class="file-upload-area position-relative" id="itinUploadArea">
+                                    <input type="file" name="itinerary_file" id="itinerary_file" accept=".pdf,.doc,.docx,.xls,.xlsx" required onchange="showFileName(this, 'itinFileName')">
+                                    <div class="file-icon"><i class="bi bi-file-earmark-spreadsheet"></i></div>
+                                    <div style="font-size:0.82rem;color:#888;">PDF, Word, or Excel</div>
+                                    <div class="file-name-display" id="itinFileName"></div>
+                                </div>
+                                <small class="form-text text-muted">Budget will be auto-extracted from this file.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBMIT -->
+                <div class="d-flex gap-3">
+                    <a href="{% url 'travel_app:dean_dashboard' %}" class="btn btn-outline-secondary flex-shrink-0" style="padding:0.75rem 1.5rem; border-radius:12px; font-weight:600;">
+                        <i class="bi bi-arrow-left me-1"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn-submit-travel">
+                        <i class="bi bi-send-fill me-2"></i> Submit Travel Request
+                    </button>
+                </div>
+
+            </form>
+        </div>
+
+        <!-- SIDEBAR -->
+        <div class="col-lg-4">
+            <div class="step-card">
+                <div class="step-card-header">
+                    <div class="step-number" style="background:#2e7d32;"><i class="bi bi-info-lg" style="font-size:0.8rem;"></i></div>
+                    <h6>Approval Workflow</h6>
+                </div>
+                <div class="step-card-body">
+                    <div class="d-flex gap-2 mb-3">
+                        <div style="width:24px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;">
+                            <div style="width:24px;height:24px;border-radius:50%;background:#1565c0;color:white;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;">1</div>
+                            <div style="width:2px;flex-grow:1;background:#e0e0e0;margin:3px 0;"></div>
+                        </div>
+                        <div class="pb-3">
+                            <strong style="font-size:0.85rem;">You Submit</strong><br>
+                            <small class="text-muted">Travel goes to Pending Dean Approval</small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mb-3">
+                        <div style="width:24px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;">
+                            <div style="width:24px;height:24px;border-radius:50%;background:#1565c0;color:white;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;">2</div>
+                            <div style="width:2px;flex-grow:1;background:#e0e0e0;margin:3px 0;"></div>
+                        </div>
+                        <div class="pb-3">
+                            <strong style="font-size:0.85rem;">You Approve (as Dean)</strong><br>
+                            <small class="text-muted">Go to your dashboard → approve your own request → forwards to Director</small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mb-3">
+                        <div style="width:24px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;">
+                            <div style="width:24px;height:24px;border-radius:50%;background:#1565c0;color:white;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;">3</div>
+                            <div style="width:2px;flex-grow:1;background:#e0e0e0;margin:3px 0;"></div>
+                        </div>
+                        <div class="pb-3">
+                            <strong style="font-size:0.85rem;">Director Approves</strong><br>
+                            <small class="text-muted">Director gives final approval</small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <div style="width:24px;flex-shrink:0;">
+                            <div style="width:24px;height:24px;border-radius:50%;background:#2e7d32;color:white;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;"><i class="bi bi-check"></i></div>
+                        </div>
+                        <div>
+                            <strong style="font-size:0.85rem; color:#2e7d32;">Travel Approved!</strong><br>
+                            <small class="text-muted">Secretary uploads DV & BURS</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TRAVEL SUMMARY (dynamic) -->
+            <div class="step-card" id="travelSummaryCard" style="display:none;">
+                <div class="step-card-header">
+                    <div class="step-number"><i class="bi bi-eye" style="font-size:0.8rem;"></i></div>
+                    <h6>Travel Summary</h6>
+                </div>
+                <div class="step-card-body" id="travelSummaryBody">
+                </div>
+            </div>
+
+            <div class="step-card">
+                <div class="step-card-header">
+                    <div class="step-number" style="background:#f57f17;"><i class="bi bi-exclamation" style="font-size:0.8rem;"></i></div>
+                    <h6>Requirements Checklist</h6>
+                </div>
+                <div class="step-card-body">
+                    <div class="d-flex align-items-center gap-2 mb-2" id="chk_initiation">
+                        <i class="bi bi-circle text-muted"></i>
+                        <span style="font-size:0.83rem;">Initiation document uploaded</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mb-2" id="chk_destination">
+                        <i class="bi bi-circle text-muted"></i>
+                        <span style="font-size:0.83rem;">Destination & dates set</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mb-2" id="chk_purpose">
+                        <i class="bi bi-circle text-muted"></i>
+                        <span style="font-size:0.83rem;">Purpose filled in</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mb-2" id="chk_to">
+                        <i class="bi bi-circle text-muted"></i>
+                        <span style="font-size:0.83rem;">Travel Order document uploaded</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2" id="chk_itinerary">
+                        <i class="bi bi-circle text-muted"></i>
+                        <span style="font-size:0.83rem;">Itinerary uploaded</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── FILE NAME DISPLAY ──
+function showFileName(input, displayId) {
+    const display = document.getElementById(displayId);
+    if (input.files && input.files[0]) {
+        display.textContent = '📎 ' + input.files[0].name;
+        display.style.display = 'block';
+    }
+    updateChecklist();
+    updateSummary();
+}
+
+// ── OUT-OF-PROVINCE TOGGLE ──
+function toggleOopSection() {
+    const cb   = document.getElementById('isOutOfProvince');
+    const sec  = document.getElementById('oopSection');
+    const jf   = document.getElementById('justificationField');
+    const lf   = document.getElementById('letter_file');
+    sec.style.display = cb.checked ? 'block' : 'none';
+    jf.required = cb.checked;
+    lf.required = cb.checked;
+}
+
+// ── DATE VALIDATION ──
+function validateDates() {
+    const start = document.getElementById('start_date').value;
+    const end   = document.getElementById('end_date').value;
+    if (start && end && end < start) {
+        document.getElementById('end_date').setCustomValidity('End date must be after start date');
+    } else {
+        document.getElementById('end_date').setCustomValidity('');
+    }
+    updateChecklist();
+    updateSummary();
+}
+
+// ── CHECKLIST UPDATE ──
+function updateChecklist() {
+    const checks = {
+        chk_initiation: !!document.getElementById('initiation_file').files.length,
+        chk_destination: !!(document.querySelector('[name="destination"]').value && document.getElementById('start_date').value && document.getElementById('end_date').value),
+        chk_purpose:    !!document.querySelector('[name="purpose"]').value.trim(),
+        chk_to:         !!document.getElementById('travel_order_file').files.length,
+        chk_itinerary:  !!document.getElementById('itinerary_file').files.length,
+    };
+    Object.entries(checks).forEach(([id, ok]) => {
+        const el = document.getElementById(id);
+        const icon = el.querySelector('i');
+        const text = el.querySelector('span');
+        if (ok) {
+            icon.className = 'bi bi-check-circle-fill text-success';
+            text.style.color = '#2e7d32';
+        } else {
+            icon.className = 'bi bi-circle text-muted';
+            text.style.color = '';
+        }
+    });
+}
+
+// ── SUMMARY UPDATE ──
+function updateSummary() {
+    const dest    = document.querySelector('[name="destination"]').value;
+    const start   = document.getElementById('start_date').value;
+    const end     = document.getElementById('end_date').value;
+    const purpose = document.querySelector('[name="purpose"]').value;
+    const card    = document.getElementById('travelSummaryCard');
+    const body    = document.getElementById('travelSummaryBody');
+
+    if (!dest && !start) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+
+    let days = '';
+    if (start && end) {
+        const d = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+        days = `<span class="badge" style="background:#e3f2fd;color:#1565c0;font-size:0.75rem;">${d} day${d!==1?'s':''}</span>`;
+    }
+
+    body.innerHTML = `
+        <div style="font-size:0.84rem;">
+            ${dest ? `<div class="mb-2"><strong class="text-muted d-block" style="font-size:0.7rem;letter-spacing:0.5px;">DESTINATION</strong>${dest} ${days}</div>` : ''}
+            ${start ? `<div class="mb-2"><strong class="text-muted d-block" style="font-size:0.7rem;letter-spacing:0.5px;">DATES</strong>${start}${end ? ' → '+end : ''}</div>` : ''}
+            ${purpose ? `<div><strong class="text-muted d-block" style="font-size:0.7rem;letter-spacing:0.5px;">PURPOSE</strong>${purpose.substring(0,80)}${purpose.length>80?'…':''}</div>` : ''}
+        </div>`;
+}
+
+// ── LIVE LISTENERS ──
+document.querySelector('[name="destination"]').addEventListener('input', () => { updateChecklist(); updateSummary(); });
+document.querySelector('[name="purpose"]').addEventListener('input', () => { updateChecklist(); updateSummary(); });
+</script>
+</body>
+</html>
