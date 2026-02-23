@@ -1,0 +1,803 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════ */
+        /* ROLE-BASED COLOR THEMING - Dynamic based on logged-in user role */
+        /* ═══════════════════════════════════════════════════════════════════ */
+        :root {
+            {% if user.role == 'EMPLOYEE' %}
+                --role-primary: #28a745;
+                --role-dark: #1e7e34;
+                --role-light: #d4edda;
+                --role-accent: #20c997;
+                --role-surface: #f0f8f4;
+            {% elif user.role == 'DEAN' %}
+                --role-primary: #1565c0;
+                --role-dark: #0d47a1;
+                --role-light: #e3f2fd;
+                --role-accent: #00b0ff;
+                --role-surface: #f4f7fb;
+            {% elif user.role == 'DIRECTOR' or user.role == 'PRESIDENT' %}
+                --role-primary: #7b1fa2;
+                --role-dark: #4a148c;
+                --role-light: #f3e5f5;
+                --role-accent: #ab47bc;
+                --role-surface: #faf7fc;
+            {% elif user.role == 'DEPT_SECRETARY' or user.role == 'CAMPUS_SECRETARY' %}
+                --role-primary: #00897b;
+                --role-dark: #00695c;
+                --role-light: #e0f2f1;
+                --role-accent: #26a69a;
+                --role-surface: #f1f9f8;
+            {% elif user.role == 'BUDGET_OFFICER' %}
+                --role-primary: #ef6c00;
+                --role-dark: #e65100;
+                --role-light: #fff3e0;
+                --role-accent: #ff9800;
+                --role-surface: #fffbf5;
+            {% elif user.role == 'CASHIER' %}
+                --role-primary: #9e9d24;
+                --role-dark: #827717;
+                --role-light: #f9fbe7;
+                --role-accent: #cddc39;
+                --role-surface: #fbfcf3;
+            {% else %}
+                --role-primary: #28a745;
+                --role-dark: #1e7e34;
+                --role-light: #d4edda;
+                --role-accent: #20c997;
+                --role-surface: #f0f8f4;
+            {% endif %}
+        }
+
+        body {
+            background-color: var(--role-surface);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            background: linear-gradient(135deg, var(--role-dark) 0%, var(--role-primary) 100%);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        /* ── Hero Banner ── */
+        .profile-hero {
+            background: linear-gradient(135deg, var(--role-dark) 0%, var(--role-primary) 60%, var(--role-accent) 100%);
+            padding: 3rem 0 6rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .profile-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: var(--role-surface);
+            clip-path: ellipse(55% 100% at 50% 100%);
+        }
+        .profile-hero .hero-icon {
+            font-size: 0.8rem;
+            opacity: 0.08;
+            position: absolute;
+            right: 5%;
+            top: 50%;
+            transform: translateY(-50%);
+            line-height: 1;
+        }
+
+        /* ── Avatar ── */
+        .avatar-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .avatar-circle {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: 4px solid rgba(255,255,255,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            backdrop-filter: blur(4px);
+            letter-spacing: 1px;
+        }
+        .avatar-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 3px solid white;
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+        }
+        .avatar-status.online  { background: #00e676; }
+        .avatar-status.travel  { background: #ffc107; }
+
+        /* ── Cards ── */
+        .profile-card {
+            background: white;
+            border-radius: 16px;
+            border: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            transition: box-shadow 0.25s;
+        }
+        .profile-card:hover {
+            box-shadow: 0 6px 28px rgba(0,0,0,0.11);
+        }
+        .card-section-header {
+            background: linear-gradient(90deg, var(--role-surface) 0%, var(--role-light) 100%);
+            border-bottom: 2px solid var(--role-light);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .card-section-header i {
+            color: var(--role-primary);
+            font-size: 1.1rem;
+        }
+        .card-section-header h6 {
+            margin: 0;
+            font-weight: 700;
+            color: var(--role-dark);
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ── Info Rows ── */
+        .info-row {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.85rem 1.5rem;
+            border-bottom: 1px solid #f5f5f5;
+            gap: 1rem;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label {
+            min-width: 145px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #9e9e9e;
+            padding-top: 2px;
+        }
+        .info-value {
+            font-size: 0.95rem;
+            color: #2d2d2d;
+            font-weight: 500;
+            flex: 1;
+        }
+        .info-value .badge {
+            font-size: 0.78rem;
+            padding: 0.35em 0.75em;
+            border-radius: 20px;
+        }
+
+        /* ── Edit Form ── */
+        .edit-section { display: none; }
+        .form-label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 1.5px solid #e0e0e0;
+            font-size: 0.93rem;
+            padding: 0.55rem 0.85rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--role-primary);
+            box-shadow: 0 0 0 3px rgba(var(--role-primary-rgb), 0.12);
+        }
+        .form-control:disabled, .form-select:disabled {
+            background: #f9f9f9;
+            color: #888;
+        }
+
+        /* ── Password Strength ── */
+        .strength-bar {
+            height: 4px;
+            border-radius: 4px;
+            background: #e0e0e0;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .strength-fill {
+            height: 100%;
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.4s, background 0.4s;
+        }
+
+        /* ── Stat Pills ── */
+        .stat-pill {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            text-align: center;
+            border: 1.5px solid var(--role-light);
+            transition: transform 0.2s;
+        }
+        .stat-pill:hover { transform: translateY(-3px); }
+        .stat-pill .stat-num {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--role-primary);
+            line-height: 1;
+        }
+        .stat-pill .stat-label {
+            font-size: 0.72rem;
+            color: #777;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* ── Role Badge ── */
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(255,255,255,0.18);
+            border: 1.5px solid rgba(255,255,255,0.35);
+            border-radius: 20px;
+            padding: 0.3rem 0.85rem;
+            font-size: 0.82rem;
+            color: white;
+            backdrop-filter: blur(4px);
+        }
+
+        /* ── Buttons ── */
+        .btn-edit {
+            background: linear-gradient(135deg, var(--role-primary), var(--role-accent));
+            border: none;
+            color: white;
+            border-radius: 8px;
+            padding: 0.5rem 1.25rem;
+            font-weight: 600;
+            font-size: 0.88rem;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .btn-edit:hover { opacity: 0.9; transform: translateY(-1px); color: white; }
+
+        .btn-cancel {
+            background: #f5f5f5;
+            border: none;
+            color: #555;
+            border-radius: 8px;
+            padding: 0.5rem 1.25rem;
+            font-weight: 600;
+            font-size: 0.88rem;
+        }
+
+        /* ── Alert overrides ── */
+        .alert { border-radius: 10px; font-size: 0.9rem; }
+
+        /* ── Responsive pull-up ── */
+        .main-content { margin-top: -3.5rem; position: relative; z-index: 10; }
+    </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════ NAVBAR ════════════════════════════════ -->
+<nav class="navbar navbar-dark navbar-expand-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="{% if user.role == 'EMPLOYEE' %}{% url 'travel_app:employee_dashboard' %}{% elif user.role == 'DEAN' %}{% url 'travel_app:dean_dashboard' %}{% elif user.role == 'DIRECTOR' %}{% url 'travel_app:director_dashboard' %}{% elif user.role == 'PRESIDENT' %}{% url 'travel_app:president_dashboard' %}{% elif user.role == 'DEPT_SECRETARY' %}{% url 'travel_app:dept_secretary_dashboard' %}{% elif user.role == 'CAMPUS_SECRETARY' %}{% url 'travel_app:campus_secretary_dashboard' %}{% elif user.role == 'BUDGET_OFFICER' %}{% url 'travel_app:budget_dashboard' %}{% elif user.role == 'CASHIER' %}{% url 'travel_app:cashier_dashboard' %}{% else %}{% url 'travel_app:employee_dashboard' %}{% endif %}">
+            <i class="bi bi-airplane-fill me-2"></i>BISU Travel
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" 
+                data-bs-target="#navbarNav" aria-controls="navbarNav" 
+                aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+                
+                <!-- 1. DASHBOARD LINK (All roles) -->
+                <li class="nav-item">
+                    <a class="nav-link" href="{% if user.role == 'EMPLOYEE' %}{% url 'travel_app:employee_dashboard' %}{% elif user.role == 'DEAN' %}{% url 'travel_app:dean_dashboard' %}{% elif user.role == 'DIRECTOR' %}{% url 'travel_app:director_dashboard' %}{% elif user.role == 'PRESIDENT' %}{% url 'travel_app:president_dashboard' %}{% elif user.role == 'DEPT_SECRETARY' %}{% url 'travel_app:dept_secretary_dashboard' %}{% elif user.role == 'CAMPUS_SECRETARY' %}{% url 'travel_app:campus_secretary_dashboard' %}{% elif user.role == 'BUDGET_OFFICER' %}{% url 'travel_app:budget_dashboard' %}{% elif user.role == 'CASHIER' %}{% url 'travel_app:cashier_dashboard' %}{% else %}{% url 'travel_app:employee_dashboard' %}{% endif %}">
+                        <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                    </a>
+                </li>
+
+                <!-- 2. NEW TRAVEL LINK (Employee, Dean, Dept Secretary only) -->
+                {% if user.role == 'EMPLOYEE' or user.role == 'DEAN' or user.role == 'DEPT_SECRETARY' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{% if user.role == 'EMPLOYEE' %}{% url 'travel_app:create_travel' %}{% elif user.role == 'DEAN' %}{% url 'travel_app:dean_create_travel' %}{% elif user.role == 'DEPT_SECRETARY' %}{% url 'travel_app:dept_secretary_create_travel' %}{% endif %}">
+                        <i class="bi bi-plus-circle-fill me-1"></i>New Travel
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- 3. NOTIFICATIONS LINK (All roles with badge) -->
+                <li class="nav-item position-relative">
+                    <a class="nav-link" href="{% if user.role == 'EMPLOYEE' %}{% url 'travel_app:notifications' %}{% elif user.role == 'DEAN' %}{% url 'travel_app:dean_notifications' %}{% elif user.role == 'DIRECTOR' %}{% url 'travel_app:director_notifications' %}{% elif user.role == 'PRESIDENT' %}{% url 'travel_app:president_notifications' %}{% elif user.role == 'DEPT_SECRETARY' %}{% url 'travel_app:dept_secretary_notifications' %}{% elif user.role == 'CAMPUS_SECRETARY' %}{% url 'travel_app:campus_secretary_notifications' %}{% elif user.role == 'BUDGET_OFFICER' %}{% url 'travel_app:budget_notifications' %}{% elif user.role == 'CASHIER' %}{% url 'travel_app:cashier_notifications' %}{% else %}{% url 'travel_app:notifications' %}{% endif %}">
+                        <i class="bi bi-bell me-1"></i>Notifications
+                        {% if unread_count > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:0.65rem; padding:0.25em 0.5em;">
+                            {{ unread_count }}
+                        </span>
+                        {% endif %}
+                    </a>
+                </li>
+
+                <!-- 4. PROFILE DROPDOWN (Active state) -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle active" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-person-circle me-1"></i>{{ user.first_name }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <a class="dropdown-item active" href="{% url 'accounts:profile' %}">
+                                <i class="bi bi-person me-2"></i>Profile
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'accounts:logout' %}">
+                                <i class="bi bi-box-arrow-right me-2"></i>Logout
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- ════════════════════════════════ HERO ════════════════════════════════ -->
+<div class="profile-hero">
+    <div class="container">
+        <div class="d-flex align-items-center gap-4">
+            <div class="avatar-wrapper">
+                <div class="avatar-circle">
+                    {{ user.first_name|slice:":1" }}{{ user.last_name|slice:":1" }}
+                </div>
+                <span class="avatar-status {% if user.on_travel %}travel{% else %}online{% endif %}"></span>
+            </div>
+            <div class="text-white">
+                <h2 class="fw-bold mb-1">{{ user.get_full_name }}</h2>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="role-badge">
+                        <i class="bi bi-person-badge"></i>
+                        {{ user.get_role_display }}
+                    </span>
+                    {% if user.campus %}
+                    <span class="role-badge">
+                        <i class="bi bi-building"></i>
+                        {{ user.campus.name }}
+                    </span>
+                    {% endif %}
+                    {% if user.on_travel %}
+                    <span class="role-badge" style="background:rgba(255,193,7,0.25); border-color:rgba(255,193,7,0.5);">
+                        <i class="bi bi-geo-alt-fill"></i> On Travel
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="mb-0 mt-2 opacity-75" style="font-size:0.88rem;">
+                    <i class="bi bi-envelope me-1"></i>{{ user.email }}
+                </p>
+            </div>
+        </div>
+    </div>
+    <!-- decorative background icon -->
+    <div class="hero-icon"><i class="bi bi-person-circle" style="font-size:18rem;"></i></div>
+</div>
+
+<!-- ════════════════════════════════ MAIN CONTENT ════════════════════════════════ -->
+<div class="container main-content pb-5">
+
+    <!-- Flash Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-{% if message.tags == 'success' %}check-circle-fill{% elif message.tags == 'danger' or message.tags == 'error' %}exclamation-triangle-fill{% else %}info-circle-fill{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row g-4">
+
+        <!-- ══ LEFT COLUMN ══ -->
+        <div class="col-lg-4">
+
+            <!-- Stats -->
+            <div class="row g-3 mb-4">
+                <div class="col-4">
+                    <div class="stat-pill">
+                        <div class="stat-num">{{ total_travels }}</div>
+                        <div class="stat-label">Travels</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="stat-pill">
+                        <div class="stat-num">{{ completed_travels }}</div>
+                        <div class="stat-label">Done</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="stat-pill">
+                        <div class="stat-num">{{ pending_travels }}</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Info Card -->
+            <div class="profile-card">
+                <div class="card-section-header">
+                    <i class="bi bi-shield-check"></i>
+                    <h6>Account Info</h6>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Username</span>
+                    <span class="info-value text-muted" style="font-family:monospace;">{{ user.username }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status</span>
+                    <span class="info-value">
+                        {% if user.is_active %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                        {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Inactive</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Approved</span>
+                    <span class="info-value">
+                        {% if user.is_approved %}
+                            <span class="badge bg-success"><i class="bi bi-patch-check me-1"></i>Yes</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-hourglass me-1"></i>Pending</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Member Since</span>
+                    <span class="info-value" style="font-size:0.88rem;">{{ user.created_at|date:"M d, Y" }}</span>
+                </div>
+                {% if user.approved_at %}
+                <div class="info-row">
+                    <span class="info-label">Approved At</span>
+                    <span class="info-value" style="font-size:0.88rem;">{{ user.approved_at|date:"M d, Y" }}</span>
+                </div>
+                {% endif %}
+                <div class="info-row">
+                    <span class="info-label">Payment Pref.</span>
+                    <span class="info-value">
+                        {% if user.preference == 'PREPAYMENT' %}
+                            <span class="badge bg-primary"><i class="bi bi-cash-coin me-1"></i>Prepayment</span>
+                        {% else %}
+                            <span class="badge bg-secondary"><i class="bi bi-receipt me-1"></i>No Prepayment</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ══ RIGHT COLUMN ══ -->
+        <div class="col-lg-8">
+
+            <!-- ── Personal Information ── -->
+            <div class="profile-card">
+                <div class="card-section-header justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-person-lines-fill"></i>
+                        <h6>Personal Information</h6>
+                    </div>
+                    <button class="btn btn-edit btn-sm" onclick="toggleEdit('personal')">
+                        <i class="bi bi-pencil me-1"></i> Edit
+                    </button>
+                </div>
+
+                <!-- View Mode -->
+                <div id="personal-view">
+                    <div class="info-row">
+                        <span class="info-label">Full Name</span>
+                        <span class="info-value">{{ user.get_full_name }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">First Name</span>
+                        <span class="info-value">{{ user.first_name }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Middle Name</span>
+                        <span class="info-value">{{ user.middle_name|default:"—" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Last Name</span>
+                        <span class="info-value">{{ user.last_name }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Email</span>
+                        <span class="info-value">
+                            <i class="bi bi-envelope text-muted me-1"></i>{{ user.email }}
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Phone</span>
+                        <span class="info-value">
+                            <i class="bi bi-telephone text-muted me-1"></i>{{ user.phone_number }}
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Employee ID</span>
+                        <span class="info-value">{{ user.employee_id|default:"—" }}</span>
+                    </div>
+                </div>
+
+                <!-- Edit Mode -->
+                <div id="personal-edit" class="edit-section p-3">
+                    <form method="post" action="{% url 'accounts:update_profile' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="personal">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">First Name</label>
+                                <input type="text" name="first_name" class="form-control"
+                                       value="{{ user.first_name }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Middle Name</label>
+                                <input type="text" name="middle_name" class="form-control"
+                                       value="{% if user.middle_name != 'N/A' %}{{ user.middle_name }}{% endif %}"
+                                       placeholder="Optional">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" name="last_name" class="form-control"
+                                       value="{{ user.last_name }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone Number</label>
+                                <input type="text" name="phone_number" class="form-control"
+                                       value="{{ user.phone_number }}" maxlength="11">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Employee ID</label>
+                                <input type="text" name="employee_id" class="form-control"
+                                       value="{{ user.employee_id|default:'' }}" placeholder="Optional">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Payment Preference</label>
+                                <select name="preference" class="form-select">
+                                    <option value="PREPAYMENT" {% if user.preference == 'PREPAYMENT' %}selected{% endif %}>Prepayment</option>
+                                    <option value="NO_PREPAYMENT" {% if user.preference == 'NO_PREPAYMENT' %}selected{% endif %}>No Prepayment</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-edit">
+                                <i class="bi bi-check-circle me-1"></i> Save Changes
+                            </button>
+                            <button type="button" class="btn btn-cancel" onclick="toggleEdit('personal')">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ── Work Assignment ── -->
+            <div class="profile-card">
+                <div class="card-section-header">
+                    <i class="bi bi-building"></i>
+                    <h6>Work Assignment</h6>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Role</span>
+                    <span class="info-value">
+                        <span class="badge bg-dark" style="font-size:0.82rem;">
+                            <i class="bi bi-person-badge me-1"></i>{{ user.get_role_display }}
+                        </span>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Campus</span>
+                    <span class="info-value">
+                        {% if user.campus %}
+                            <i class="bi bi-geo-alt text-muted me-1"></i>{{ user.campus.name }}
+                            <br><small class="text-muted">{{ user.campus.municipality }}{% if user.campus.province %}, {{ user.campus.province }}{% endif %}</small>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">College</span>
+                    <span class="info-value">
+                        {% if user.college %}
+                            <i class="bi bi-diagram-3 text-muted me-1"></i>{{ user.college.name }}
+                            {% if user.college.code %}
+                                <span class="badge bg-light text-dark ms-1">{{ user.college.code }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row" style="background:#fffde7;">
+                    <span class="info-label" style="color:#bfa000;">Note</span>
+                    <span class="info-value" style="font-size:0.85rem; color:#7a6000;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Role, campus, and college changes must be requested from the administrator.
+                    </span>
+                </div>
+            </div>
+
+            <!-- ── Change Password ── -->
+            <div class="profile-card">
+                <div class="card-section-header justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-lock-fill"></i>
+                        <h6>Change Password</h6>
+                    </div>
+                    <button class="btn btn-edit btn-sm" onclick="toggleEdit('password')">
+                        <i class="bi bi-key me-1"></i> Change
+                    </button>
+                </div>
+
+                <!-- View Mode -->
+                <div id="password-view" class="p-3">
+                    <p class="text-muted mb-0" style="font-size:0.9rem;">
+                        <i class="bi bi-shield-lock me-2 text-success"></i>
+                        Your password is hidden. Click <strong>Change</strong> to update it.
+                    </p>
+                </div>
+
+                <!-- Edit Mode -->
+                <div id="password-edit" class="edit-section p-3">
+                    <form method="post" action="{% url 'accounts:update_profile' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="password">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Current Password</label>
+                                <div class="input-group">
+                                    <input type="password" name="current_password" id="current_password"
+                                           class="form-control" placeholder="Enter current password" required>
+                                    <button class="btn btn-outline-secondary" type="button"
+                                            onclick="togglePwd('current_password', this)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">New Password</label>
+                                <div class="input-group">
+                                    <input type="password" name="new_password" id="new_password"
+                                           class="form-control" placeholder="Min. 8 characters"
+                                           required oninput="checkStrength(this.value)">
+                                    <button class="btn btn-outline-secondary" type="button"
+                                            onclick="togglePwd('new_password', this)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="strength-bar mt-2">
+                                    <div class="strength-fill" id="strength-fill"></div>
+                                </div>
+                                <small id="strength-label" class="text-muted"></small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Confirm New Password</label>
+                                <div class="input-group">
+                                    <input type="password" name="confirm_password" id="confirm_password"
+                                           class="form-control" placeholder="Repeat new password"
+                                           required oninput="checkMatch()">
+                                    <button class="btn btn-outline-secondary" type="button"
+                                            onclick="togglePwd('confirm_password', this)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                <small id="match-label" class="text-muted"></small>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-edit">
+                                <i class="bi bi-lock me-1"></i> Update Password
+                            </button>
+                            <button type="button" class="btn btn-cancel" onclick="toggleEdit('password')">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div><!-- /col-lg-8 -->
+    </div><!-- /row -->
+</div><!-- /container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // ── Toggle edit/view sections ──
+    function toggleEdit(section) {
+        const view = document.getElementById(section + '-view');
+        const edit = document.getElementById(section + '-edit');
+        const isEditing = edit.style.display === 'block';
+        view.style.display = isEditing ? '' : 'none';
+        edit.style.display = isEditing ? 'none' : 'block';
+    }
+
+    // ── Toggle password visibility ──
+    function togglePwd(fieldId, btn) {
+        const field = document.getElementById(fieldId);
+        const icon = btn.querySelector('i');
+        if (field.type === 'password') {
+            field.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            field.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    }
+
+    // ── Password strength checker ──
+    function checkStrength(pw) {
+        const fill  = document.getElementById('strength-fill');
+        const label = document.getElementById('strength-label');
+        let score = 0;
+        if (pw.length >= 8)              score++;
+        if (/[A-Z]/.test(pw))            score++;
+        if (/[a-z]/.test(pw))            score++;
+        if (/[0-9]/.test(pw))            score++;
+        if (/[^A-Za-z0-9]/.test(pw))     score++;
+
+        const levels = [
+            { w: '0%',   c: '#e0e0e0', t: '' },
+            { w: '25%',  c: '#f44336', t: 'Weak' },
+            { w: '50%',  c: '#ff9800', t: 'Fair' },
+            { w: '75%',  c: '#ffc107', t: 'Good' },
+            { w: '90%',  c: '#8bc34a', t: 'Strong' },
+            { w: '100%', c: '#28a745', t: 'Very Strong' },
+        ];
+        fill.style.width      = levels[score].w;
+        fill.style.background = levels[score].c;
+        label.textContent     = levels[score].t;
+        label.style.color     = levels[score].c;
+    }
+
+    // ── Confirm password match ──
+    function checkMatch() {
+        const pw1   = document.getElementById('new_password').value;
+        const pw2   = document.getElementById('confirm_password').valuex`xxxxxxxxxxxxxxxxx`;
+        const label = document.getElementById('match-label');
+        if (!pw2) { label.textContent = ''; return; }
+        if (pw1 === pw2) {
+            label.textContent = '✓ Passwords match';
+            label.style.color = '#28a745';
+        } else {
+            label.textContent = '✗ Passwords do not match';
+            label.style.color = '#f44336';
+        }
+    }
+</script>
+</body>
+</html>
