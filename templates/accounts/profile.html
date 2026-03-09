@@ -323,10 +323,10 @@
                     </a>
                 </li>
 
-                <!-- 2. NEW TRAVEL LINK (Employee, Dean, Dept Secretary only) -->
-                {% if user.role == 'EMPLOYEE' or user.role == 'DEAN' or user.role == 'DEPT_SECRETARY' %}
+                <!-- 2. NEW TRAVEL LINK (All roles except Budget, Cashier, President) -->
+                {% if user.role == 'EMPLOYEE' or user.role == 'DEAN' or user.role == 'DIRECTOR' or user.role == 'DEPT_SECRETARY' or user.role == 'CAMPUS_SECRETARY' %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{% if user.role == 'EMPLOYEE' %}{% url 'travel_app:create_travel' %}{% elif user.role == 'DEAN' %}{% url 'travel_app:dean_create_travel' %}{% elif user.role == 'DEPT_SECRETARY' %}{% url 'travel_app:dept_secretary_create_travel' %}{% endif %}">
+                    <a class="nav-link" href="{% if user.role == 'EMPLOYEE' %}{% url 'travel_app:create_travel' %}{% elif user.role == 'DEAN' %}{% url 'travel_app:dean_create_travel' %}{% elif user.role == 'DIRECTOR' %}{% url 'travel_app:director_create_travel' %}{% elif user.role == 'DEPT_SECRETARY' %}{% url 'travel_app:dept_secretary_create_travel' %}{% elif user.role == 'CAMPUS_SECRETARY' %}{% url 'travel_app:campus_secretary_create_travel' %}{% endif %}">
                         <i class="bi bi-plus-circle-fill me-1"></i>New Travel
                     </a>
                 </li>
