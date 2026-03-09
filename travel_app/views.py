@@ -6,13 +6,14 @@ from django.views.decorators.cache import never_cache
 from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
-from accounts.models import User
+from accounts.models import User, College
 from .utils import extract_budget_from_file, calculate_auto_budget
 from .models import (
     TravelInitiationDocument, TravelOrder, LetterRequest,
     RegionRate, ItineraryOfTravel, PayrollParticipants, Payroll,
     OfficialTravel, FinancialDocuments, PostTravelDocuments,
-    LiquidationReport, Notification,BudgetAllocation, TravelOrderComment
+    LiquidationReport, Notification,BudgetAllocation, TravelOrderComment,OfficialTravel, TravelOrder, Notification, 
+    User, ItineraryOfTravel
 )
 # ========= For Dean =======
 import json
@@ -2276,12 +2277,631 @@ def export_dean_report(request):
     return redirect('travel_app:dean_reports')
 
 
-# ==================== URL PATTERNS TO ADD ====================
-# In travel_app/urls.py, add:
-#
+# Helper function to get director user
+def get_director_user(request):
+    """Get director user or redirect"""
+    if not request.user.is_authenticated:
+        return None
+    if request.user.role != 'DIRECTOR':
+        return None
+    return request.user
 
-#
-# Template locations:
-#   travel_app/templates/travel_app/dean/dean_travel_history.html
-#   travel_app/templates/travel_app/dean/dean_notifications.html (replaces existing basic one)
-#   travel_app/templates/travel_app/dean/dean_reports.html
+# DIRECTOR lkljasdgowaiejgoihjaewo;iglkasdhjgo;likahjo;gihjaewoipghoewjakhgjkeshgfjksd
+@never_cache
+def director_dashboard(request):
+    """Director dashboard with campus-wide approval queue"""
+
+    def get_director_user(request):
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return None
+        try:
+            user = User.objects.select_related('campus', 'college').get(
+                id=user_id, role='DIRECTOR'
+            )
+            return user
+        except User.DoesNotExist:
+            return None
+
+    user = get_director_user(request)
+    if not user:
+        messages.warning(request, 'Please login as Director')
+        return redirect('accounts:login')
+
+    today = timezone.now().date()
+    current_month_start = today.replace(day=1)
+
+    pending_travels = OfficialTravel.objects.filter(
+        travel_order__status='PENDING_DIRECTOR'
+    ).select_related(
+        'travel_order',
+        'travel_order__created_by',
+        'travel_order__created_by__college',
+        'itinerary',
+        'itinerary__region_rate'
+    ).order_by('-created_at')
+
+    pending_count = pending_travels.count()
+
+    approved_this_month = OfficialTravel.objects.filter(
+        travel_order__approved_by_director=user,
+        travel_order__director_approval_date__gte=current_month_start
+    ).count()
+
+    total_travels = OfficialTravel.objects.filter(
+        travel_order__approved_by_director=user
+    ).count()
+
+    month_travels = OfficialTravel.objects.filter(
+        travel_order__status='APPROVED',
+        start_date__gte=current_month_start,
+        start_date__lte=today
+    ).select_related('itinerary')
+
+    total_budget = sum(
+        t.itinerary.estimated_total for t in month_travels if t.itinerary
+    )
+    total_budget_k = round(total_budget / 1000, 1)
+
+    unread_count = Notification.objects.filter(
+        user=user, is_read=False
+    ).count()
+
+    active_travelers = OfficialTravel.objects.filter(
+        start_date__lte=today,
+        end_date__gte=today,
+        travel_order__status='APPROVED'
+    ).values('participants_group__users').distinct().count()
+
+    college_count = College.objects.count()
+
+    approved_travels = TravelOrder.objects.filter(
+        approved_by_director=user,
+        director_approval_date__isnull=False,
+        approved_by_dean__isnull=False,
+        dean_approval_date__isnull=False
+    )
+
+    if approved_travels.exists():
+        total_hours = 0
+        count = 0
+        for travel in approved_travels:
+            delta = travel.director_approval_date - travel.dean_approval_date
+            total_hours += delta.total_seconds() / 3600
+            count += 1
+        avg_approval_time = round(total_hours / count, 1)
+    else:
+        avg_approval_time = 0
+
+    director_approved = TravelOrder.objects.filter(
+    approved_by_director=user
+    ).count()
+
+    director_rejected = TravelOrder.objects.filter(
+        status='REJECTED',
+        director_remarks__isnull=False,  # Director left remarks when rejecting
+        approved_by_dean__isnull=False   # Ensures it reached director stage
+    ).count()
+
+    total_decisions = director_approved + director_rejected
+
+    approval_rate = round(
+        (director_approved / total_decisions * 100)
+        if total_decisions > 0 else 0,
+        1
+    )
+
+    months = []
+    month_labels = []
+    month_data = []
+
+    for i in range(5, -1, -1):
+        month_date = today.replace(day=1) - timedelta(days=i * 30)
+        month_start = month_date.replace(day=1)
+
+        if month_date.month == 12:
+            month_end = month_date.replace(
+                year=month_date.year + 1,
+                month=1,
+                day=1
+            )
+        else:
+            month_end = month_date.replace(
+                month=month_date.month + 1,
+                day=1
+            )
+
+        count = OfficialTravel.objects.filter(
+            travel_order__approved_by_director=user,
+            travel_order__director_approval_date__gte=month_start,
+            travel_order__director_approval_date__lt=month_end
+        ).count()
+
+        month_labels.append(month_date.strftime('%b'))
+        month_data.append(count)
+
+    import calendar
+    cal = calendar.monthcalendar(today.year, today.month)
+    calendar_days = []
+
+    month_travels_dates = OfficialTravel.objects.filter(
+        Q(start_date__year=today.year, start_date__month=today.month) |
+        Q(end_date__year=today.year, end_date__month=today.month)
+    ).values_list('start_date', 'end_date')
+
+    travel_days = set()
+
+    for start, end in month_travels_dates:
+        current = start
+        while current <= end:
+            if current.year == today.year and current.month == today.month:
+                travel_days.add(current.day)
+            current += timedelta(days=1)
+
+    for week in cal:
+        for day in week:
+            if day == 0:
+                calendar_days.append({
+                    'day': '',
+                    'has_travel': False,
+                    'is_today': False
+                })
+            else:
+                calendar_days.append({
+                    'day': day,
+                    'has_travel': day in travel_days,
+                    'is_today': day == today.day
+                })
+
+    college_stats = OfficialTravel.objects.filter(
+        travel_order__status='APPROVED',
+        start_date__gte=current_month_start
+    ).values(
+        'travel_order__created_by__college__name'
+    ).annotate(
+        count=Count('id')
+    ).order_by('-count')[:5]
+
+    college_labels = [
+        stat['travel_order__created_by__college__name'] or 'No College'
+        for stat in college_stats
+    ]
+    college_data = [stat['count'] for stat in college_stats]
+
+    context = {
+        'title': 'Director Dashboard',
+        'user': user,
+        'pending_travels': pending_travels,
+        'pending_count': pending_count,
+        'approved_this_month': approved_this_month,
+        'total_travels': total_travels,
+        'total_budget': total_budget_k,
+        'unread_count': unread_count,
+        'active_travelers': active_travelers,
+        'college_count': college_count,
+        'avg_approval_time': avg_approval_time,
+        'approval_rate': approval_rate,
+        'month_labels': json.dumps(month_labels),
+        'month_data': json.dumps(month_data),
+        'current_month': today.strftime('%B %Y'),
+        'calendar_days': calendar_days,
+        'college_labels': json.dumps(college_labels),
+        'college_data': json.dumps(college_data),
+    }
+
+    return render(
+        request,
+        'travel_app/director/director_dashboard.html',
+        context
+    )
+
+
+@csrf_protect
+@never_cache
+def director_create_travel(request):
+    """
+    Director creates travel for themselves.
+    Similar to dean_create_travel but for Director role.
+    """
+    user = get_authenticated_user(request)
+    if not user:
+        messages.warning(request, 'Please login to create a travel request')
+        return redirect('accounts:login')
+
+    if user.role != 'DIRECTOR':
+        messages.error(request, 'Only Directors can access this page')
+        return redirect('travel_app:director_dashboard')
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # Step 1: Initiation Document
+                doc_type = request.POST.get('doc_type')
+                issuer = request.POST.get('issuer')
+                date_issued = request.POST.get('date_issued')
+                init_file = request.FILES.get('initiation_file')
+
+                if not all([doc_type, issuer, date_issued, init_file]):
+                    messages.error(request, 'Please fill in all initiation document fields')
+                    return redirect('travel_app:director_create_travel')
+
+                initiation_doc = TravelInitiationDocument.objects.create(
+                    document_type=doc_type,
+                    issuer=issuer,
+                    date_issued=date_issued,
+                    file=init_file,
+                    uploaded_by=user
+                )
+
+                # Step 2: Travel Details
+                start_date = request.POST.get('start_date')
+                end_date = request.POST.get('end_date')
+                destination = request.POST.get('destination')
+                purpose = request.POST.get('purpose')
+                is_out_of_province = request.POST.get('is_out_of_province') == 'on'
+                initiating_office = request.POST.get('initiating_office', user.campus.name if user.campus else 'N/A')
+                funding_office = request.POST.get('funding_office') or initiating_office
+                prepayment_option = request.POST.get('prepayment_option')
+
+                if not all([start_date, end_date, destination, purpose, prepayment_option]):
+                    messages.error(request, 'Please fill in all required travel details')
+                    return redirect('travel_app:director_create_travel')
+
+                # Step 3: Files
+                travel_order_file = request.FILES.get('travel_order_file')
+                itinerary_file = request.FILES.get('itinerary_file')
+
+                if not travel_order_file or not itinerary_file:
+                    messages.error(request, 'Please upload all required documents')
+                    return redirect('travel_app:director_create_travel')
+
+                # Step 4: Budget Extraction
+                from datetime import datetime as dt
+                start = dt.strptime(start_date, '%Y-%m-%d').date()
+                end = dt.strptime(end_date, '%Y-%m-%d').date()
+
+                duration_days = (end - start).days + 1
+                duration_nights = max(0, (end - start).days)
+
+                region_rate = RegionRate.objects.filter(is_active=True).first()
+                if not region_rate:
+                    region_rate = RegionRate.objects.create(
+                        region_code='VII',
+                        region_name='Region 7',
+                        meal_rate=180,
+                        lodging_rate=900,
+                        incidental_rate=180,
+                        is_active=True
+                    )
+
+                # Try to extract budget
+                extracted_budget = None
+                try:
+                    extracted_budget = extract_budget_from_file(itinerary_file)
+                    if extracted_budget:
+                        messages.success(request, f'✅ Budget extracted: ₱{extracted_budget:,.2f}')
+                except:
+                    pass
+
+                if not extracted_budget:
+                    extracted_budget = calculate_auto_budget(start, end, region_rate)
+
+                itinerary = ItineraryOfTravel.objects.create(
+                    region_rate=region_rate,
+                    estimated_meals_count=duration_days * 3,
+                    estimated_days=duration_days,
+                    estimated_nights=duration_nights,
+                    estimated_transportation=0,
+                    estimated_other_expenses=0,
+                    file=itinerary_file
+                )
+
+                # Adjust budget
+                base_cost = (
+                    (duration_days * 3 * region_rate.meal_rate) +
+                    (duration_nights * region_rate.lodging_rate) +
+                    (duration_days * region_rate.incidental_rate)
+                )
+                if extracted_budget > Decimal(str(base_cost)):
+                    itinerary.estimated_other_expenses = int(extracted_budget - Decimal(str(base_cost)))
+                    itinerary.save()
+
+                # Step 5: Participant Group (Director only)
+                participants_group = PayrollParticipants.objects.create()
+                participants_group.users.add(user)
+
+                # Step 6: Payroll
+                payroll = None
+                if prepayment_option == 'PREPAYMENT':
+                    payroll = Payroll.objects.create(
+                        itinerary=itinerary,
+                        participants_group=participants_group
+                    )
+
+                # Step 7: Travel Order → PENDING_DIRECTOR (Director self-approves)
+                travel_order = TravelOrder.objects.create(
+                    initiation=initiation_doc,
+                    created_by=user,
+                    status='PENDING_DIRECTOR'
+                )
+
+                # Step 8: Letter Request if out-of-province
+                letter_request = None
+                if is_out_of_province:
+                    justification = request.POST.get('justification', '')
+                    letter_file = request.FILES.get('letter_file')
+
+                    if not justification or not letter_file:
+                        messages.error(request, 'Out-of-province travel requires justification and letter')
+                        return redirect('travel_app:director_create_travel')
+
+                    letter_request = LetterRequest.objects.create(
+                        justification=justification,
+                        travel_order=travel_order,
+                        file=letter_file,
+                        status='PENDING'
+                    )
+
+                # Step 9: Official Travel
+                official_travel = OfficialTravel.objects.create(
+                    start_date=start_date,
+                    end_date=end_date,
+                    destination=destination,
+                    is_out_of_province=is_out_of_province,
+                    purpose=purpose,
+                    initiating_office=initiating_office,
+                    funding_office=funding_office,
+                    prepayment_option=prepayment_option,
+                    travel_order=travel_order,
+                    itinerary=itinerary,
+                    letter_request=letter_request,
+                    payroll=payroll,
+                    participants_group=participants_group
+                )
+
+                # Notify director (confirmation)
+                create_notification(
+                    user,
+                    'TRAVEL_CREATED',
+                    'Travel Request Submitted',
+                    f'Your travel to {destination} has been submitted. Approve it from your Pending Approvals.',
+                    official_travel
+                )
+
+                messages.success(request, f'✅ Travel to {destination} created! Approve it from your dashboard.')
+                return redirect('travel_app:travel_detail', travel_id=official_travel.id)
+
+        except Exception as e:
+            messages.error(request, f'Error: {str(e)}')
+            return redirect('travel_app:director_create_travel')
+
+    context = {
+        'title': 'Create Travel Request - Director',
+        'user': user,
+    }
+    return render(request, 'travel_app/director/director_create_travel.html', context)
+
+
+# ==================== DIRECTOR TRAVEL HISTORY ====================
+
+@never_cache
+def director_travel_history(request):
+    """Show all travels where Director is a participant"""
+    user = get_authenticated_user(request)
+    if not user or user.role != 'DIRECTOR':
+        messages.warning(request, 'Please login as Director')
+        return redirect('accounts:login')
+
+    # Get all travels where Director is participant
+    travels = OfficialTravel.objects.filter(
+        participants_group__users=user
+    ).select_related(
+        'travel_order',
+        'itinerary',
+        'letter_request'
+    ).prefetch_related(
+        'participants_group__users',
+        'post_travel_documents',
+        'financial_documents'
+    ).order_by('-created_at')
+
+    # Filters
+    status_filter = request.GET.get('status', '')
+    year_filter = request.GET.get('year', '')
+    search_query = request.GET.get('search', '')
+
+    if status_filter:
+        travels = travels.filter(travel_order__status=status_filter)
+    if year_filter:
+        travels = travels.filter(start_date__year=year_filter)
+    if search_query:
+        travels = travels.filter(
+            Q(destination__icontains=search_query) |
+            Q(purpose__icontains=search_query)
+        )
+
+    # Available years
+    available_years = OfficialTravel.objects.filter(
+        participants_group__users=user
+    ).dates('start_date', 'year', order='DESC')
+
+    # Annotate with status
+    today = timezone.now().date()
+    travels_with_status = []
+    for travel in travels:
+        is_completed = travel.end_date and travel.end_date < today
+        is_ongoing = travel.start_date <= today <= travel.end_date if travel.end_date else False
+
+        required_docs = ['COMPLETED', 'RECEIPTS', 'APPEARANCE', 'ACTUAL_ITINERARY']
+        submitted_docs = travel.post_travel_documents.values_list('document_type', flat=True)
+        missing_docs = [doc for doc in required_docs if doc not in submitted_docs]
+
+        has_liquidation = hasattr(travel, 'liquidation_report')
+
+        travels_with_status.append({
+            'travel': travel,
+            'is_completed': is_completed,
+            'is_ongoing': is_ongoing,
+            'missing_docs': missing_docs,
+            'has_liquidation': has_liquidation,
+            'needs_attention': (is_completed and (missing_docs or not has_liquidation))
+        })
+
+    context = {
+        'title': 'My Travel History',
+        'user': user,
+        'travels_with_status': travels_with_status,
+        'status_choices': TravelOrder.STATUS_CHOICES,
+        'current_status': status_filter,
+        'search_query': search_query,
+        'available_years': available_years,
+        'current_year': year_filter,
+        'total_count': travels.count(),
+        'completed_count': len([t for t in travels_with_status if t['is_completed']]),
+    }
+
+    return render(request, 'travel_app/director/director_travel_history.html', context)
+
+
+# ==================== DIRECTOR NOTIFICATIONS (IMPROVED) ====================
+
+@never_cache
+def director_notifications(request):
+    """Director notifications page - improved"""
+    user = get_authenticated_user(request)
+    if not user or user.role != 'DIRECTOR':
+        return redirect('accounts:login')
+
+    notifications = Notification.objects.filter(user=user).order_by('-created_at')
+
+    # Count by category
+    unread_count = notifications.filter(is_read=False).count()
+    approval_count = notifications.filter(notification_type__icontains='APPROVAL').count()
+    travel_count = notifications.filter(notification_type__icontains='TRAVEL').count()
+
+    context = {
+        'title': 'Notifications',
+        'user': user,
+        'notifications': notifications,
+        'unread_count': unread_count,
+        'approval_count': approval_count,
+        'travel_count': travel_count,
+    }
+    return render(request, 'travel_app/director/director_notifications.html', context)
+
+
+# ==================== DIRECTOR MARK ALL READ ====================
+
+@csrf_protect
+@never_cache
+def director_mark_all_read(request):
+    """Mark all notifications as read"""
+    user = get_authenticated_user(request)
+    if not user or user.role != 'DIRECTOR':
+        return redirect('accounts:login')
+
+    if request.method == 'POST':
+        count = Notification.objects.filter(user=user, is_read=False).update(is_read=True)
+        messages.success(request, f'Marked {count} notification(s) as read')
+
+    return redirect('travel_app:director_notifications')
+
+
+# ==================== DIRECTOR MARK SINGLE NOTIF READ ====================
+
+@csrf_protect
+@never_cache
+def director_mark_notif_read(request, notif_id):
+    """Mark a single notification as read"""
+    user = get_authenticated_user(request)
+    if not user or user.role != 'DIRECTOR':
+        return redirect('accounts:login')
+
+    try:
+        notif = Notification.objects.get(id=notif_id, user=user)
+        notif.is_read = True
+        notif.save()
+        messages.success(request, 'Notification marked as read')
+    except Notification.DoesNotExist:
+        messages.error(request, 'Notification not found')
+
+    return redirect('travel_app:director_notifications')
+
+
+# ==================== DIRECTOR APPROVE ====================
+
+@csrf_protect
+@never_cache
+def director_approve(request, travel_id):
+    """Approve a travel request"""
+    user = get_authenticated_user(request)
+    if not user or user.role != 'DIRECTOR':
+        return redirect('accounts:login')
+    
+    if request.method != 'POST':
+        return redirect('travel_app:director_dashboard')
+    
+    travel = get_object_or_404(OfficialTravel, id=travel_id)
+    
+    if travel.travel_order.status != 'PENDING_DIRECTOR':
+        messages.error(request, 'This travel is not pending director approval')
+        return redirect('travel_app:director_dashboard')
+    
+    # Approve
+    travel.travel_order.status = 'APPROVED'
+    travel.travel_order.approved_by_director = user
+    travel.travel_order.director_approval_date = timezone.now()
+    travel.travel_order.save()
+    
+    # Notify employee
+    create_notification(
+        travel.travel_order.created_by,
+        'TRAVEL_APPROVED',
+        'Travel Approved by Director',
+        f'Your travel to {travel.destination} has been approved by Director {user.get_full_name()}',
+        travel
+    )
+    
+    messages.success(request, f'✅ Travel to {travel.destination} approved!')
+    return redirect('travel_app:director_dashboard')
+
+
+# ==================== DIRECTOR REJECT ====================
+
+@csrf_protect
+@never_cache
+def director_reject(request, travel_id):
+    """Reject a travel request"""
+    user = get_authenticated_user(request)
+    if not user or user.role != 'DIRECTOR':
+        return redirect('accounts:login')
+    
+    if request.method != 'POST':
+        return redirect('travel_app:director_dashboard')
+    
+    travel = get_object_or_404(OfficialTravel, id=travel_id)
+    rejection_reason = request.POST.get('rejection_reason', '')
+    
+    if travel.travel_order.status != 'PENDING_DIRECTOR':
+        messages.error(request, 'This travel is not pending director approval')
+        return redirect('travel_app:director_dashboard')
+    
+    # Reject
+    travel.travel_order.status = 'REJECTED'
+    travel.travel_order.approved_by_director = user
+    travel.travel_order.director_approval_date = timezone.now()
+    travel.travel_order.director_remarks = rejection_reason
+    travel.travel_order.rejection_reason = rejection_reason
+    travel.travel_order.save()
+    
+    # Notify employee
+    create_notification(
+        travel.travel_order.created_by,
+        'TRAVEL_REJECTED',
+        'Travel Rejected by Director',
+        f'Your travel to {travel.destination} has been rejected. Reason: {rejection_reason}',
+        travel
+    )
+    
+    messages.warning(request, f'❌ Travel to {travel.destination} rejected')
+    return redirect('travel_app:director_dashboard')

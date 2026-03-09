@@ -40,7 +40,15 @@ urlpatterns = [
     
     # Director URLs (Placeholder)
     path('director/dashboard/', views.director_dashboard, name='director_dashboard'),
-    
+    # Director URLs
+    path('director/create-travel/', views.director_create_travel, name='director_create_travel'),
+    path('director/travel-history/', views.director_travel_history, name='director_travel_history'),
+    path('director/notifications/', views.director_notifications, name='director_notifications'),
+    path('director/notifications/mark-all-read/', views.director_mark_all_read, name='director_mark_all_read'),
+    path('director/notifications/<int:notif_id>/mark-read/', views.director_mark_notif_read, name='director_mark_notif_read'),
+    path('director/approve/<int:travel_id>/', views.director_approve, name='director_approve'),
+    path('director/reject/<int:travel_id>/', views.director_reject, name='director_reject'),
+        
     # President URLs (Placeholder)
     path('president/dashboard/', views.president_dashboard, name='president_dashboard'),
     
