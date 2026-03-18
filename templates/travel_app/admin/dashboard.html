@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+  :root {
+    --role-color: #92400e;
+    --role-faint: #fef3c7;
+  }
+{% endblock %}
+
+{% block sidebar %}
+<span class="sidebar-section-label">Overview</span>
+<a href="{% url 'travel_app:admin_dashboard' %}" class="nav-item-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+  <i class="bi bi-speedometer2"></i> Dashboard
+</a>
+<a href="{% url 'travel_app:all_travels' %}" class="nav-item-link">
+  <i class="bi bi-folder2-open"></i> All Travels
+</a>
+
+<span class="sidebar-section-label">Budget</span>
+<a href="{% url 'travel_app:manage_budget_sources' %}" class="nav-item-link {% if request.resolver_match.url_name == 'manage_budget_sources' %}active{% endif %}">
+  <i class="bi bi-wallet2"></i> Budget Sources
+</a>
+<a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link">
+  <i class="bi bi-pie-chart"></i> Utilization
+</a>
+
+<span class="sidebar-section-label">Users</span>
+<a href="{% url 'accounts:pending_approvals' %}" class="nav-item-link">
+  <i class="bi bi-person-check"></i> User Approvals
+</a>
+
+<span class="sidebar-section-label">Account</span>
+<a href="{% url 'accounts:profile' %}" class="nav-item-link">
+  <i class="bi bi-person"></i> Profile
+</a>
+<a href="{% url 'accounts:logout' %}" class="nav-item-link">
+  <i class="bi bi-box-arrow-right"></i> Logout
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">University Overview</div>
+      <div class="page-subtitle">BISU Travel Hub &mdash; {{ today|date:"F j, Y" }}</div>
+    </div>
+    <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom">
+      <i class="bi bi-wallet2"></i> Manage Budget
+    </a>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fef3c7;color:#92400e">
+        <i class="bi bi-folder2-open"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_travels }}</div>
+        <div class="stat-label">Total Travels</div>
+        <div class="stat-trend">This year</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e6f4ea;color:#1a5c38">
+        <i class="bi bi-people"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_travelers }}</div>
+        <div class="stat-label">Total Travelers</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fde8e8;color:#922b21">
+        <i class="bi bi-tag"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ untagged_count }}</div>
+        <div class="stat-label">Untagged Travels</div>
+        <div class="stat-trend {% if untagged_count > 0 %}warn{% endif %}">
+          {% if untagged_count > 0 %}Needs secretary action{% else %}All tagged{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e8f0fe;color:#1a4491">
+        <i class="bi bi-building"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_colleges }}</div>
+        <div class="stat-label">Active Colleges</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Budget sources overview -->
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title">Budget Sources — {{ current_year }}</div>
+          <div class="card-subtitle">University-wide utilization</div>
+        </div>
+        <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom" style="padding:6px 14px;font-size:12px">
+          <i class="bi bi-gear"></i> Manage
+        </a>
+      </div>
+
+      {% if budget_sources %}
+        {% for item in budget_sources %}
+        <div class="budget-bar-wrap">
+          <div class="budget-bar-header">
+            <span class="budget-bar-name">{{ item.source.name }}</span>
+            <span class="badge-status {% if item.source.scope == 'CAMPUS' %}badge-campus{% else %}badge-college{% endif %}" style="font-size:10px">
+              {{ item.source.scope|title }}
+            </span>
+          </div>
+          <div class="budget-bar-track">
+            <div class="budget-bar-fill fill-{{ item.status }}" style="width:{% if item.percentage > 100 %}100{% else %}{{ item.percentage }}{% endif %}%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:3px">
+            <span>{{ item.percentage }}% used</span>
+            <span>₱{{ item.allocated|floatformat:0 }} total</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:32px">
+          <i class="bi bi-wallet2"></i>
+          <p>No budget sources yet.</p>
+          <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom">
+            <i class="bi bi-plus-lg"></i> Add Budget Source
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Travel by college + recent -->
+  <div class="col-lg-7">
+    <!-- Travel by college chart -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title">Travels by College</div>
+        <div class="card-subtitle">{{ current_year }}</div>
+      </div>
+      <div class="card-body-custom">
+        <canvas id="collegeChart" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- Recent travels -->
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title">Recent Travels</div>
+        <a href="{% url 'travel_app:all_travels' %}" class="btn-secondary-custom" style="padding:6px 12px;font-size:12px">View all</a>
+      </div>
+      {% if recent_travels %}
+        {% for travel in recent_travels %}
+        <a href="{% url 'travel_app:travel_detail' travel.id %}" class="travel-row">
+          <div class="travel-icon"><i class="bi bi-geo-alt"></i></div>
+          <div style="flex:1;min-width:0">
+            <div class="travel-dest">{{ travel.destination }}</div>
+            <div class="travel-meta">
+              {{ travel.start_date|date:"M j, Y" }}
+              &nbsp;·&nbsp; {{ travel.created_by.college.name|default:"Campus" }}
+              &nbsp;·&nbsp; {{ travel.participant_count }} traveler{{ travel.participant_count|pluralize }}
+            </div>
+          </div>
+          <div class="travel-right">
+            {% if travel.is_budget_tagged %}
+              <span class="badge-status badge-tagged"><i class="bi bi-check-circle-fill" style="font-size:9px"></i> Tagged</span>
+            {% else %}
+              <span class="badge-status badge-untagged">Untagged</span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-airplane"></i>
+          <p>No travel records yet.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Travel by college bar chart
+const ctx = document.getElementById('collegeChart');
+if (ctx) {
+  const labels = [{% for item in college_stats %}"{{ item.college }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+  const data   = [{% for item in college_stats %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Travels',
+        data,
+        backgroundColor: '#1a5c38',
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { family: 'DM Sans', size: 11 }, color: '#5a6360' }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 }, color: '#5a6360' },
+          grid: { color: '#e2e4df' }
+        }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

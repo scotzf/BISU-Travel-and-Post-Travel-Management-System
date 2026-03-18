@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Secretary Dashboard — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+  :root {
+    --role-color:  {% if user.role == 'CAMPUS_SEC' %}#6b21a8{% else %}#1a5c38{% endif %};
+    --role-faint:  {% if user.role == 'CAMPUS_SEC' %}#f3e8ff{% else %}#eaf4ee{% endif %};
+  }
+{% endblock %}
+
+{% block sidebar %}
+<span class="sidebar-section-label">Main</span>
+<a href="{% if user.role == 'CAMPUS_SEC' %}{% url 'travel_app:campus_secretary_dashboard' %}{% else %}{% url 'travel_app:dept_secretary_dashboard' %}{% endif %}"
+   class="nav-item-link active">
+  <i class="bi bi-house"></i> Dashboard
+</a>
+
+<span class="sidebar-section-label">Travels</span>
+<a href="{% url 'travel_app:all_travels' %}" class="nav-item-link">
+  <i class="bi bi-folder2-open"></i>
+  All Travels
+  {% if untagged_count > 0 %}
+    <span class="nav-pill">{{ untagged_count }}</span>
+  {% endif %}
+</a>
+<a href="{% url 'travel_app:create_travel' %}" class="nav-item-link">
+  <i class="bi bi-plus-circle"></i> Create Travel
+</a>
+
+<span class="sidebar-section-label">Budget</span>
+<a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link">
+  <i class="bi bi-pie-chart"></i> Budget Overview
+</a>
+
+<span class="sidebar-section-label">Events</span>
+<a href="{% url 'travel_app:event_groups' %}" class="nav-item-link">
+  <i class="bi bi-diagram-3"></i> Event Groups
+</a>
+
+<span class="sidebar-section-label">Account</span>
+<a href="{% url 'accounts:profile' %}" class="nav-item-link">
+  <i class="bi bi-person"></i> Profile
+</a>
+<a href="{% url 'accounts:logout' %}" class="nav-item-link">
+  <i class="bi bi-box-arrow-right"></i> Logout
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">
+        {% if user.role == 'CAMPUS_SEC' %}Campus Secretary{% else %}Department Secretary{% endif %}
+      </div>
+      <div class="page-subtitle">
+        {% if user.role == 'CAMPUS_SEC' %}
+          {{ user.campus.name|default:"Campus" }} &mdash; All colleges
+        {% else %}
+          {{ user.college.name|default:"College" }}
+        {% endif %}
+        &mdash; {{ today|date:"F j, Y" }}
+      </div>
+    </div>
+    <a href="{% url 'travel_app:create_travel' %}" class="btn-primary-custom">
+      <i class="bi bi-plus-lg"></i> New Travel
+    </a>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--role-faint);color:var(--role-color)">
+        <i class="bi bi-folder2-open"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_travels }}</div>
+        <div class="stat-label">Total Travels</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fef8e7;color:#8a6400">
+        <i class="bi bi-tag"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ untagged_count }}</div>
+        <div class="stat-label">Needs Budget Tag</div>
+        <div class="stat-trend {% if untagged_count > 0 %}warn{% endif %}">
+          {% if untagged_count > 0 %}Action needed{% else %}All tagged{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e8f0fe;color:#1a4491">
+        <i class="bi bi-people"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_travelers }}</div>
+        <div class="stat-label">Total Travelers</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e6f4ea;color:#1a5c38">
+        <i class="bi bi-currency-dollar"></i>
+      </div>
+      <div>
+        <div class="stat-value">₱{{ total_budget_used|floatformat:0 }}</div>
+        <div class="stat-label">Budget Used</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Untagged queue -->
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title">
+            <i class="bi bi-tag" style="color:var(--accent)"></i>
+            Needs Budget Tagging
+          </div>
+          <div class="card-subtitle">Assign a budget source to these travels</div>
+        </div>
+        {% if untagged_count > 0 %}
+          <span class="badge-status badge-untagged">{{ untagged_count }} pending</span>
+        {% endif %}
+      </div>
+
+      {% if untagged_travels %}
+        {% for travel in untagged_travels %}
+        <a href="{% url 'travel_app:travel_detail' travel.id %}" class="travel-row">
+          <div class="travel-icon" style="background:#fef8e7;color:#8a6400">
+            <i class="bi bi-geo-alt"></i>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="travel-dest">{{ travel.destination }}</div>
+            <div class="travel-meta">
+              {{ travel.start_date|date:"M j, Y" }}
+              &nbsp;·&nbsp; By {{ travel.created_by.get_full_name }}
+              &nbsp;·&nbsp; {{ travel.participant_count }} traveler{{ travel.participant_count|pluralize }}
+            </div>
+          </div>
+          <div class="travel-right">
+            <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}">
+              {{ travel.scope|title }}
+            </span>
+            <div class="travel-meta mt-1">{{ travel.completeness_percentage }}% docs</div>
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-check-circle"></i>
+          <p>All travels have been tagged.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Recent all travels -->
+    <div class="card">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title">All Travels</div>
+          <div class="card-subtitle">Most recent records</div>
+        </div>
+        <a href="{% url 'travel_app:all_travels' %}" class="btn-secondary-custom" style="padding:6px 12px;font-size:12px">
+          View all
+        </a>
+      </div>
+
+      {% if recent_travels %}
+        {% for travel in recent_travels %}
+        <a href="{% url 'travel_app:travel_detail' travel.id %}" class="travel-row">
+          <div class="travel-icon"><i class="bi bi-geo-alt"></i></div>
+          <div style="flex:1;min-width:0">
+            <div class="travel-dest">{{ travel.destination }}</div>
+            <div class="travel-meta">
+              {{ travel.start_date|date:"M j, Y" }}
+              &nbsp;·&nbsp; {{ travel.created_by.get_full_name }}
+            </div>
+          </div>
+          <div class="travel-right">
+            {% if travel.is_budget_tagged %}
+              <span class="badge-status badge-tagged"><i class="bi bi-check-circle-fill" style="font-size:9px"></i> Tagged</span>
+            {% else %}
+              <span class="badge-status badge-untagged">Untagged</span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-airplane"></i>
+          <p>No travel records yet.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Budget sidebar -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title">Budget Utilization</div>
+          <div class="card-subtitle">{{ current_year }}</div>
+        </div>
+        <a href="{% url 'travel_app:budget_overview' %}" style="font-size:12px;color:var(--role-color);text-decoration:none;font-weight:500">
+          Details →
+        </a>
+      </div>
+
+      {% if budget_sources %}
+        {% for item in budget_sources %}
+        <div class="budget-bar-wrap">
+          <div class="budget-bar-header">
+            <span class="budget-bar-name">{{ item.source.name }}</span>
+            <span class="budget-bar-amounts">₱{{ item.remaining|floatformat:0 }} left</span>
+          </div>
+          <div class="budget-bar-track">
+            <div class="budget-bar-fill fill-{{ item.status }}" style="width:{{ item.percentage }}%"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">
+            {{ item.percentage }}% used of ₱{{ item.allocated|floatformat:0 }}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:24px">
+          <i class="bi bi-wallet2"></i>
+          <p style="font-size:12.5px">No budget sources configured yet.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Duplicate alert -->
+    {% if duplicate_alerts %}
+    <div class="alert-custom alert-warning">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <div>
+        <strong>{{ duplicate_alerts|length }} possible duplicate{{ duplicate_alerts|length|pluralize }}</strong> detected.
+        <a href="{% url 'travel_app:event_groups' %}" style="color:inherit;font-weight:500"> Review →</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

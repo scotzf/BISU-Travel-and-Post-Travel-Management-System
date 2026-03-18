@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}My Travels — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+  :root {
+    --role-color: #1a5c38;
+    --role-faint: #eaf4ee;
+  }
+{% endblock %}
+
+{% block sidebar %}
+<span class="sidebar-section-label">Main</span>
+<a href="{% url 'travel_app:employee_dashboard' %}" class="nav-item-link {% if request.resolver_match.url_name == 'employee_dashboard' %}active{% endif %}">
+  <i class="bi bi-house"></i> Dashboard
+</a>
+<a href="{% url 'travel_app:create_travel' %}" class="nav-item-link {% if request.resolver_match.url_name == 'create_travel' %}active{% endif %}">
+  <i class="bi bi-plus-circle"></i> New Travel
+</a>
+
+<span class="sidebar-section-label">My Records</span>
+<a href="{% url 'travel_app:my_travels' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_travels' %}active{% endif %}">
+  <i class="bi bi-folder2-open"></i> All Travels
+</a>
+<a href="{% url 'travel_app:my_stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_stats' %}active{% endif %}">
+  <i class="bi bi-bar-chart"></i> My Stats
+</a>
+
+<span class="sidebar-section-label">Account</span>
+<a href="{% url 'accounts:profile' %}" class="nav-item-link">
+  <i class="bi bi-person"></i> Profile
+</a>
+<a href="{% url 'accounts:logout' %}" class="nav-item-link">
+  <i class="bi bi-box-arrow-right"></i> Logout
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Good day, {{ user.first_name }} 👋</div>
+      <div class="page-subtitle">{{ user.college.name|default:"BISU" }} &mdash; {{ today|date:"F j, Y" }}</div>
+    </div>
+    <a href="{% url 'travel_app:create_travel' %}" class="btn-primary-custom">
+      <i class="bi bi-plus-lg"></i> New Travel
+    </a>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--primary-faint);color:var(--primary)">
+        <i class="bi bi-folder2-open"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_travels }}</div>
+        <div class="stat-label">Total Travels</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e8f0fe;color:#1a4491">
+        <i class="bi bi-calendar-check"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ completed_travels }}</div>
+        <div class="stat-label">Completed</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fef8e7;color:#8a6400">
+        <i class="bi bi-clock-history"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ upcoming_travels }}</div>
+        <div class="stat-label">Upcoming</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fde8e8;color:#922b21">
+        <i class="bi bi-file-earmark-x"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ incomplete_travels }}</div>
+        <div class="stat-label">Incomplete Docs</div>
+        <div class="stat-trend {% if incomplete_travels > 0 %}warn{% endif %}">
+          {% if incomplete_travels > 0 %}Needs attention{% else %}All complete{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Recent travels -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title">Recent Travels</div>
+          <div class="card-subtitle">Your latest travel records</div>
+        </div>
+        <a href="{% url 'travel_app:my_travels' %}" class="btn-secondary-custom" style="padding:6px 12px;font-size:12px">
+          View all
+        </a>
+      </div>
+
+      {% if recent_travels %}
+        {% for travel in recent_travels %}
+        <a href="{% url 'travel_app:travel_detail' travel.id %}" class="travel-row">
+          <div class="travel-icon">
+            <i class="bi bi-geo-alt"></i>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="travel-dest">{{ travel.destination }}</div>
+            <div class="travel-meta">
+              {{ travel.start_date|date:"M j" }}{% if travel.end_date %} – {{ travel.end_date|date:"M j, Y" }}{% endif %}
+              &nbsp;·&nbsp; {{ travel.participant_count }} traveler{{ travel.participant_count|pluralize }}
+            </div>
+          </div>
+          <div class="travel-right">
+            {% if travel.is_budget_tagged %}
+              <span class="badge-status badge-tagged"><i class="bi bi-check-circle-fill" style="font-size:9px"></i> Tagged</span>
+            {% else %}
+              <span class="badge-status badge-untagged"><i class="bi bi-hourglass-split" style="font-size:9px"></i> Untagged</span>
+            {% endif %}
+            <div class="travel-meta mt-1">{{ travel.completeness_percentage }}% docs</div>
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-airplane"></i>
+          <p>No travel records yet.</p>
+          <a href="{% url 'travel_app:create_travel' %}" class="btn-primary-custom">
+            <i class="bi bi-plus-lg"></i> Create your first travel
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Quick info sidebar -->
+  <div class="col-lg-4">
+    <!-- Document checklist reminder -->
+    {% if incomplete_travels > 0 %}
+    <div class="alert-custom alert-warning mb-3">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <div>
+        <strong>{{ incomplete_travels }} travel{{ incomplete_travels|pluralize }}</strong> with missing documents.
+        <a href="{% url 'travel_app:my_travels' %}?filter=incomplete" style="color:inherit;font-weight:500"> View →</a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Required documents card -->
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title">Required Documents</div>
+      </div>
+      <div class="card-body-custom" style="padding:16px 20px">
+        {% for doc_type, doc_label in doc_types %}
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <i class="bi bi-file-earmark-text" style="color:var(--text-muted);font-size:13px;width:16px"></i>
+          <span style="font-size:12.5px;color:var(--text-secondary)">{{ doc_label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
