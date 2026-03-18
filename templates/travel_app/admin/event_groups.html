@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Event Groups — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'ADMIN' %}#92400e{% elif user.role == 'CAMPUS_SEC' %}#6b21a8{% else %}#0f766e{% endif %};
+  --role-faint: {% if user.role == 'ADMIN' %}#fef3c7{% elif user.role == 'CAMPUS_SEC' %}#f3e8ff{% else %}#f0fdfa{% endif %};
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Event Groups</div>
+      <div class="page-subtitle">Link related travels from different colleges to the same event</div>
+    </div>
+  </div>
+</div>
+
+<!-- Duplicate alerts -->
+{% if duplicate_alerts %}
+<div class="card mb-3" style="border-color:#f5e1a0">
+  <div class="card-header-custom" style="background:#fef8e7">
+    <div>
+      <div class="card-title" style="color:#8a6400">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        Possible Duplicates Detected
+      </div>
+      <div class="card-subtitle">These travels may be related — consider linking them</div>
+    </div>
+  </div>
+  {% for a, b in duplicate_alerts %}
+  <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-weight:600;color:var(--text-muted);
+                text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+      Same destination · overlapping dates
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <a href="{% url 'travel_app:travel_detail' a.id %}"
+         style="flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--border);
+                border-radius:var(--radius);background:var(--surface);text-decoration:none">
+        <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ a.destination }}</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">
+          {{ a.start_date|date:"M j, Y" }} · {{ a.created_by.get_full_name }}
+          · {{ a.participant_count }} traveler{{ a.participant_count|pluralize }}
+        </div>
+      </a>
+      <div style="display:flex;align-items:center;color:var(--text-muted);font-size:18px">
+        <i class="bi bi-link-45deg"></i>
+      </div>
+      <a href="{% url 'travel_app:travel_detail' b.id %}"
+         style="flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--border);
+                border-radius:var(--radius);background:var(--surface);text-decoration:none">
+        <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ b.destination }}</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">
+          {{ b.start_date|date:"M j, Y" }} · {{ b.created_by.get_full_name }}
+          · {{ b.participant_count }} traveler{{ b.participant_count|pluralize }}
+        </div>
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Existing event groups -->
+<div class="card">
+  <div class="card-header-custom">
+    <div class="card-title">Event Groups</div>
+    <div class="card-subtitle">{{ groups|length }} group{{ groups|length|pluralize }}</div>
+  </div>
+
+  {% if groups %}
+    {% for group in groups %}
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;
+                  gap:12px;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary)">
+            {{ group.name }}
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+            {{ group.destination }}
+            &nbsp;·&nbsp; {{ group.start_date|date:"M j" }}{% if group.end_date %} – {{ group.end_date|date:"M j, Y" }}{% endif %}
+            &nbsp;·&nbsp; {{ group.total_participants }} total traveler{{ group.total_participants|pluralize }}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <span class="badge-status badge-{% if group.scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
+                style="font-size:10px">
+            {{ group.scope|title }}
+          </span>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+            ₱{{ group.total_amount_deducted|floatformat:0 }} total
+          </div>
+        </div>
+      </div>
+
+      <!-- Linked travels -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        {% for travel in group.travel_records.all %}
+        <a href="{% url 'travel_app:travel_detail' travel.id %}"
+           style="padding:6px 12px;background:var(--surface-2);border:1px solid var(--border);
+                  border-radius:20px;font-size:12px;color:var(--text-secondary);
+                  text-decoration:none;display:flex;align-items:center;gap:5px;
+                  transition:all .15s"
+           onmouseover="this.style.background='var(--role-faint)';this.style.color='var(--role-color)'"
+           onmouseout="this.style.background='var(--surface-2)';this.style.color='var(--text-secondary)'">
+          <i class="bi bi-geo-alt" style="font-size:11px"></i>
+          {{ travel.destination }} · {{ travel.participant_count }}p
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <i class="bi bi-diagram-3"></i>
+      <p>No event groups yet.</p>
+      <div style="font-size:12.5px;color:var(--text-muted);max-width:300px;margin:0 auto">
+        Event groups are created when multiple travels are linked to the same conference or event.
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

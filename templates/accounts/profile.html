@@ -9,21 +9,6 @@
 }
 {% endblock %}
 
-{% block sidebar %}
-<span class="sidebar-section-label">Main</span>
-<a href="{% url 'accounts:dashboard' %}" class="nav-item-link">
-  <i class="bi bi-house"></i> Dashboard
-</a>
-
-<span class="sidebar-section-label">Account</span>
-<a href="{% url 'accounts:profile' %}" class="nav-item-link active">
-  <i class="bi bi-person"></i> Profile
-</a>
-<a href="{% url 'accounts:logout' %}" class="nav-item-link">
-  <i class="bi bi-box-arrow-right"></i> Logout
-</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-header">
   <div class="page-header-row">

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load travel_tags %}
+{% block title %}All Travels — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'CAMPUS_SEC' %}#6b21a8{% elif user.role == 'DEPT_SEC' %}#0f766e{% elif user.role == 'ADMIN' %}#92400e{% else %}#1a5c38{% endif %};
+  --role-faint: {% if user.role == 'CAMPUS_SEC' %}#f3e8ff{% elif user.role == 'DEPT_SEC' %}#f0fdfa{% elif user.role == 'ADMIN' %}#fef3c7{% else %}#eaf4ee{% endif %};
+}
+.filter-btn {
+  padding:6px 14px; border-radius:20px; font-size:12px; font-weight:500;
+  border:1px solid var(--border); background:var(--surface);
+  color:var(--text-secondary); cursor:pointer; text-decoration:none;
+  transition:all .15s; display:inline-flex; align-items:center; gap:5px;
+}
+.filter-btn:hover, .filter-btn.active {
+  background:var(--role-faint); border-color:var(--role-color);
+  color:var(--role-color);
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">All Travels</div>
+      <div class="page-subtitle">{{ total }} record{{ total|pluralize }} found</div>
+    </div>
+    {% if user.role in 'EMPLOYEE,DEPT_SEC,CAMPUS_SEC' %}
+    <a href="{% url 'travel_app:create_travel' %}" class="btn-primary-custom">
+      <i class="bi bi-plus-lg"></i> New Travel
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Search + Filters -->
+<div class="card mb-3">
+  <div class="card-body-custom" style="padding:14px 20px">
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+
+      <!-- Search -->
+      <div style="flex:1;min-width:200px;position:relative">
+        <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
+           color:var(--text-muted);font-size:13px;pointer-events:none"></i>
+        <input type="text" name="q" value="{{ search }}"
+               placeholder="Search destination..."
+               style="padding-left:32px;font-size:13px;border:1px solid var(--border);
+                      border-radius:20px;padding-top:7px;padding-bottom:7px;
+                      width:100%;outline:none;background:var(--surface-2)"/>
+      </div>
+
+      <!-- Tagged filter -->
+      <div style="display:flex;gap:6px">
+        <a href="?{% if search %}q={{ search }}&{% endif %}tagged=no{% if filter_year %}&year={{ filter_year }}{% endif %}"
+           class="filter-btn {% if filter_tagged == 'no' %}active{% endif %}">
+          <i class="bi bi-tag"></i> Untagged
+        </a>
+        <a href="?{% if search %}q={{ search }}&{% endif %}tagged=yes{% if filter_year %}&year={{ filter_year }}{% endif %}"
+           class="filter-btn {% if filter_tagged == 'yes' %}active{% endif %}">
+          <i class="bi bi-check-circle"></i> Tagged
+        </a>
+      </div>
+
+      <!-- Scope filter (secretary/admin only) -->
+      {% if user.role != 'EMPLOYEE' %}
+      <div style="display:flex;gap:6px">
+        <a href="?{% if search %}q={{ search }}&{% endif %}scope=COLLEGE{% if filter_tagged %}&tagged={{ filter_tagged }}{% endif %}"
+           class="filter-btn {% if filter_scope == 'COLLEGE' %}active{% endif %}">
+          College
+        </a>
+        <a href="?{% if search %}q={{ search }}&{% endif %}scope=CAMPUS{% if filter_tagged %}&tagged={{ filter_tagged }}{% endif %}"
+           class="filter-btn {% if filter_scope == 'CAMPUS' %}active{% endif %}">
+          Campus
+        </a>
+      </div>
+      {% endif %}
+
+      <!-- Year filter -->
+      <select name="year" onchange="this.form.submit()"
+              style="font-size:12.5px;border:1px solid var(--border);border-radius:20px;
+                     padding:6px 12px;background:var(--surface);color:var(--text-secondary);
+                     cursor:pointer">
+        <option value="">All years</option>
+        {% for y in '2024,2025,2026,2027'|split:',' %}
+        <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+
+      <!-- Clear filters -->
+      {% if search or filter_tagged or filter_scope or filter_year %}
+      <a href="{% url 'travel_app:all_travels' %}" class="filter-btn" style="color:#922b21;border-color:#f5b7b1">
+        <i class="bi bi-x"></i> Clear
+      </a>
+      {% endif %}
+
+    </form>
+  </div>
+</div>
+
+<!-- Travel list -->
+<div class="card">
+  <div class="card-header-custom">
+    <div class="card-title">Travel Records</div>
+    <div class="card-subtitle">{{ total }} result{{ total|pluralize }}</div>
+  </div>
+
+  {% if travels %}
+    {% for travel in travels %}
+    <a href="{% url 'travel_app:travel_detail' travel.id %}" class="travel-row">
+      <div class="travel-icon">
+        <i class="bi bi-{% if travel.is_out_of_province %}airplane{% else %}geo-alt{% endif %}"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="travel-dest">{{ travel.destination }}</div>
+        <div class="travel-meta">
+          {{ travel.start_date|date:"M j, Y" }}{% if travel.end_date %} – {{ travel.end_date|date:"M j, Y" }}{% endif %}
+          &nbsp;·&nbsp; {{ travel.participant_count }} traveler{{ travel.participant_count|pluralize }}
+          {% if user.role != 'EMPLOYEE' %}
+            &nbsp;·&nbsp; {{ travel.created_by.get_full_name }}
+          {% endif %}
+        </div>
+      </div>
+      <div class="travel-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div style="display:flex;gap:6px">
+          {% if travel.is_budget_tagged %}
+            <span class="badge-status badge-tagged" style="font-size:10px">
+              <i class="bi bi-check-circle-fill" style="font-size:8px"></i> Tagged
+            </span>
+          {% else %}
+            <span class="badge-status badge-untagged" style="font-size:10px">Untagged</span>
+          {% endif %}
+          <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}" style="font-size:10px">
+            {{ travel.scope|title }}
+          </span>
+        </div>
+        <div class="travel-meta">
+          {{ travel.completeness_percentage }}% docs
+          &nbsp;·&nbsp; {{ travel.created_at|date:"M j" }}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <i class="bi bi-folder2"></i>
+      <p>No travel records found{% if search %} for "{{ search }}"{% endif %}.</p>
+      {% if user.role != 'ADMIN' %}
+      <a href="{% url 'travel_app:create_travel' %}" class="btn-primary-custom">
+        <i class="bi bi-plus-lg"></i> Create first travel
+      </a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

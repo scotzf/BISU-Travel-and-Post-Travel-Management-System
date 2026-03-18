@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Budget Sources — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root { --role-color:#92400e; --role-faint:#fef3c7; }
+.form-label { font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block; }
+.form-control,.form-select {
+  font-size:13.5px;border:1px solid var(--border);border-radius:var(--radius);
+  padding:9px 12px;color:var(--text-primary);background:var(--surface);width:100%;transition:border-color .15s;
+}
+.form-control:focus,.form-select:focus {
+  outline:none;border-color:var(--role-color);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--role-color) 12%,transparent);
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Budget Sources</div>
+      <div class="page-subtitle">Configure budget categories for {{ current_year }}</div>
+    </div>
+    <!-- Year selector -->
+    <div style="display:flex;gap:8px;align-items:center">
+      {% for y in year_range %}
+      <a href="?year={{ y }}"
+         style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:500;
+                text-decoration:none;border:1px solid var(--border);
+                {% if y == current_year %}background:var(--role-color);color:white;border-color:var(--role-color)
+                {% else %}background:var(--surface);color:var(--text-secondary){% endif %}">
+        {{ y }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <!-- Create new source -->
+  <div class="col-lg-4">
+    <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-plus-circle"></i> New Budget Source</div>
+      </div>
+      <div class="card-body-custom">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create"/>
+          <input type="hidden" name="year" value="{{ current_year }}"/>
+
+          <div style="margin-bottom:14px">
+            <label class="form-label">Name *</label>
+            <input type="text" name="name" class="form-control"
+                   placeholder="e.g. Research Travel"/>
+          </div>
+
+          <div style="margin-bottom:14px">
+            <label class="form-label">Scope *</label>
+            <select name="scope" class="form-select" id="scopeSelect"
+                    onchange="toggleAmountFields(this.value)">
+              <option value="COLLEGE">College-Level (each college gets this amount)</option>
+              <option value="CAMPUS">Campus-Level (one shared pool)</option>
+            </select>
+          </div>
+
+          <div id="collegeAmountField" style="margin-bottom:14px">
+            <label class="form-label">Amount per College (₱)</label>
+            <input type="number" name="college_budget_amount" class="form-control"
+                   placeholder="e.g. 500000" min="0" step="1000"/>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              This amount is given to each of the {{ college_count }} colleges independently.
+            </div>
+          </div>
+
+          <div id="campusAmountField" style="margin-bottom:14px;display:none">
+            <label class="form-label">Campus Pool Amount (₱)</label>
+            <input type="number" name="campus_budget_amount" class="form-control"
+                   placeholder="e.g. 1000000" min="0" step="1000"/>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              Single shared pool for all cross-college travel.
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px">
+            <label class="form-label">Description <span style="color:var(--text-muted)">(optional)</span></label>
+            <textarea name="description" class="form-control"
+                      style="min-height:60px;resize:vertical"
+                      placeholder="What is this budget for?"></textarea>
+          </div>
+
+          <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
+            <i class="bi bi-plus-lg"></i> Create Budget Source
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Existing sources -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title">Budget Sources — {{ current_year }}</div>
+          <div class="card-subtitle">{{ source_data|length }} source{{ source_data|length|pluralize }} configured</div>
+        </div>
+      </div>
+
+      {% if source_data %}
+        {% for item in source_data %}
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-size:14px;font-weight:600;color:var(--text-primary)">
+                  {{ item.source.name }}
+                </span>
+                <span class="badge-status badge-{% if item.source.scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
+                      style="font-size:10px">
+                  {{ item.source.scope|title }}
+                </span>
+                {% if not item.source.is_active %}
+                <span class="badge-status" style="background:var(--surface-3);color:var(--text-muted);font-size:10px">
+                  Inactive
+                </span>
+                {% endif %}
+              </div>
+              {% if item.source.description %}
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px">
+                {{ item.source.description }}
+              </div>
+              {% endif %}
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+                {% if item.source.scope == 'COLLEGE' %}
+                  ₱{{ item.source.college_budget_amount|floatformat:0 }} per college
+                  &nbsp;·&nbsp; {{ college_count }} college{{ college_count|pluralize }}
+                  &nbsp;·&nbsp; ₱{{ item.allocated|floatformat:0 }} total
+                {% else %}
+                  ₱{{ item.source.campus_budget_amount|floatformat:0 }} campus pool
+                {% endif %}
+                &nbsp;·&nbsp; {{ item.travel_count }} travel{{ item.travel_count|pluralize }}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <form method="post" style="display:inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="toggle"/>
+                <input type="hidden" name="source_id" value="{{ item.source.id }}"/>
+                <button type="submit" class="btn-secondary-custom"
+                        style="padding:5px 12px;font-size:11px">
+                  {% if item.source.is_active %}
+                    <i class="bi bi-pause"></i> Deactivate
+                  {% else %}
+                    <i class="bi bi-play"></i> Activate
+                  {% endif %}
+                </button>
+              </form>
+
+              {% if item.travel_count == 0 %}
+              <form method="post" style="display:inline"
+                    onsubmit="return confirm('Delete {{ item.source.name }}? This cannot be undone.')">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete"/>
+                <input type="hidden" name="source_id" value="{{ item.source.id }}"/>
+                <button type="submit" class="btn-secondary-custom"
+                        style="padding:5px 12px;font-size:11px;color:#922b21;border-color:#f5b7b1">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Usage bar -->
+          {% if item.source.is_active %}
+          <div class="budget-bar-track">
+            <div class="budget-bar-fill fill-{{ item.status }}"
+                 style="width:{% if item.percentage > 100 %}100{% else %}{{ item.percentage }}{% endif %}%">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;
+                      color:var(--text-muted);margin-top:4px">
+            <span>{{ item.percentage }}% used</span>
+            <span>₱{{ item.remaining|floatformat:0 }} remaining</span>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-wallet2"></i>
+          <p>No budget sources for {{ current_year }} yet.</p>
+          <div style="font-size:12.5px;color:var(--text-muted)">
+            Use the form on the left to create your first one.
+          </div>
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleAmountFields(scope) {
+  document.getElementById('collegeAmountField').style.display = scope === 'COLLEGE' ? '' : 'none';
+  document.getElementById('campusAmountField').style.display  = scope === 'CAMPUS'  ? '' : 'none';
+}
+</script>
+{% endblock %}

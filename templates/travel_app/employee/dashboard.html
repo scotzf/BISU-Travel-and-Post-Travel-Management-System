@@ -9,32 +9,6 @@
   }
 {% endblock %}
 
-{% block sidebar %}
-<span class="sidebar-section-label">Main</span>
-<a href="{% url 'travel_app:employee_dashboard' %}" class="nav-item-link {% if request.resolver_match.url_name == 'employee_dashboard' %}active{% endif %}">
-  <i class="bi bi-house"></i> Dashboard
-</a>
-<a href="{% url 'travel_app:create_travel' %}" class="nav-item-link {% if request.resolver_match.url_name == 'create_travel' %}active{% endif %}">
-  <i class="bi bi-plus-circle"></i> New Travel
-</a>
-
-<span class="sidebar-section-label">My Records</span>
-<a href="{% url 'travel_app:my_travels' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_travels' %}active{% endif %}">
-  <i class="bi bi-folder2-open"></i> All Travels
-</a>
-<a href="{% url 'travel_app:my_stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_stats' %}active{% endif %}">
-  <i class="bi bi-bar-chart"></i> My Stats
-</a>
-
-<span class="sidebar-section-label">Account</span>
-<a href="{% url 'accounts:profile' %}" class="nav-item-link">
-  <i class="bi bi-person"></i> Profile
-</a>
-<a href="{% url 'accounts:logout' %}" class="nav-item-link">
-  <i class="bi bi-box-arrow-right"></i> Logout
-</a>
-{% endblock %}
-
 {% block content %}
 <div class="page-header">
   <div class="page-header-row">

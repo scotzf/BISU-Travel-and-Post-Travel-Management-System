@@ -9,43 +9,6 @@
   }
 {% endblock %}
 
-{% block sidebar %}
-<span class="sidebar-section-label">Main</span>
-<a href="{% if user.role == 'CAMPUS_SEC' %}{% url 'travel_app:campus_secretary_dashboard' %}{% else %}{% url 'travel_app:dept_secretary_dashboard' %}{% endif %}"
-   class="nav-item-link active">
-  <i class="bi bi-house"></i> Dashboard
-</a>
-
-<span class="sidebar-section-label">Travels</span>
-<a href="{% url 'travel_app:all_travels' %}" class="nav-item-link">
-  <i class="bi bi-folder2-open"></i>
-  All Travels
-  {% if untagged_count > 0 %}
-    <span class="nav-pill">{{ untagged_count }}</span>
-  {% endif %}
-</a>
-<a href="{% url 'travel_app:create_travel' %}" class="nav-item-link">
-  <i class="bi bi-plus-circle"></i> Create Travel
-</a>
-
-<span class="sidebar-section-label">Budget</span>
-<a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link">
-  <i class="bi bi-pie-chart"></i> Budget Overview
-</a>
-
-<span class="sidebar-section-label">Events</span>
-<a href="{% url 'travel_app:event_groups' %}" class="nav-item-link">
-  <i class="bi bi-diagram-3"></i> Event Groups
-</a>
-
-<span class="sidebar-section-label">Account</span>
-<a href="{% url 'accounts:profile' %}" class="nav-item-link">
-  <i class="bi bi-person"></i> Profile
-</a>
-<a href="{% url 'accounts:logout' %}" class="nav-item-link">
-  <i class="bi bi-box-arrow-right"></i> Logout
-</a>
-{% endblock %}
 
 {% block content %}
 <div class="page-header">
