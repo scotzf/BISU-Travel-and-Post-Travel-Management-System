@@ -59,7 +59,7 @@ ROOT_URLCONF = 'travel_mgmt.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR, 'templates'],
+        'DIRS': [BASE_DIR/ 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -80,8 +80,8 @@ WSGI_APPLICATION = 'travel_mgmt.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'travel_mgmt',
-        'USER': 'django_user',
+        'NAME': 'travel_hub',
+        'USER': 'desktop',
         'PASSWORD': '@Jangcy099',
         'HOST':'192.168.1.10',
         'PORT':'3306',

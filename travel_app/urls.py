@@ -4,57 +4,23 @@ from . import views
 app_name = 'travel_app'
 
 urlpatterns = [
-    # Employee URLs
-    path('employee/dashboard/', views.employee_dashboard, name='employee_dashboard'),
-    path('employee/create/', views.create_travel, name='create_travel'),
-    path('employee/history/', views.travel_history, name='travel_history'),
-  #  path('employee/travel/<int:travel_id>/', views.travel_detail, name='travel_detail'),
-    path('employee/travel/<int:travel_id>/edit-budget/', views.edit_travel_budget, name='edit_travel_budget'),
-    path('employee/travel/<int:travel_id>/edit-details/', views.edit_travel_details, name='edit_travel_details'),
-    path('employee/travel/<int:travel_id>/upload-document/', views.upload_post_travel_document, name='upload_post_travel_document'),
-    path('employee/travel/<int:travel_id>/upload-financial/', views.upload_financial_document, name='upload_financial_document'),
-    path('employee/travel/<int:travel_id>/submit-liquidation/', views.submit_liquidation, name='submit_liquidation'),
-    path('employee/notifications/', views.notifications, name='notifications'),
-    path('employee/notification/<int:notif_id>/mark-read/', views.mark_notification_read, name='mark_notification_read'),
-    
-    # Secretary URLs (Placeholder)
-    path('secretary/dashboard/', views.secretary_dashboard, name='secretary_dashboard'),
-    
-    # Dean URLs (Placeholder)
-    path('dean/', views.dean_dashboard, name='dean_dashboard'),
-    path('dean/approve/', views.dean_approve, name='dean_approve'),
-    path('dean/batch-approve/', views.dean_batch_approve, name='dean_batch_approve'),
-    path('dean/employee-history/<int:employee_id>/', views.dean_employee_history, name='dean_employee_history'),
-    path('dean/history/', views.approval_history, name='approval_history'),
-    path('dean/notifications/', views.dean_notifications, name='dean_notifications'),
-    path('dean/comment/<int:travel_order_id>/', views.add_comment, name='add_comment'),
-    path('dean/create-travel/', views.dean_create_travel, name='dean_create_travel'),
-#   # The travel_detail url should remain the same but the template path changes:
-    path('travel/<int:travel_id>/', views.travel_detail, name='travel_detail'),
-    path('dean/travel-history/', views.dean_travel_history, name='dean_travel_history'),
-    path('dean/notifications/', views.dean_notifications, name='dean_notifications'),
-    path('dean/notifications/mark-all-read/', views.dean_mark_all_read, name='dean_mark_all_read'),
-    path('dean/notifications/<int:notif_id>/mark-read/', views.dean_mark_notif_read, name='dean_mark_notif_read'),
-    path('dean/reports/', views.dean_reports, name='dean_reports'),
-    path('dean/reports/export/', views.export_dean_report, name='export_dean_report'),
-    
-    # Director URLs (Placeholder)
-    path('director/dashboard/', views.director_dashboard, name='director_dashboard'),
-    # Director URLs
-    path('director/create-travel/', views.director_create_travel, name='director_create_travel'),
-    path('director/travel-history/', views.director_travel_history, name='director_travel_history'),
-    path('director/notifications/', views.director_notifications, name='director_notifications'),
-    path('director/notifications/mark-all-read/', views.director_mark_all_read, name='director_mark_all_read'),
-    path('director/notifications/<int:notif_id>/mark-read/', views.director_mark_notif_read, name='director_mark_notif_read'),
-    path('director/approve/<int:travel_id>/', views.director_approve, name='director_approve'),
-    path('director/reject/<int:travel_id>/', views.director_reject, name='director_reject'),
-        
-    # President URLs (Placeholder)
-    path('president/dashboard/', views.president_dashboard, name='president_dashboard'),
-    
-    # Budget Officer URLs (Placeholder)
-    path('budget/dashboard/', views.budget_dashboard, name='budget_dashboard'),
-    
-    # Cashier URLs (Placeholder)
-    path('cashier/dashboard/', views.cashier_dashboard, name='cashier_dashboard'),
+    # ── Employee ──────────────────────────────────────────────────────
+    path('employee/',               views.employee_dashboard,        name='employee_dashboard'),
+    path('employee/travels/',       views.my_travels,                name='my_travels'),
+    path('employee/stats/',         views.my_stats,                  name='my_stats'),
+
+    # ── Secretary ─────────────────────────────────────────────────────
+    path('dept-secretary/',         views.dept_secretary_dashboard,  name='dept_secretary_dashboard'),
+    path('campus-secretary/',       views.campus_secretary_dashboard,name='campus_secretary_dashboard'),
+
+    # ── Admin ─────────────────────────────────────────────────────────
+    path('admin-panel/',            views.admin_dashboard,           name='admin_dashboard'),
+    path('admin-panel/budgets/',    views.manage_budget_sources,     name='manage_budget_sources'),
+
+    # ── Shared ────────────────────────────────────────────────────────
+    path('travels/',                views.all_travels,               name='all_travels'),
+    path('travels/new/',            views.create_travel,             name='create_travel'),
+    path('travels/<int:pk>/',       views.travel_detail,             name='travel_detail'),
+    path('budget/',                 views.budget_overview,           name='budget_overview'),
+    path('events/',                 views.event_groups,              name='event_groups'),
 ]

@@ -1,333 +1,258 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-    
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding-bottom: 50px;
-        }
-        
-        .admin-header {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            color: white;
-            padding: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            margin-bottom: 30px;
-        }
-        
-        .stats-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-        }
-        
-        .stats-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .stats-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #dc3545;
-        }
-        
-        .card {
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            border: none;
-            border-radius: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .pending-card {
-            border-left: 5px solid #ffc107;
-            background: white;
-            padding: 20px;
-            margin-bottom: 15px;
-            border-radius: 10px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .pending-card:hover {
-            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-            transform: translateX(5px);
-        }
-        
-        .badge-requested-role {
-            background: #ffc107;
-            color: #000;
-            font-size: 0.9rem;
-            padding: 5px 10px;
-        }
-        
-        .btn-approve {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            border: none;
-            color: white;
-        }
-        
-        .btn-reject {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            border: none;
-            color: white;
-        }
-        
-        .btn-change-role {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-            border: none;
-            color: white;
-        }
-        
-        .approved-card {
-            border-left: 5px solid #28a745;
-            background: #f8f9fa;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 8px;
-        }
-    </style>
-</head>
-<body>
-    <!-- Admin Header -->
-    <div class="admin-header">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h2><i class="bi bi-shield-check"></i> Administrator Dashboard</h2>
-                    <p class="mb-0">Welcome, {{ admin_user.first_name }} {{ admin_user.last_name }}</p>
-                </div>
-                <div class="col-auto">
-                    <a href="{% url 'accounts:logout' %}" class="btn btn-light">
-                        <i class="bi bi-box-arrow-right"></i> Logout
-                    </a>
-                </div>
-            </div>
+{% extends "base.html" %}
+
+{% block title %}User Approvals — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: #92400e;
+  --role-faint: #fef3c7;
+}
+{% endblock %}
+
+{% block sidebar %}
+<span class="sidebar-section-label">Overview</span>
+<a href="{% url 'travel_app:admin_dashboard' %}" class="nav-item-link">
+  <i class="bi bi-speedometer2"></i> Dashboard
+</a>
+<a href="{% url 'travel_app:all_travels' %}" class="nav-item-link">
+  <i class="bi bi-folder2-open"></i> All Travels
+</a>
+
+<span class="sidebar-section-label">Budget</span>
+<a href="{% url 'travel_app:manage_budget_sources' %}" class="nav-item-link">
+  <i class="bi bi-wallet2"></i> Budget Sources
+</a>
+<a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link">
+  <i class="bi bi-pie-chart"></i> Utilization
+</a>
+
+<span class="sidebar-section-label">Users</span>
+<a href="{% url 'accounts:pending_approvals' %}" class="nav-item-link active">
+  <i class="bi bi-person-check"></i> User Approvals
+  {% if total_pending > 0 %}
+    <span class="nav-pill">{{ total_pending }}</span>
+  {% endif %}
+</a>
+
+<span class="sidebar-section-label">Account</span>
+<a href="{% url 'accounts:profile' %}" class="nav-item-link">
+  <i class="bi bi-person"></i> Profile
+</a>
+<a href="{% url 'accounts:logout' %}" class="nav-item-link">
+  <i class="bi bi-box-arrow-right"></i> Logout
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">User Approvals</div>
+      <div class="page-subtitle">Review and approve new account registrations</div>
+    </div>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-4">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fef8e7;color:#8a6400">
+        <i class="bi bi-hourglass-split"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_pending }}</div>
+        <div class="stat-label">Pending</div>
+        <div class="stat-trend {% if total_pending > 0 %}warn{% endif %}">
+          {% if total_pending > 0 %}Needs action{% else %}All clear{% endif %}
         </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-4">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e6f4ea;color:#1a5c38">
+        <i class="bi bi-person-check"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_approved }}</div>
+        <div class="stat-label">Approved</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-4">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#e8f0fe;color:#1a4491">
+        <i class="bi bi-people"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_users }}</div>
+        <div class="stat-label">Total Users</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Pending approvals -->
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title">
+            <i class="bi bi-hourglass-split" style="color:var(--accent)"></i>
+            Pending Approvals
+          </div>
+          <div class="card-subtitle">Click a user to review and approve</div>
+        </div>
+        {% if total_pending > 0 %}
+          <span class="badge-status badge-untagged">{{ total_pending }} waiting</span>
+        {% endif %}
+      </div>
+
+      {% if pending_users %}
+        {% for u in pending_users %}
+        <div class="travel-row" style="cursor:default">
+          <!-- Avatar -->
+          <div style="width:38px;height:38px;border-radius:50%;background:var(--primary-faint);
+                      border:2px solid var(--border);display:flex;align-items:center;
+                      justify-content:center;font-size:13px;font-weight:600;
+                      color:var(--primary);flex-shrink:0">
+            {{ u.first_name|slice:":1" }}{{ u.last_name|slice:":1" }}
+          </div>
+
+          <div style="flex:1;min-width:0">
+            <div class="travel-dest">{{ u.get_full_name }}</div>
+            <div class="travel-meta">
+              {{ u.email }}
+              &nbsp;·&nbsp; {{ u.get_role_display }}
+              &nbsp;·&nbsp; {{ u.campus.name|default:"No campus" }}
+              {% if u.college %}&nbsp;·&nbsp; {{ u.college.name }}{% endif %}
+            </div>
+            <div class="travel-meta" style="margin-top:2px">
+              Registered {{ u.created_at|date:"M j, Y g:i A" }}
+            </div>
+          </div>
+
+          <div class="travel-right" style="display:flex;gap:8px;align-items:center">
+            <!-- Approve form -->
+            <form method="post" action="{% url 'accounts:approve_user' u.id %}" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="role" value="{{ u.role }}"/>
+              <button type="submit" class="btn-primary-custom" style="padding:6px 14px;font-size:12px">
+                <i class="bi bi-check-lg"></i> Approve
+              </button>
+            </form>
+
+            <!-- Reject form -->
+            <form method="post" action="{% url 'accounts:reject_user' u.id %}"
+                  style="display:inline"
+                  onsubmit="return confirm('Delete account for {{ u.get_full_name }}? This cannot be undone.')">
+              {% csrf_token %}
+              <button type="submit" class="btn-secondary-custom"
+                      style="padding:6px 14px;font-size:12px;color:#922b21;border-color:#f5b7b1">
+                <i class="bi bi-x-lg"></i> Reject
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-inbox"></i>
+          <p>No pending approvals at the moment.</p>
+        </div>
+      {% endif %}
     </div>
 
-    <div class="container">
-        <!-- Messages 
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    <i class="bi bi-{% if message.tags == 'error' %}exclamation-triangle-fill{% elif message.tags == 'warning' %}exclamation-circle-fill{% elif message.tags == 'success' %}check-circle-fill{% else %}info-circle-fill{% endif %}"></i>
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-        {% endif %} -->
+    <!-- Recently approved -->
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title">Recently Approved</div>
+        <div class="card-subtitle">Last 10 approvals</div>
+      </div>
 
-        <!-- Statistics Cards -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="stats-card text-center">
-                    <i class="bi bi-clock-history text-warning" style="font-size: 2rem;"></i>
-                    <div class="stats-number">{{ total_pending }}</div>
-                    <div class="text-muted">Pending Approvals</div>
-                </div>
+      {% if approved_users %}
+        {% for u in approved_users %}
+        <div class="travel-row" style="cursor:default">
+          <div style="width:36px;height:36px;border-radius:50%;background:#e6f4ea;
+                      border:2px solid #b7dfbe;display:flex;align-items:center;
+                      justify-content:center;font-size:12px;font-weight:600;
+                      color:#1a5c38;flex-shrink:0">
+            {{ u.first_name|slice:":1" }}{{ u.last_name|slice:":1" }}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="travel-dest">{{ u.get_full_name }}</div>
+            <div class="travel-meta">
+              {{ u.get_role_display }}
+              &nbsp;·&nbsp; {{ u.campus.name|default:"No campus" }}
+              {% if u.college %}&nbsp;·&nbsp; {{ u.college.name }}{% endif %}
             </div>
-            <div class="col-md-4">
-                <div class="stats-card text-center">
-                    <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
-                    <div class="stats-number">{{ total_approved }}</div>
-                    <div class="text-muted">Approved Users</div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="stats-card text-center">
-                    <i class="bi bi-people text-primary" style="font-size: 2rem;"></i>
-                    <div class="stats-number">{{ total_users }}</div>
-                    <div class="text-muted">Total Active Users</div>
-                </div>
-            </div>
+          </div>
+          <div class="travel-right">
+            <span class="badge-status badge-tagged">
+              <i class="bi bi-check-circle-fill" style="font-size:9px"></i> Approved
+            </span>
+            <div class="travel-meta mt-1">{{ u.approved_at|date:"M j, Y" }}</div>
+          </div>
         </div>
-
-        <!-- Pending Approvals -->
-        <div class="card">
-            <div class="card-header bg-warning text-dark">
-                <h4 class="mb-0"><i class="bi bi-hourglass-split"></i> Pending Account Approvals ({{ total_pending }})</h4>
-            </div>
-            <div class="card-body">
-                {% if pending_users %}
-                    {% for user in pending_users %}
-                        <div class="pending-card">
-                            <div class="row align-items-center">
-                                <div class="col-md-6">
-                                    <h5 class="mb-1">
-                                        {{ user.first_name }} 
-                                        {% if user.middle_name and user.middle_name != 'N/A' %}{{ user.middle_name }}{% endif %} 
-                                        {{ user.last_name }}
-                                        {% if user.employee_id %}
-                                            <small class="text-muted">({{ user.employee_id }})</small>
-                                        {% endif %}
-                                    </h5>
-                                    <p class="mb-1">
-                                        <i class="bi bi-envelope"></i> {{ user.email }}<br>
-                                        <i class="bi bi-telephone"></i> {{ user.phone_number }}
-                                    </p>
-                                    <p class="mb-1">
-                                        <i class="bi bi-building"></i> 
-                                        {% if user.campus %}{{ user.campus.name }}{% else %}No Campus{% endif %}
-                                        {% if user.college %}
-                                            | <i class="bi bi-diagram-3"></i> {{ user.college.name }}
-                                        {% endif %}
-                                    </p>
-                                    <p class="mb-0">
-                                        <i class="bi bi-calendar"></i> 
-                                        <small class="text-muted">Registered: {{ user.created_at|date:"M d, Y h:i A" }}</small>
-                                    </p>
-                                </div>
-                                <div class="col-md-3 text-center">
-                                    <span class="badge-requested-role">
-                                        <i class="bi bi-person-badge"></i> Requested Role
-                                    </span>
-                                    <h5 class="mt-2 mb-0">
-                                        {% for role_code, role_name in role_choices %}
-                                            {% if role_code == user.role %}{{ role_name }}{% endif %}
-                                        {% endfor %}
-                                    </h5>
-                                    <small class="text-muted">
-                                        Payment: 
-                                        {% if user.preference == 'PREPAYMENT' %}Prepayment{% else %}No Prepayment{% endif %}
-                                    </small>
-                                </div>
-                                <div class="col-md-3">
-                                    <!-- Quick Approve (with requested role) -->
-                                    <form method="post" action="{% url 'accounts:approve_user' user.id %}" class="mb-2">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="role" value="{{ user.role }}">
-                                        <button type="submit" class="btn btn-approve w-100" 
-                                                onclick="return confirm('Approve {{ user.first_name }} {{ user.last_name }} as {% for rc, rn in role_choices %}{% if rc == user.role %}{{ rn }}{% endif %}{% endfor %}?')">
-                                            <i class="bi bi-check-circle"></i> Approve as 
-                                            {% for role_code, role_name in role_choices %}
-                                                {% if role_code == user.role %}{{ role_name }}{% endif %}
-                                            {% endfor %}
-                                        </button>
-                                    </form>
-                                    
-                                    <!-- Change Role Button -->
-                                    <button type="button" class="btn btn-change-role w-100 mb-2" 
-                                            data-bs-toggle="modal" data-bs-target="#changeRoleModal{{ user.id }}">
-                                        <i class="bi bi-arrow-repeat"></i> Change Role
-                                    </button>
-                                    
-                                    <!-- Reject Button -->
-                                    <form method="post" action="{% url 'accounts:reject_user' user.id %}">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-reject w-100" 
-                                                onclick="return confirm('Reject and deactivate {{ user.first_name }} {{ user.last_name }}\'s account?')">
-                                            <i class="bi bi-x-circle"></i> Reject
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Change Role Modal -->
-                        <div class="modal fade" id="changeRoleModal{{ user.id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">Change Role for {{ user.first_name }} {{ user.last_name }}</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <form method="post" action="{% url 'accounts:approve_user' user.id %}">
-                                        {% csrf_token %}
-                                        <div class="modal-body">
-                                            <p>
-                                                <strong>Requested Role:</strong> 
-                                                {% for role_code, role_name in role_choices %}
-                                                    {% if role_code == user.role %}{{ role_name }}{% endif %}
-                                                {% endfor %}
-                                            </p>
-                                            <div class="mb-3">
-                                                <label class="form-label">Assign Different Role:</label>
-                                                <select name="role" class="form-select" required>
-                                                    {% for role_code, role_name in role_choices %}
-                                                        {% if role_code != 'ADMIN' %}
-                                                            <option value="{{ role_code }}" {% if role_code == user.role %}selected{% endif %}>
-                                                                {{ role_name }}
-                                                            </option>
-                                                        {% endif %}
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-primary">Approve with Selected Role</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="text-center text-muted py-5">
-                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                        <p class="mt-3">No pending approvals at the moment.</p>
-                    </div>
-                {% endif %}
-            </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:24px">
+          <i class="bi bi-people"></i>
+          <p>No approved users yet.</p>
         </div>
-
-        <!-- Recently Approved Users -->
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0"><i class="bi bi-check-circle"></i> Recently Approved Users</h4>
-            </div>
-            <div class="card-body">
-                {% if approved_users %}
-                    {% for user in approved_users %}
-                        <div class="approved-card">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <strong>{{ user.first_name }} {{ user.last_name }}</strong> 
-                                    ({% for role_code, role_name in role_choices %}{% if role_code == user.role %}{{ role_name }}{% endif %}{% endfor %})
-                                    <br>
-                                    <small class="text-muted">
-                                        <i class="bi bi-envelope"></i> {{ user.email }} | 
-                                        <i class="bi bi-building"></i> {% if user.campus %}{{ user.campus.name }}{% else %}No Campus{% endif %}
-                                    </small>
-                                </div>
-                                <div class="col-md-4 text-end">
-                                    <small class="text-success">
-                                        <i class="bi bi-check-circle-fill"></i> 
-                                        {% if user.approved_by %}
-                                            Approved by {{ user.approved_by.first_name }}
-                                        {% else %}
-                                            Approved
-                                        {% endif %}
-                                        <br>
-                                        {% if user.approved_at %}
-                                            {{ user.approved_at|date:"M d, Y" }}
-                                        {% endif %}
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted text-center py-3">No approved users yet.</p>
-                {% endif %}
-            </div>
-        </div>
+      {% endif %}
     </div>
+  </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+  <!-- Role guide sidebar -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title">Role Guide</div>
+        <div class="card-subtitle">What each role can do</div>
+      </div>
+      <div class="card-body-custom" style="padding:16px 20px">
+
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:3px">
+            <i class="bi bi-person"></i> Employee
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary)">
+            Creates travel records, uploads documents, views own travel history.
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:600;color:#0f766e;margin-bottom:3px">
+            <i class="bi bi-person-badge"></i> Dept Secretary
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary)">
+            Tags budget source for same-college travels, manages college document queue.
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:600;color:#6b21a8;margin-bottom:3px">
+            <i class="bi bi-person-badge"></i> Campus Secretary
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary)">
+            Tags budget source for cross-college travels, manages campus-wide budget.
+          </div>
+        </div>
+
+        <div style="padding-top:14px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:3px">
+            <i class="bi bi-shield-check"></i> Admin
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary)">
+            Manages budget sources, views all travels, approves accounts.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
