@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% block title %}Create Travel — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'CAMPUS_SEC' %}#6b21a8{% elif user.role == 'DEPT_SEC' %}#0f766e{% else %}#1a5c38{% endif %};
+  --role-faint: {% if user.role == 'CAMPUS_SEC' %}#f3e8ff{% elif user.role == 'DEPT_SEC' %}#f0fdfa{% else %}#eaf4ee{% endif %};
+}
+.form-label { font-size:12px; font-weight:500; color:var(--text-secondary); margin-bottom:5px; display:block; }
+.form-control, .form-select {
+  font-size:13.5px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:9px 12px;
+  color:var(--text-primary);
+  background:var(--surface);
+  width:100%;
+  transition:border-color .15s;
+}
+.form-control:focus, .form-select:focus {
+  outline:none;
+  border-color:var(--role-color);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--role-color) 12%, transparent);
+}
+textarea.form-control { resize:vertical; min-height:90px; }
+.participant-tag {
+  display:inline-flex; align-items:center; gap:6px;
+  background:var(--role-faint); color:var(--role-color);
+  border:1px solid color-mix(in srgb, var(--role-color) 25%, transparent);
+  border-radius:20px; padding:4px 10px 4px 8px;
+  font-size:12px; font-weight:500; cursor:pointer;
+  transition:all .15s;
+}
+.participant-tag:hover { background:color-mix(in srgb, var(--role-color) 20%, transparent); }
+.participant-tag.selected {
+  background:var(--role-color); color:white;
+}
+.participant-tag.selected .tag-remove { color:rgba(255,255,255,.7); }
+.tag-remove { font-size:14px; line-height:1; }
+.scope-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 12px; border-radius:20px;
+  font-size:12px; font-weight:600;
+  transition:all .3s;
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">New Travel Record</div>
+      <div class="page-subtitle">Create a document folder for this travel</div>
+    </div>
+    <a href="{% url 'travel_app:all_travels' %}" class="btn-secondary-custom">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+  </div>
+</div>
+
+<form method="post" id="travelForm">
+  {% csrf_token %}
+  <div class="row g-3">
+
+    <!-- Main form -->
+    <div class="col-lg-8">
+
+      <!-- Travel details -->
+      <div class="card mb-3">
+        <div class="card-header-custom">
+          <div class="card-title"><i class="bi bi-geo-alt"></i> Travel Details</div>
+        </div>
+        <div class="card-body-custom">
+          <div class="row g-3">
+
+            <div class="col-12">
+              <label class="form-label">Destination *</label>
+              <input type="text" name="destination" class="form-control"
+                     placeholder="e.g. Cebu City, Metro Cebu"
+                     value="{{ post.destination|default:'' }}" required/>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Start Date *</label>
+              <input type="date" name="start_date" class="form-control"
+                     value="{{ post.start_date|default:'' }}"
+                     min="{{ today }}" required/>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">End Date</label>
+              <input type="date" name="end_date" class="form-control"
+                     value="{{ post.end_date|default:'' }}"/>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Purpose *</label>
+              <textarea name="purpose" class="form-control"
+                        placeholder="Describe the purpose of this travel...">{{ post.purpose|default:'' }}</textarea>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Notes <span style="color:var(--text-muted)">(optional)</span></label>
+              <textarea name="notes" class="form-control" style="min-height:60px"
+                        placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
+            </div>
+
+            <div class="col-12">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;color:var(--text-primary)">
+                <input type="checkbox" name="is_out_of_province"
+                       {% if post.is_out_of_province %}checked{% endif %}
+                       style="width:16px;height:16px;accent-color:var(--role-color)"/>
+                This travel is out of province
+              </label>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Participants (secretary only) -->
+      {% if user.role in 'DEPT_SEC,CAMPUS_SEC' and available_participants %}
+      <div class="card mb-3">
+        <div class="card-header-custom">
+          <div>
+            <div class="card-title"><i class="bi bi-people"></i> Participants</div>
+            <div class="card-subtitle">
+              {% if user.role == 'DEPT_SEC' %}
+                Showing employees from {{ user.college.name }}
+              {% else %}
+                Showing all employees on {{ user.campus.name }}
+              {% endif %}
+            </div>
+          </div>
+          <div id="scopeIndicator" class="scope-badge" style="background:var(--primary-faint);color:var(--primary)">
+            <i class="bi bi-building"></i> College scope
+          </div>
+        </div>
+        <div class="card-body-custom">
+
+          <!-- Selected count -->
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+            Click names to add/remove participants.
+            <span id="selectedCount" style="font-weight:600;color:var(--role-color)">0 selected</span>
+          </div>
+
+          <!-- Search -->
+          <input type="text" id="participantSearch" class="form-control"
+                 placeholder="Search by name..." style="margin-bottom:12px"
+                 oninput="filterParticipants(this.value)"/>
+
+          <!-- Participant tags -->
+          <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px">
+            {% regroup available_participants by college as college_groups %}
+            {% for group in college_groups %}
+              {% if user.role == 'CAMPUS_SEC' %}
+                <div style="width:100%;font-size:11px;font-weight:600;color:var(--text-muted);
+                             letter-spacing:.5px;text-transform:uppercase;margin-top:8px;
+                             padding-top:8px;border-top:1px solid var(--border)">
+                  {{ group.grouper.name|default:"No College" }}
+                </div>
+              {% endif %}
+              {% for p in group.list %}
+              <div class="participant-tag"
+                   data-id="{{ p.id }}"
+                   data-college="{{ p.college.name|default:'' }}"
+                   data-name="{{ p.get_full_name|lower }}"
+                   onclick="toggleParticipant(this)">
+                <i class="bi bi-person" style="font-size:12px"></i>
+                {{ p.get_full_name }}
+                <span class="tag-remove">+</span>
+                <input type="checkbox" name="participants" value="{{ p.id }}"
+                       style="display:none" class="participant-checkbox"/>
+              </div>
+              {% endfor %}
+            {% endfor %}
+          </div>
+
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Sidebar summary -->
+    <div class="col-lg-4">
+      <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
+        <div class="card-header-custom">
+          <div class="card-title">Summary</div>
+        </div>
+        <div class="card-body-custom" style="padding:16px 20px">
+
+          <!-- Creator -->
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
+                         letter-spacing:.5px;margin-bottom:4px">Created by</div>
+            <div style="font-size:13.5px;font-weight:500;color:var(--text-primary)">
+              {{ user.get_full_name }}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              {{ user.college.name|default:user.campus.name|default:"BISU" }}
+            </div>
+          </div>
+
+          <!-- Scope -->
+          <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
+                         letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
+            <div id="summaryScope" class="scope-badge"
+                 style="background:var(--primary-faint);color:var(--primary)">
+              <i class="bi bi-building"></i> College-level
+            </div>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px" id="scopeHint">
+              Budget will be tagged by Dept Secretary
+            </div>
+          </div>
+
+          <!-- Participant count -->
+          <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
+                         letter-spacing:.5px;margin-bottom:4px">Travelers</div>
+            <div style="font-size:22px;font-weight:600;font-family:var(--font-display);
+                         color:var(--text-primary)" id="summaryCount">
+              1
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              including you
+            </div>
+          </div>
+
+          <!-- Budget note -->
+          <div style="padding-top:14px;border-top:1px solid var(--border)">
+            <div class="alert-custom alert-info" style="padding:10px 12px;font-size:12px">
+              <i class="bi bi-info-circle"></i>
+              <span>Budget source will be assigned by the secretary after creation.</span>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <button type="submit" class="btn-primary-custom" style="width:100%;margin-top:16px;justify-content:center">
+            <i class="bi bi-plus-lg"></i> Create Travel Record
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const selectedIds   = new Set();
+const collegeMap    = {};  // id → college name
+let totalSelected   = 0;
+
+document.querySelectorAll('.participant-tag').forEach(tag => {
+  collegeMap[tag.dataset.id] = tag.dataset.college;
+});
+
+function toggleParticipant(el) {
+  const id  = el.dataset.id;
+  const cb  = el.querySelector('.participant-checkbox');
+  const rem = el.querySelector('.tag-remove');
+
+  if (selectedIds.has(id)) {
+    selectedIds.delete(id);
+    el.classList.remove('selected');
+    cb.checked = false;
+    rem.textContent = '+';
+  } else {
+    selectedIds.add(id);
+    el.classList.add('selected');
+    cb.checked = true;
+    rem.textContent = '×';
+  }
+
+  updateSummary();
+}
+
+function updateSummary() {
+  const count = selectedIds.size + 1;  // +1 for creator
+  document.getElementById('selectedCount').textContent = selectedIds.size + ' selected';
+  document.getElementById('summaryCount').textContent  = count;
+
+  // Detect scope: are selected participants from multiple colleges?
+  const colleges = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
+  const creatorCollege = '{{ user.college.name|default:"" }}';
+  if (creatorCollege) colleges.add(creatorCollege);
+
+  const isMultiCollege = colleges.size > 1;
+  const scopeEl   = document.getElementById('scopeIndicator');
+  const summScope = document.getElementById('summaryScope');
+  const hintEl    = document.getElementById('scopeHint');
+
+  if (isMultiCollege) {
+    const style = 'background:#f3e8ff;color:#6b21a8';
+    scopeEl.setAttribute('style', style);
+    scopeEl.innerHTML = '<i class="bi bi-diagram-3"></i> Campus scope';
+    summScope.setAttribute('style', style);
+    summScope.innerHTML = '<i class="bi bi-diagram-3"></i> Campus-level';
+    hintEl.textContent = 'Budget will be tagged by Campus Secretary';
+  } else {
+    const style = 'background:var(--primary-faint);color:var(--primary)';
+    scopeEl.setAttribute('style', style);
+    scopeEl.innerHTML = '<i class="bi bi-building"></i> College scope';
+    summScope.setAttribute('style', style);
+    summScope.innerHTML = '<i class="bi bi-building"></i> College-level';
+    hintEl.textContent = 'Budget will be tagged by Dept Secretary';
+  }
+}
+
+function filterParticipants(query) {
+  document.querySelectorAll('.participant-tag').forEach(tag => {
+    const match = tag.dataset.name.includes(query.toLowerCase());
+    tag.style.display = match ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

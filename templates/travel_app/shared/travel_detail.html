@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% load travel_tags %}
+{% block title %}{{ travel.destination }} — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'CAMPUS_SEC' %}#6b21a8{% elif user.role == 'DEPT_SEC' %}#0f766e{% elif user.role == 'ADMIN' %}#92400e{% else %}#1a5c38{% endif %};
+  --role-faint: {% if user.role == 'CAMPUS_SEC' %}#f3e8ff{% elif user.role == 'DEPT_SEC' %}#f0fdfa{% elif user.role == 'ADMIN' %}#fef3c7{% else %}#eaf4ee{% endif %};
+}
+.doc-slot {
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  margin-bottom:10px;
+  transition:box-shadow .15s;
+}
+.doc-slot:hover { box-shadow:var(--shadow-sm); }
+.doc-slot-header {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 16px;
+  background:var(--surface);
+  cursor:pointer;
+}
+.doc-slot-header.uploaded { background:var(--primary-faint); }
+.doc-slot-icon {
+  width:32px; height:32px; border-radius:7px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; flex-shrink:0;
+}
+.doc-slot-icon.done   { background:#1a5c38; color:white; }
+.doc-slot-icon.empty  { background:var(--surface-3); color:var(--text-muted); }
+.doc-slot-name { font-size:13px; font-weight:500; color:var(--text-primary); flex:1; }
+.doc-slot-status { font-size:11px; }
+.doc-files { padding:0 16px 12px; background:var(--surface-2); }
+.doc-file-row {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 0;
+  border-bottom:1px solid var(--border);
+  font-size:12.5px;
+}
+.doc-file-row:last-child { border-bottom:none; }
+.upload-area {
+  border:2px dashed var(--border);
+  border-radius:var(--radius);
+  padding:16px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .2s;
+  background:var(--surface);
+  margin-top:8px;
+}
+.upload-area:hover, .upload-area.dragover {
+  border-color:var(--role-color);
+  background:var(--role-faint);
+}
+.upload-area input[type=file] { display:none; }
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">{{ travel.destination }}</div>
+      <div class="page-subtitle">
+        {{ travel.start_date|date:"F j, Y" }}{% if travel.end_date %} – {{ travel.end_date|date:"F j, Y" }}{% endif %}
+        &nbsp;·&nbsp; {{ travel.get_duration_days }} day{{ travel.get_duration_days|pluralize }}
+        &nbsp;·&nbsp; by {{ travel.created_by.get_full_name }}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if travel.is_budget_tagged %}
+        <span class="badge-status badge-tagged">
+          <i class="bi bi-check-circle-fill" style="font-size:10px"></i>
+          Budget tagged
+        </span>
+      {% else %}
+        <span class="badge-status badge-untagged">
+          <i class="bi bi-tag" style="font-size:10px"></i>
+          Untagged
+        </span>
+      {% endif %}
+      <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}">
+        {{ travel.scope|title }} scope
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Completeness bar -->
+<div class="card mb-3">
+  <div class="card-body-custom" style="padding:14px 20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:13px;font-weight:500;color:var(--text-primary)">
+        Document completeness
+      </span>
+      <span style="font-size:13px;font-weight:600;color:var(--role-color)">
+        {{ travel.completeness_percentage }}%
+        ({{ travel.document_types_uploaded|length }}/{{ travel.documents.model.DOC_TYPE_CHOICES|length }})
+      </span>
+    </div>
+    <div class="budget-bar-track" style="height:8px">
+      <div class="budget-bar-fill fill-{% if travel.completeness_percentage == 100 %}healthy{% elif travel.completeness_percentage >= 50 %}warning{% else %}critical{% endif %}"
+           style="width:{{ travel.completeness_percentage }}%"></div>
+    </div>
+    {% if missing_docs %}
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
+      Missing: {% for d in missing_docs %}{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <!-- Document folder -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title"><i class="bi bi-folder2-open"></i> Document Folder</div>
+          <div class="card-subtitle">Upload and manage all travel documents here</div>
+        </div>
+      </div>
+      <div class="card-body-custom">
+
+        {% for doc_type, doc_label in doc_types %}
+        {% with slot=docs_by_type|get_item:doc_type %}
+        <div class="doc-slot">
+          <div class="doc-slot-header {% if slot.uploaded %}uploaded{% endif %}"
+               onclick="toggleSlot('slot_{{ doc_type }}')">
+            <div class="doc-slot-icon {% if slot.uploaded %}done{% else %}empty{% endif %}">
+              <i class="bi {% if slot.uploaded %}bi-check-lg{% else %}bi-file-earmark{% endif %}"></i>
+            </div>
+            <span class="doc-slot-name">{{ doc_label }}</span>
+            {% if slot.uploaded %}
+              <span class="badge-status badge-tagged" style="font-size:10px">
+                {{ slot.documents.count }} file{{ slot.documents.count|pluralize }}
+              </span>
+            {% else %}
+              <span class="badge-status badge-untagged" style="font-size:10px">Not uploaded</span>
+            {% endif %}
+            <i class="bi bi-chevron-down" style="font-size:12px;color:var(--text-muted);
+               transition:transform .2s" id="chevron_{{ doc_type }}"></i>
+          </div>
+
+          <div id="slot_{{ doc_type }}" style="display:{% if slot.uploaded %}block{% else %}none{% endif %}">
+            <div class="doc-files">
+
+              <!-- Existing files -->
+              {% for doc in slot.documents %}
+              <div class="doc-file-row">
+                <i class="bi bi-file-earmark-text" style="color:var(--primary);font-size:14px;flex-shrink:0"></i>
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                  {{ doc.file.name|slice:"20:" }}
+                </span>
+                <span style="color:var(--text-muted);flex-shrink:0">
+                  {{ doc.uploaded_at|date:"M j, Y" }}
+                </span>
+                <a href="{{ doc.file.url }}" target="_blank" class="btn-secondary-custom"
+                   style="padding:4px 10px;font-size:11px;flex-shrink:0">
+                  <i class="bi bi-download"></i> Download
+                </a>
+              </div>
+              {% endfor %}
+
+              <!-- Upload new file -->
+              {% if is_creator or is_secretary or is_admin %}
+              <form method="post" action="{% url 'travel_app:upload_document' travel.id %}"
+                    enctype="multipart/form-data" id="form_{{ doc_type }}">
+                {% csrf_token %}
+                <input type="hidden" name="doc_type" value="{{ doc_type }}"/>
+                <div class="upload-area" onclick="document.getElementById('file_{{ doc_type }}').click()"
+                     ondragover="event.preventDefault();this.classList.add('dragover')"
+                     ondragleave="this.classList.remove('dragover')"
+                     ondrop="handleDrop(event,'{{ doc_type }}')">
+                  <input type="file" id="file_{{ doc_type }}" name="file"
+                         onchange="autoSubmit('form_{{ doc_type }}')"/>
+                  <i class="bi bi-cloud-upload" style="font-size:20px;color:var(--text-muted);display:block;margin-bottom:6px"></i>
+                  <div style="font-size:12.5px;color:var(--text-muted)">
+                    Click or drag to upload {{ doc_label }}
+                  </div>
+                </div>
+              </form>
+              {% endif %}
+
+            </div>
+          </div>
+        </div>
+        {% endwith %}
+        {% endfor %}
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="col-lg-4">
+
+    <!-- Travel info -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title">Travel Info</div>
+      </div>
+      <div class="card-body-custom" style="padding:16px 20px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--text-muted)">Destination</span>
+            <span style="font-weight:500">{{ travel.destination }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--text-muted)">Dates</span>
+            <span style="font-weight:500">{{ travel.start_date|date:"M j" }}{% if travel.end_date %} – {{ travel.end_date|date:"M j, Y" }}{% endif %}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--text-muted)">Out of province</span>
+            <span>{% if travel.is_out_of_province %}Yes{% else %}No{% endif %}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--text-muted)">Scope</span>
+            <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}" style="font-size:10px">
+              {{ travel.scope|title }}
+            </span>
+          </div>
+          <div style="padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Purpose</div>
+            <div style="font-size:13px;color:var(--text-secondary)">{{ travel.purpose }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Participants -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title">Participants ({{ travel.participant_count }})</div>
+      </div>
+      {% for p in travel.participants.all %}
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
+                  border-bottom:1px solid var(--border)">
+        <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-faint);
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:11px;font-weight:600;color:var(--primary);flex-shrink:0">
+          {{ p.user.first_name|slice:":1" }}{{ p.user.last_name|slice:":1" }}
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ p.user.get_full_name }}</div>
+          <div style="font-size:11px;color:var(--text-muted)">{{ p.college_snapshot|default:"—" }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Budget tagging (secretary only) -->
+    {% if is_secretary %}
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-tag"></i> Budget Source</div>
+      </div>
+      <div class="card-body-custom" style="padding:16px 20px">
+        {% if travel.is_budget_tagged %}
+          <div class="alert-custom alert-success" style="margin-bottom:12px">
+            <i class="bi bi-check-circle-fill"></i>
+            <div>
+              <strong>{{ travel.budget_source.name }}</strong><br/>
+              <span style="font-size:12px">Tagged by {{ travel.budget_tagged_by.get_full_name }} on {{ travel.budget_tagged_at|date:"M j, Y" }}</span>
+            </div>
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
+          {% csrf_token %}
+          <label class="form-label" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block">
+            {% if travel.is_budget_tagged %}Change budget source{% else %}Assign budget source{% endif %}
+          </label>
+          <select name="budget_source_id" class="form-select" style="font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);width:100%;margin-bottom:10px">
+            <option value="">— Select source —</option>
+            {% for item in budget_sources %}
+            <option value="{{ item.source.id }}"
+                    {% if travel.budget_source.id == item.source.id %}selected{% endif %}>
+              {{ item.source.name }}
+              (₱{{ item.remaining|floatformat:0 }} left)
+            </option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
+            <i class="bi bi-tag"></i>
+            {% if travel.is_budget_tagged %}Update Tag{% else %}Tag Budget{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSlot(id) {
+  const el  = document.getElementById(id);
+  const key = id.replace('slot_', '');
+  const ch  = document.getElementById('chevron_' + key);
+  const open = el.style.display === 'none';
+  el.style.display  = open ? 'block' : 'none';
+  ch.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+function autoSubmit(formId) {
+  document.getElementById(formId).submit();
+}
+
+function handleDrop(event, docType) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('dragover');
+  const file  = event.dataTransfer.files[0];
+  const input = document.getElementById('file_' + docType);
+  const dt    = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  autoSubmit('form_' + docType);
+}
+</script>
+{% endblock %}

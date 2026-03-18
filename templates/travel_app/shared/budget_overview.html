@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Budget Overview — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'ADMIN' %}#92400e{% elif user.role == 'CAMPUS_SEC' %}#6b21a8{% else %}#0f766e{% endif %};
+  --role-faint: {% if user.role == 'ADMIN' %}#fef3c7{% elif user.role == 'CAMPUS_SEC' %}#f3e8ff{% else %}#f0fdfa{% endif %};
+}
+{% endblock %}
+
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Budget Utilization</div>
+      <div class="page-subtitle">
+        {{ current_year }} spending overview
+        {% if user.role == 'DEPT_SEC' %} — {{ user.college.name }}{% endif %}
+        {% if user.role == 'CAMPUS_SEC' %} — {{ user.campus.name }}{% endif %}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      {% for y in year_range %}
+      <a href="?year={{ y }}"
+         style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:500;
+                text-decoration:none;border:1px solid var(--border);
+                {% if y == current_year %}background:var(--role-color);color:white;border-color:var(--role-color)
+                {% else %}background:var(--surface);color:var(--text-secondary){% endif %}">
+        {{ y }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if overview %}
+  {% for item in overview %}
+  <div class="card mb-3">
+    <div class="card-header-custom">
+      <div>
+        <div class="card-title" style="font-size:15px">
+          {{ item.source.name }}
+          <span class="badge-status badge-{% if item.source.scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
+                style="font-size:10px;margin-left:6px">
+            {{ item.source.scope|title }}
+          </span>
+        </div>
+        <div class="card-subtitle">{{ current_year }}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:600;
+                    color:var(--text-primary);letter-spacing:-0.5px">
+          {{ item.percentage }}%
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">utilized</div>
+      </div>
+    </div>
+
+    <div class="card-body-custom">
+      <!-- Main progress bar -->
+      <div class="budget-bar-track" style="height:10px;margin-bottom:10px">
+        <div class="budget-bar-fill fill-{{ item.status }}"
+             style="width:{% if item.percentage > 100 %}100{% else %}{{ item.percentage }}{% endif %}%">
+        </div>
+      </div>
+
+      <!-- Summary row -->
+      <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:{% if item.rows %}16px{% else %}0{% endif %}">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Allocated</div>
+          <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)">
+            ₱{{ item.total_allocated|floatformat:0 }}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Used</div>
+          <div style="font-size:17px;font-weight:600;font-family:var(--font-display);
+                      color:{% if item.status == 'healthy' %}#1a5c38{% elif item.status == 'warning' %}#8a6400{% else %}#922b21{% endif %}">
+            ₱{{ item.total_used|floatformat:0 }}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Remaining</div>
+          <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)">
+            ₱{{ item.total_remaining|floatformat:0 }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-college/campus breakdown (admin only) -->
+      {% if item.rows %}
+      <div style="border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                    text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+          Breakdown
+        </div>
+        {% for row in item.rows %}
+        <div class="budget-bar-wrap" style="padding:8px 0">
+          <div class="budget-bar-header">
+            <span class="budget-bar-name" style="font-size:12.5px">{{ row.label }}</span>
+            <span class="budget-bar-amounts">₱{{ row.used|floatformat:0 }} / ₱{{ row.allocated|floatformat:0 }}</span>
+          </div>
+          <div class="budget-bar-track" style="height:5px">
+            <div class="budget-bar-fill fill-{{ row.status }}"
+                 style="width:{% if row.percentage > 100 %}100{% else %}{{ row.percentage }}{% endif %}%">
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endfor %}
+
+{% else %}
+  <div class="card">
+    <div class="empty-state">
+      <i class="bi bi-pie-chart"></i>
+      <p>No budget sources configured for {{ current_year }}.</p>
+      {% if user.role == 'ADMIN' %}
+      <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom">
+        <i class="bi bi-wallet2"></i> Set Up Budget Sources
+      </a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

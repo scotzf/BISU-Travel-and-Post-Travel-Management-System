@@ -17,10 +17,14 @@ urlpatterns = [
     path('admin-panel/',            views.admin_dashboard,           name='admin_dashboard'),
     path('admin-panel/budgets/',    views.manage_budget_sources,     name='manage_budget_sources'),
 
-    # ── Shared ────────────────────────────────────────────────────────
+    # ── Travel records ────────────────────────────────────────────────
     path('travels/',                views.all_travels,               name='all_travels'),
     path('travels/new/',            views.create_travel,             name='create_travel'),
     path('travels/<int:pk>/',       views.travel_detail,             name='travel_detail'),
+    path('travels/<int:pk>/upload/',views.upload_document,           name='upload_document'),
+    path('travels/<int:pk>/budget/',views.tag_budget,                name='tag_budget'),
+
+    # ── Budget & events ───────────────────────────────────────────────
     path('budget/',                 views.budget_overview,           name='budget_overview'),
     path('events/',                 views.event_groups,              name='event_groups'),
 ]

@@ -1,0 +1,104 @@
+{% comment %}
+  templates/includes/sidebar.html
+  Include this in base.html instead of {% block sidebar %}
+  Automatically shows correct nav based on user.role from session
+{% endcomment %}
+
+{% if request.session.role == 'ADMIN' %}
+
+  <span class="sidebar-section-label">Overview</span>
+  <a href="{% url 'travel_app:admin_dashboard' %}" class="nav-item-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+    <i class="bi bi-speedometer2"></i> Dashboard
+  </a>
+  <a href="{% url 'travel_app:all_travels' %}" class="nav-item-link {% if request.resolver_match.url_name == 'all_travels' %}active{% endif %}">
+    <i class="bi bi-folder2-open"></i> All Travels
+  </a>
+
+  <span class="sidebar-section-label">Budget</span>
+  <a href="{% url 'travel_app:manage_budget_sources' %}" class="nav-item-link {% if request.resolver_match.url_name == 'manage_budget_sources' %}active{% endif %}">
+    <i class="bi bi-wallet2"></i> Budget Sources
+  </a>
+  <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
+    <i class="bi bi-pie-chart"></i> Utilization
+  </a>
+
+  <span class="sidebar-section-label">Users</span>
+  <a href="{% url 'accounts:pending_approvals' %}" class="nav-item-link {% if request.resolver_match.url_name == 'pending_approvals' %}active{% endif %}">
+    <i class="bi bi-person-check"></i> User Approvals
+  </a>
+
+{% elif request.session.role == 'DEPT_SEC' %}
+
+  <span class="sidebar-section-label">Main</span>
+  <a href="{% url 'travel_app:dept_secretary_dashboard' %}" class="nav-item-link {% if request.resolver_match.url_name == 'dept_secretary_dashboard' %}active{% endif %}">
+    <i class="bi bi-house"></i> Dashboard
+  </a>
+
+  <span class="sidebar-section-label">Travels</span>
+  <a href="{% url 'travel_app:all_travels' %}" class="nav-item-link {% if request.resolver_match.url_name == 'all_travels' %}active{% endif %}">
+    <i class="bi bi-folder2-open"></i> All Travels
+  </a>
+  <a href="{% url 'travel_app:create_travel' %}" class="nav-item-link {% if request.resolver_match.url_name == 'create_travel' %}active{% endif %}">
+    <i class="bi bi-plus-circle"></i> New Travel
+  </a>
+
+  <span class="sidebar-section-label">Budget</span>
+  <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
+    <i class="bi bi-pie-chart"></i> Budget Overview
+  </a>
+
+  <span class="sidebar-section-label">Events</span>
+  <a href="{% url 'travel_app:event_groups' %}" class="nav-item-link {% if request.resolver_match.url_name == 'event_groups' %}active{% endif %}">
+    <i class="bi bi-diagram-3"></i> Event Groups
+  </a>
+
+{% elif request.session.role == 'CAMPUS_SEC' %}
+
+  <span class="sidebar-section-label">Main</span>
+  <a href="{% url 'travel_app:campus_secretary_dashboard' %}" class="nav-item-link {% if request.resolver_match.url_name == 'campus_secretary_dashboard' %}active{% endif %}">
+    <i class="bi bi-house"></i> Dashboard
+  </a>
+
+  <span class="sidebar-section-label">Travels</span>
+  <a href="{% url 'travel_app:all_travels' %}" class="nav-item-link {% if request.resolver_match.url_name == 'all_travels' %}active{% endif %}">
+    <i class="bi bi-folder2-open"></i> All Travels
+  </a>
+  <a href="{% url 'travel_app:create_travel' %}" class="nav-item-link {% if request.resolver_match.url_name == 'create_travel' %}active{% endif %}">
+    <i class="bi bi-plus-circle"></i> New Travel
+  </a>
+
+  <span class="sidebar-section-label">Budget</span>
+  <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
+    <i class="bi bi-pie-chart"></i> Budget Overview
+  </a>
+
+  <span class="sidebar-section-label">Events</span>
+  <a href="{% url 'travel_app:event_groups' %}" class="nav-item-link {% if request.resolver_match.url_name == 'event_groups' %}active{% endif %}">
+    <i class="bi bi-diagram-3"></i> Event Groups
+  </a>
+
+{% else %} {# EMPLOYEE #}
+
+  <span class="sidebar-section-label">Main</span>
+  <a href="{% url 'travel_app:employee_dashboard' %}" class="nav-item-link {% if request.resolver_match.url_name == 'employee_dashboard' %}active{% endif %}">
+    <i class="bi bi-house"></i> Dashboard
+  </a>
+
+  <span class="sidebar-section-label">My Travels</span>
+  <a href="{% url 'travel_app:all_travels' %}" class="nav-item-link {% if request.resolver_match.url_name == 'all_travels' %}active{% endif %}">
+    <i class="bi bi-folder2-open"></i> All Travels
+  </a>
+  <a href="{% url 'travel_app:create_travel' %}" class="nav-item-link {% if request.resolver_match.url_name == 'create_travel' %}active{% endif %}">
+    <i class="bi bi-plus-circle"></i> New Travel
+  </a>
+
+{% endif %}
+
+{# Common bottom links for all roles #}
+<span class="sidebar-section-label">Account</span>
+<a href="{% url 'accounts:profile' %}" class="nav-item-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}">
+  <i class="bi bi-person"></i> Profile
+</a>
+<a href="{% url 'accounts:logout' %}" class="nav-item-link">
+  <i class="bi bi-box-arrow-right"></i> Logout
+</a>
