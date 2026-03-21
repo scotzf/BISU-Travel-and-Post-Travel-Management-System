@@ -12,6 +12,7 @@ urlpatterns = [
     # ── Secretary ─────────────────────────────────────────────────────
     path('dept-secretary/',         views.dept_secretary_dashboard,  name='dept_secretary_dashboard'),
     path('campus-secretary/',       views.campus_secretary_dashboard,name='campus_secretary_dashboard'),
+    path('secretary/queue/', views.secretary_queue, name='secretary_queue'),
 
     # ── Admin ─────────────────────────────────────────────────────────
     path('admin-panel/',            views.admin_dashboard,           name='admin_dashboard'),
