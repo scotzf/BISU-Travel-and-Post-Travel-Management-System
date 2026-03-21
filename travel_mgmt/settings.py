@@ -34,6 +34,12 @@ ALLOWED_HOSTS = [
     '.ngrok-free.dev',
     '.ngrok.io',
 ]
+CSRF_TRUSTED_ORIGINS = [
+    'https://dichromatic-christie-criticisingly.ngrok-free.dev',
+    'https://*.ngrok-free.app',
+    'https://*.ngrok-free.dev',
+    'https://*.ngrok.io',
+]
 
 
 # Application definition
