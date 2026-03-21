@@ -286,6 +286,13 @@ class TravelRecord(models.Model):
         related_name='travel_records',
         help_text='Links this travel to others that are part of the same event.'
     )
+    funding_college = models.ForeignKey(
+    'accounts.College',
+    on_delete=models.SET_NULL,
+    null=True, blank=True,
+    related_name='funded_travels',
+    help_text='Set by Campus Secretary when cross-college travel is funded by a specific college'
+    )
 
     # ── Notes ─────────────────────────────────────────────────────────
     notes = models.TextField(blank=True, max_length=1000)
