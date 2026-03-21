@@ -92,6 +92,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
               <label class="form-label">End Date</label>
               <input type="date" name="end_date" class="form-control"
                       value="{{ post.end_date|default:'' }}"
+                      min="{{ today }}"
                       id="endDate"
                       onchange="validateDates()"/>
                             </div>

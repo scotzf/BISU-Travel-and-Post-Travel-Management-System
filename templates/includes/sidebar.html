@@ -46,6 +46,12 @@
   <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
     <i class="bi bi-pie-chart"></i> Budget Overview
   </a>
+  <a href="{% url 'travel_app:secretary_queue' %}" class="nav-item-link {% if request.resolver_match.url_name == 'secretary_queue' %}active{% endif %}">
+    <i class="bi bi-tag"></i> Budget Queue
+    {% if secretary_queue_count > 0 %}
+      <span class="nav-pill">{{ secretary_queue_count }}</span>
+    {% endif %}
+  </a>
 
   <span class="sidebar-section-label">Events</span>
   <a href="{% url 'travel_app:event_groups' %}" class="nav-item-link {% if request.resolver_match.url_name == 'event_groups' %}active{% endif %}">
@@ -70,6 +76,12 @@
   <span class="sidebar-section-label">Budget</span>
   <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
     <i class="bi bi-pie-chart"></i> Budget Overview
+  </a>
+  <a href="{% url 'travel_app:secretary_queue' %}" class="nav-item-link {% if request.resolver_match.url_name == 'secretary_queue' %}active{% endif %}">
+    <i class="bi bi-tag"></i> Budget Queue
+    {% if secretary_queue_count > 0 %}
+      <span class="nav-pill">{{ secretary_queue_count }}</span>
+    {% endif %}
   </a>
 
   <span class="sidebar-section-label">Events</span>
