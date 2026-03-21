@@ -287,9 +287,12 @@ def create_travel(request):
                     created_by=user,
                     scope='COLLEGE',  # will be updated after participants are added
                 )
-
-                # Always add the creator as a participant
-                TravelParticipant.objects.create(travel_record=travel, user=user)
+                # For employees — always add themselves
+                # For secretaries — only add if they checked "include me"
+                if user.role == 'EMPLOYEE':
+                    TravelParticipant.objects.create(travel_record=travel, user=user)
+                elif request.POST.get('include_creator') == 'yes':
+                    TravelParticipant.objects.create(travel_record=travel, user=user)
 
                 # Add selected participants (secretary only)
                 if user.role in ['DEPT_SEC', 'CAMPUS_SEC'] and participant_ids:
@@ -333,25 +336,25 @@ def travel_detail(request, pk):
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
-
+ 
     travel = get_object_or_404(
         TravelRecord.objects.select_related(
-            'created_by', 'budget_source', 'event_group'
+            'created_by', 'budget_source', 'event_group',
+            'funding_college', 'budget_tagged_by'
         ).prefetch_related('participants__user', 'documents'),
         pk=pk
     )
-
-    # Access control
+ 
     is_participant = travel.participants.filter(user=user).exists()
     is_creator     = travel.created_by == user
     is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
     is_admin       = user.role == 'ADMIN'
-
+ 
     if not (is_participant or is_creator or is_secretary or is_admin):
         from django.contrib import messages
         messages.error(request, 'You do not have access to this travel record.')
         return redirect('accounts:dashboard')
-
+ 
     # Group documents by type
     docs_by_type = {}
     for doc_type, doc_label in TravelDocument.DOC_TYPE_CHOICES:
@@ -360,26 +363,70 @@ def travel_detail(request, pk):
             'documents': travel.documents.filter(doc_type=doc_type).order_by('-uploaded_at'),
             'uploaded':  travel.documents.filter(doc_type=doc_type).exists(),
         }
-
-    # Budget sources for secretary tagging
-    budget_sources = []
-    if is_secretary:
-        budget_sources = get_sources_for_secretary(user)
-
+ 
+    # ── Budget tagging logic ───────────────────────────────────────────
+    can_tag_budget   = False
+    can_route        = False
+    budget_sources   = []
+    route_colleges   = []
+ 
+    if user.role == 'DEPT_SEC' and user.college:
+        if travel.scope == 'COLLEGE':
+            # Own college travel — can tag directly
+            travel_colleges = set(
+                travel.participants.exclude(college_snapshot='')
+                                   .values_list('college_snapshot', flat=True)
+            )
+            if user.college.name in travel_colleges:
+                can_tag_budget = True
+                budget_sources = get_sources_for_secretary(user)
+ 
+        elif travel.scope == 'CAMPUS' and travel.funding_college == user.college:
+            # Campus Secretary routed this travel to this Dept Secretary
+            can_tag_budget = True
+            budget_sources = get_sources_for_secretary(user)
+ 
+    elif user.role == 'CAMPUS_SEC' and user.campus:
+        if travel.scope == 'CAMPUS':
+            travel_campuses = set(
+                travel.participants.exclude(campus_snapshot='')
+                                   .values_list('campus_snapshot', flat=True)
+            )
+            if user.campus.name in travel_campuses:
+                if not travel.funding_college:
+                    # Not yet routed — campus sec can tag directly OR route to a college
+                    can_tag_budget = True
+                    can_route      = True
+                    budget_sources = get_sources_for_secretary(user)
+                    # Get colleges involved in this travel for routing dropdown
+                    from accounts.models import College
+                    involved_college_names = set(
+                        travel.participants.exclude(college_snapshot='')
+                                           .values_list('college_snapshot', flat=True)
+                    )
+                    route_colleges = College.objects.filter(
+                        name__in=involved_college_names
+                    )
+                else:
+                    # Already routed to a college — campus sec can see but not tag
+                    can_tag_budget = False
+ 
     context = {
-        'user':          user,
-        'travel':        travel,
-        'docs_by_type':  docs_by_type,
-        'doc_types':     TravelDocument.DOC_TYPE_CHOICES,
+        'user':           user,
+        'travel':         travel,
+        'docs_by_type':   docs_by_type,
+        'doc_types':      TravelDocument.DOC_TYPE_CHOICES,
         'budget_sources': budget_sources,
-        'is_secretary':  is_secretary,
-        'is_admin':      is_admin,
-        'is_creator':    is_creator or is_participant,
-        'today':         timezone.now().date(),
-        'missing_docs':  travel.missing_documents,
+        'can_tag_budget': can_tag_budget,
+        'can_route':      can_route,
+        'route_colleges': route_colleges,
+        'is_secretary':   is_secretary,
+        'is_admin':       is_admin,
+        'is_creator':     is_creator or is_participant,
+        'today':          timezone.now().date(),
+        'missing_docs':   travel.missing_documents,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # UPLOAD DOCUMENT
@@ -452,28 +499,93 @@ def tag_budget(request, pk):
         from django.contrib import messages
         messages.error(request, 'Only secretaries can tag budget sources.')
         return redirect('travel_app:travel_detail', pk=pk)
-
+ 
     travel = get_object_or_404(TravelRecord, pk=pk)
-
+ 
     if request.method == 'POST':
-        budget_source_id = request.POST.get('budget_source_id')
-        try:
-            source = BudgetSource.objects.get(id=budget_source_id, is_active=True)
-            from .budget_service import tag_budget as do_tag
-            result = do_tag(travel, source, tagged_by=user)
-
-            from django.contrib import messages
-            if result['within_budget']:
-                messages.success(request, f'Budget source "{source.name}" assigned successfully.')
-            else:
-                messages.warning(request, f'Budget tagged but over budget: {result["message"]}')
-        except BudgetSource.DoesNotExist:
-            from django.contrib import messages
-            messages.error(request, 'Invalid budget source.')
-        except Exception as e:
-            from django.contrib import messages
-            messages.error(request, f'Error tagging budget: {str(e)}')
-
+        action = request.POST.get('action', 'tag')
+ 
+        # ── Route to a college (Campus Secretary only) ─────────────────
+        if action == 'route' and user.role == 'CAMPUS_SEC':
+            from accounts.models import College
+            college_id = request.POST.get('funding_college_id')
+            try:
+                college = College.objects.get(id=college_id)
+                travel.funding_college = college
+                travel.save(update_fields=['funding_college'])
+ 
+                # Notify the dept secretary of that college
+                dept_secs = User.objects.filter(
+                    role='DEPT_SEC',
+                    college=college,
+                    is_active=True,
+                    is_approved=True
+                )
+                for sec in dept_secs:
+                    Notification.objects.create(
+                        user=sec,
+                        notification_type='BUDGET_TAGGED',
+                        title='Travel routed to you for budget tagging',
+                        message=(
+                            f'Campus Secretary routed a cross-college travel to '
+                            f'{destination} ({travel.start_date}) to your queue. '
+                            f'Please assign the budget source from your college.'
+                        ).replace('{destination}', travel.destination),
+                        travel_record=travel,
+                    )
+ 
+                from django.contrib import messages
+                messages.success(
+                    request,
+                    f'Travel routed to {college.name} Secretary for budget tagging.'
+                )
+            except College.DoesNotExist:
+                from django.contrib import messages
+                messages.error(request, 'College not found.')
+ 
+        # ── Tag budget directly ────────────────────────────────────────
+        elif action == 'tag':
+            budget_source_id = request.POST.get('budget_source_id')
+            try:
+                source = BudgetSource.objects.get(id=budget_source_id, is_active=True)
+ 
+                # Verify this secretary is allowed to use this source
+                allowed = False
+                if user.role == 'DEPT_SEC' and source.scope == 'COLLEGE':
+                    allowed = True
+                elif user.role == 'CAMPUS_SEC' and source.scope == 'CAMPUS':
+                    allowed = True
+ 
+                if not allowed:
+                    from django.contrib import messages
+                    messages.error(request, 'You cannot use this budget source.')
+                else:
+                    from django.utils import timezone as tz
+                    travel.budget_source    = source
+                    travel.budget_tagged_by = user
+                    travel.budget_tagged_at = tz.now()
+                    travel.save(update_fields=['budget_source', 'budget_tagged_by', 'budget_tagged_at'])
+                    result = {'within_budget': True, 'message': 'Tagged successfully.'}
+ 
+                    from django.contrib import messages
+                    if result['within_budget']:
+                        messages.success(
+                            request,
+                            f'Budget source "{source.name}" assigned successfully.'
+                        )
+                    else:
+                        messages.warning(
+                            request,
+                            f'Budget tagged but over budget: {result["message"]}'
+                        )
+ 
+            except BudgetSource.DoesNotExist:
+                from django.contrib import messages
+                messages.error(request, 'Invalid budget source.')
+            except Exception as e:
+                from django.contrib import messages
+                messages.error(request, f'Error tagging budget: {str(e)}')
+ 
     return redirect('travel_app:travel_detail', pk=pk)
 
 
@@ -861,3 +973,58 @@ def _notify_if_duplicate(travel, creator):
             ),
             travel_record=travel,
         )
+
+
+#=================================================
+#  SECRETARY QUEUE
+#=================================================
+
+@never_cache
+def secretary_queue(request):
+    """
+    Shows the secretary their pending budget tagging queue.
+    Dept Secretary: COLLEGE scope travels from their college
+                  + CAMPUS scope travels routed to their college
+    Campus Secretary: CAMPUS scope travels not yet tagged and not routed
+    """
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+    if user.role not in ['DEPT_SEC', 'CAMPUS_SEC']:
+        return redirect('accounts:dashboard')
+ 
+    if user.role == 'DEPT_SEC' and user.college:
+        # Own college travels untagged
+        own_college = TravelRecord.objects.filter(
+            scope='COLLEGE',
+            budget_source__isnull=True,
+            participants__college_snapshot=user.college.name
+        ).distinct()
+ 
+        # Cross-college travels routed to this college
+        routed = TravelRecord.objects.filter(
+            scope='CAMPUS',
+            budget_source__isnull=True,
+            funding_college=user.college
+        ).distinct()
+ 
+        queue = list(own_college) + list(routed)
+ 
+    elif user.role == 'CAMPUS_SEC' and user.campus:
+        # Cross-college travels not yet tagged and not routed to any college
+        queue = TravelRecord.objects.filter(
+            scope='CAMPUS',
+            budget_source__isnull=True,
+            funding_college__isnull=True,
+            participants__campus_snapshot=user.campus.name
+        ).distinct()
+ 
+    else:
+        queue = []
+ 
+    context = {
+        'user':  user,
+        'queue': queue,
+        'today': timezone.now().date(),
+    }
+    return render(request, 'travel_app/secretary/queue.html', context)
