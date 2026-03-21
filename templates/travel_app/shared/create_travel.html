@@ -83,15 +83,18 @@ textarea.form-control { resize:vertical; min-height:90px; }
             <div class="col-md-6">
               <label class="form-label">Start Date *</label>
               <input type="date" name="start_date" class="form-control"
-                     value="{{ post.start_date|default:'' }}"
-                     min="{{ today }}" required/>
+                      value="{{ post.start_date|default:'' }}"
+                      min="{{ today }}" required
+                      onchange="validateDates()"/>
             </div>
 
             <div class="col-md-6">
               <label class="form-label">End Date</label>
               <input type="date" name="end_date" class="form-control"
-                     value="{{ post.end_date|default:'' }}"/>
-            </div>
+                      value="{{ post.end_date|default:'' }}"
+                      id="endDate"
+                      onchange="validateDates()"/>
+                            </div>
 
             <div class="col-12">
               <label class="form-label">Purpose *</label>
@@ -266,6 +269,16 @@ textarea.form-control { resize:vertical; min-height:90px; }
 const selectedIds   = new Set();
 const collegeMap    = {};  // id → college name
 let totalSelected   = 0;
+function validateDates() {
+  const start = document.querySelector('[name=start_date]').value;
+  const end   = document.getElementById('endDate').value;
+  if (start && end && end < start) {
+    document.getElementById('endDate').setCustomValidity('End date cannot be before start date.');
+    document.getElementById('endDate').reportValidity();
+  } else {
+    document.getElementById('endDate').setCustomValidity('');
+  }
+}
 
 document.querySelectorAll('.participant-tag').forEach(tag => {
   collegeMap[tag.dataset.id] = tag.dataset.college;
