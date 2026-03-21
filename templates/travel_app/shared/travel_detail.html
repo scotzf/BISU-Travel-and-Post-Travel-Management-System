@@ -120,6 +120,12 @@
           <div class="card-title"><i class="bi bi-folder2-open"></i> Document Folder</div>
           <div class="card-subtitle">Upload and manage all travel documents here</div>
         </div>
+        {% if travel.document_count > 0 %}
+        <a href="{% url 'travel_app:download_zip' travel.id %}"
+          class="btn-secondary-custom" style="padding:6px 14px;font-size:12px">
+          <i class="bi bi-file-zip"></i> Download All ZIP
+        </a>
+        {% endif %}
       </div>
       <div class="card-body-custom">
 

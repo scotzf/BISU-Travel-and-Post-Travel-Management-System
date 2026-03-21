@@ -27,4 +27,6 @@ urlpatterns = [
     # ── Budget & events ───────────────────────────────────────────────
     path('budget/',                 views.budget_overview,           name='budget_overview'),
     path('events/',                 views.event_groups,              name='event_groups'),
+    #--- Other links ---------------------------------------------------
+    path('travels/<int:pk>/download-zip/', views.download_zip, name='download_zip'),
 ]

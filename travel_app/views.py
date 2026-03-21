@@ -61,6 +61,38 @@ def _detect_duplicates(travels_qs):
     return alerts
 
 
+def _notify_if_duplicate(travel, creator):
+    from django.db.models import Q
+    a_end = travel.end_date or travel.start_date
+    duplicates = TravelRecord.objects.filter(
+        destination__iexact=travel.destination
+    ).filter(
+        Q(start_date__lte=a_end) & Q(end_date__gte=travel.start_date) |
+        Q(start_date__lte=a_end) & Q(end_date__isnull=True, start_date__gte=travel.start_date)
+    ).exclude(id=travel.id)
+
+    if not duplicates.exists():
+        return
+
+    if travel.scope == 'COLLEGE' and creator.college:
+        secretaries = User.objects.filter(role='DEPT_SEC', college=creator.college, is_active=True)
+    else:
+        secretaries = User.objects.filter(role='CAMPUS_SEC', campus=creator.campus, is_active=True)
+
+    for sec in secretaries:
+        Notification.objects.create(
+            user=sec,
+            notification_type='DUPLICATE_DETECTED',
+            title='Possible duplicate travel detected',
+            message=(
+                f'A new travel to {travel.destination} '
+                f'({travel.start_date}) may overlap with an existing record. '
+                f'Consider linking them as an event group.'
+            ),
+            travel_record=travel,
+        )
+
+
 # ══════════════════════════════════════════════════════════════════════
 # EMPLOYEE DASHBOARD
 # ══════════════════════════════════════════════════════════════════════
@@ -98,23 +130,23 @@ def dept_secretary_dashboard(request, user=None):
         participants__college_snapshot=user.college.name if user.college else ''
     ).select_related('created_by', 'budget_source').prefetch_related('participants').distinct()
 
-    untagged       = college_travels.filter(budget_source__isnull=True)
-    budget_sources = get_sources_for_secretary(user, year=year)
+    untagged          = college_travels.filter(budget_source__isnull=True)
+    budget_sources    = get_sources_for_secretary(user, year=year)
     total_budget_used = sum(item.get('used', 0) for item in budget_sources)
     duplicate_alerts  = _detect_duplicates(college_travels)
 
     context = {
-        'user':             user,
-        'today':            today,
-        'current_year':     year,
-        'total_travels':    college_travels.count(),
-        'untagged_count':   untagged.count(),
-        'untagged_travels': untagged[:8],
-        'recent_travels':   college_travels[:8],
-        'total_travelers':  sum(t.participant_count for t in college_travels),
+        'user':              user,
+        'today':             today,
+        'current_year':      year,
+        'total_travels':     college_travels.count(),
+        'untagged_count':    untagged.count(),
+        'untagged_travels':  untagged[:8],
+        'recent_travels':    college_travels[:8],
+        'total_travelers':   sum(t.participant_count for t in college_travels),
         'total_budget_used': total_budget_used,
-        'budget_sources':   budget_sources,
-        'duplicate_alerts': duplicate_alerts,
+        'budget_sources':    budget_sources,
+        'duplicate_alerts':  duplicate_alerts,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -139,17 +171,17 @@ def campus_secretary_dashboard(request, user=None):
     duplicate_alerts  = _detect_duplicates(campus_travels)
 
     context = {
-        'user':             user,
-        'today':            today,
-        'current_year':     year,
-        'total_travels':    campus_travels.count(),
-        'untagged_count':   untagged.count(),
-        'untagged_travels': untagged[:8],
-        'recent_travels':   campus_travels[:8],
-        'total_travelers':  sum(t.participant_count for t in campus_travels),
+        'user':              user,
+        'today':             today,
+        'current_year':      year,
+        'total_travels':     campus_travels.count(),
+        'untagged_count':    untagged.count(),
+        'untagged_travels':  untagged[:8],
+        'recent_travels':    campus_travels[:8],
+        'total_travelers':   sum(t.participant_count for t in campus_travels),
         'total_budget_used': total_budget_used,
-        'budget_sources':   budget_sources,
-        'duplicate_alerts': duplicate_alerts,
+        'budget_sources':    budget_sources,
+        'duplicate_alerts':  duplicate_alerts,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -161,7 +193,6 @@ def campus_secretary_dashboard(request, user=None):
 @never_cache
 @require_role(['ADMIN'])
 def admin_dashboard(request, user=None):
-    from django.db.models import Count
     from accounts.models import College
 
     today = timezone.now().date()
@@ -185,9 +216,12 @@ def admin_dashboard(request, user=None):
         pct    = round((total_used / total_allocated * 100), 1) if total_allocated > 0 else 0
         status = 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy'
         budget_data.append({
-            'source': source, 'allocated': total_allocated,
-            'used': total_used, 'remaining': total_allocated - total_used,
-            'percentage': pct, 'status': status,
+            'source':    source,
+            'allocated': total_allocated,
+            'used':      total_used,
+            'remaining': total_allocated - total_used,
+            'percentage': pct,
+            'status':    status,
         })
 
     college_stats = []
@@ -197,11 +231,11 @@ def admin_dashboard(request, user=None):
             college_stats.append({'college': college.code or college.name[:10], 'count': count})
 
     context = {
-        'user':           user,
-        'today':          today,
-        'current_year':   year,
-        'total_travels':  all_travels.count(),
-        'untagged_count': all_travels.filter(budget_source__isnull=True).count(),
+        'user':            user,
+        'today':           today,
+        'current_year':    year,
+        'total_travels':   all_travels.count(),
+        'untagged_count':  all_travels.filter(budget_source__isnull=True).count(),
         'total_travelers': sum(t.participant_count for t in all_travels),
         'total_colleges':  College.objects.count(),
         'budget_sources':  budget_data,
@@ -226,12 +260,9 @@ def create_travel(request):
 
     today = timezone.now().date()
 
-    # Build participant queryset based on role
     if user.role == 'EMPLOYEE':
-        # Employee only travels alone — no participant selection
         available_participants = []
     elif user.role == 'DEPT_SEC':
-        # Only people from the same college
         available_participants = User.objects.filter(
             college=user.college,
             is_approved=True,
@@ -239,7 +270,6 @@ def create_travel(request):
             role='EMPLOYEE'
         ).exclude(id=user.id).order_by('last_name', 'first_name')
     else:
-        # Campus Secretary — everyone on the campus
         available_participants = User.objects.filter(
             campus=user.campus,
             is_approved=True,
@@ -256,7 +286,6 @@ def create_travel(request):
         notes              = request.POST.get('notes', '').strip()
         participant_ids    = request.POST.getlist('participants')
 
-        # Validation
         errors = []
         if not destination:
             errors.append('Destination is required.')
@@ -264,10 +293,15 @@ def create_travel(request):
             errors.append('Start date is required.')
         if not purpose:
             errors.append('Purpose is required.')
+        if start_date and end_date and end_date < start_date:
+            errors.append('End date cannot be before start date.')
+        from datetime import date
+        if start_date and start_date < str(date.today()):
+            errors.append('Start date cannot be in the past.')
 
         if errors:
+            from django.contrib import messages
             for e in errors:
-                from django.contrib import messages
                 messages.error(request, e)
             return render(request, 'travel_app/shared/create_travel.html', {
                 'user': user, 'today': today,
@@ -285,16 +319,14 @@ def create_travel(request):
                     is_out_of_province=is_out_of_province,
                     notes=notes,
                     created_by=user,
-                    scope='COLLEGE',  # will be updated after participants are added
+                    scope='COLLEGE',
                 )
-                # For employees — always add themselves
-                # For secretaries — only add if they checked "include me"
+
                 if user.role == 'EMPLOYEE':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
                 elif request.POST.get('include_creator') == 'yes':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
 
-                # Add selected participants (secretary only)
                 if user.role in ['DEPT_SEC', 'CAMPUS_SEC'] and participant_ids:
                     for pid in participant_ids:
                         try:
@@ -305,10 +337,7 @@ def create_travel(request):
                         except User.DoesNotExist:
                             pass
 
-                # Auto-detect scope from participants
                 travel.refresh_scope()
-
-                # Check for duplicates and notify secretary
                 _notify_if_duplicate(travel, user)
 
                 from django.contrib import messages
@@ -328,7 +357,7 @@ def create_travel(request):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# TRAVEL DETAIL  (document folder view)
+# TRAVEL DETAIL
 # ══════════════════════════════════════════════════════════════════════
 
 @never_cache
@@ -336,7 +365,7 @@ def travel_detail(request, pk):
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
- 
+
     travel = get_object_or_404(
         TravelRecord.objects.select_related(
             'created_by', 'budget_source', 'event_group',
@@ -344,18 +373,17 @@ def travel_detail(request, pk):
         ).prefetch_related('participants__user', 'documents'),
         pk=pk
     )
- 
+
     is_participant = travel.participants.filter(user=user).exists()
     is_creator     = travel.created_by == user
     is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
     is_admin       = user.role == 'ADMIN'
- 
+
     if not (is_participant or is_creator or is_secretary or is_admin):
         from django.contrib import messages
         messages.error(request, 'You do not have access to this travel record.')
         return redirect('accounts:dashboard')
- 
-    # Group documents by type
+
     docs_by_type = {}
     for doc_type, doc_label in TravelDocument.DOC_TYPE_CHOICES:
         docs_by_type[doc_type] = {
@@ -363,16 +391,14 @@ def travel_detail(request, pk):
             'documents': travel.documents.filter(doc_type=doc_type).order_by('-uploaded_at'),
             'uploaded':  travel.documents.filter(doc_type=doc_type).exists(),
         }
- 
-    # ── Budget tagging logic ───────────────────────────────────────────
-    can_tag_budget   = False
-    can_route        = False
-    budget_sources   = []
-    route_colleges   = []
- 
+
+    can_tag_budget = False
+    can_route      = False
+    budget_sources = []
+    route_colleges = []
+
     if user.role == 'DEPT_SEC' and user.college:
         if travel.scope == 'COLLEGE':
-            # Own college travel — can tag directly
             travel_colleges = set(
                 travel.participants.exclude(college_snapshot='')
                                    .values_list('college_snapshot', flat=True)
@@ -380,12 +406,10 @@ def travel_detail(request, pk):
             if user.college.name in travel_colleges:
                 can_tag_budget = True
                 budget_sources = get_sources_for_secretary(user)
- 
         elif travel.scope == 'CAMPUS' and travel.funding_college == user.college:
-            # Campus Secretary routed this travel to this Dept Secretary
             can_tag_budget = True
             budget_sources = get_sources_for_secretary(user)
- 
+
     elif user.role == 'CAMPUS_SEC' and user.campus:
         if travel.scope == 'CAMPUS':
             travel_campuses = set(
@@ -394,23 +418,18 @@ def travel_detail(request, pk):
             )
             if user.campus.name in travel_campuses:
                 if not travel.funding_college:
-                    # Not yet routed — campus sec can tag directly OR route to a college
                     can_tag_budget = True
                     can_route      = True
                     budget_sources = get_sources_for_secretary(user)
-                    # Get colleges involved in this travel for routing dropdown
                     from accounts.models import College
                     involved_college_names = set(
                         travel.participants.exclude(college_snapshot='')
                                            .values_list('college_snapshot', flat=True)
                     )
-                    route_colleges = College.objects.filter(
-                        name__in=involved_college_names
-                    )
+                    route_colleges = College.objects.filter(name__in=involved_college_names)
                 else:
-                    # Already routed to a college — campus sec can see but not tag
                     can_tag_budget = False
- 
+
     context = {
         'user':           user,
         'travel':         travel,
@@ -428,6 +447,7 @@ def travel_detail(request, pk):
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
+
 # ══════════════════════════════════════════════════════════════════════
 # UPLOAD DOCUMENT
 # ══════════════════════════════════════════════════════════════════════
@@ -441,7 +461,6 @@ def upload_document(request, pk):
 
     travel = get_object_or_404(TravelRecord, pk=pk)
 
-    # Only participants, creator, or secretaries can upload
     is_participant = travel.participants.filter(user=user).exists()
     is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
     is_admin       = user.role == 'ADMIN'
@@ -467,7 +486,7 @@ def upload_document(request, pk):
             messages.error(request, 'Invalid document type.')
             return redirect('travel_app:travel_detail', pk=pk)
 
-        doc = TravelDocument.objects.create(
+        TravelDocument.objects.create(
             travel_record=travel,
             doc_type=doc_type,
             file=file,
@@ -475,18 +494,14 @@ def upload_document(request, pk):
             notes=notes,
         )
 
-        # TODO Phase 5: trigger Ollama extraction here
-        # from .ai_service import extract_from_document
-        # extract_from_document(doc)
-
         from django.contrib import messages
-        messages.success(request, f'{doc.get_doc_type_display()} uploaded successfully.')
+        messages.success(request, f'Document uploaded successfully.')
 
     return redirect('travel_app:travel_detail', pk=pk)
 
 
 # ══════════════════════════════════════════════════════════════════════
-# TAG BUDGET SOURCE  (secretary only)
+# TAG BUDGET
 # ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
@@ -499,13 +514,13 @@ def tag_budget(request, pk):
         from django.contrib import messages
         messages.error(request, 'Only secretaries can tag budget sources.')
         return redirect('travel_app:travel_detail', pk=pk)
- 
+
     travel = get_object_or_404(TravelRecord, pk=pk)
- 
+
     if request.method == 'POST':
         action = request.POST.get('action', 'tag')
- 
-        # ── Route to a college (Campus Secretary only) ─────────────────
+
+        # Route to a college (Campus Secretary only)
         if action == 'route' and user.role == 'CAMPUS_SEC':
             from accounts.models import College
             college_id = request.POST.get('funding_college_id')
@@ -513,13 +528,10 @@ def tag_budget(request, pk):
                 college = College.objects.get(id=college_id)
                 travel.funding_college = college
                 travel.save(update_fields=['funding_college'])
- 
-                # Notify the dept secretary of that college
+
                 dept_secs = User.objects.filter(
-                    role='DEPT_SEC',
-                    college=college,
-                    is_active=True,
-                    is_approved=True
+                    role='DEPT_SEC', college=college,
+                    is_active=True, is_approved=True
                 )
                 for sec in dept_secs:
                     Notification.objects.create(
@@ -528,69 +540,67 @@ def tag_budget(request, pk):
                         title='Travel routed to you for budget tagging',
                         message=(
                             f'Campus Secretary routed a cross-college travel to '
-                            f'{destination} ({travel.start_date}) to your queue. '
+                            f'{travel.destination} ({travel.start_date}) to your queue. '
                             f'Please assign the budget source from your college.'
-                        ).replace('{destination}', travel.destination),
+                        ),
                         travel_record=travel,
                     )
- 
+
                 from django.contrib import messages
-                messages.success(
-                    request,
-                    f'Travel routed to {college.name} Secretary for budget tagging.'
-                )
+                messages.success(request, f'Travel routed to {college.name} Secretary for budget tagging.')
             except College.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'College not found.')
- 
-        # ── Tag budget directly ────────────────────────────────────────
+
+        # Tag budget directly
         elif action == 'tag':
             budget_source_id = request.POST.get('budget_source_id')
             try:
                 source = BudgetSource.objects.get(id=budget_source_id, is_active=True)
- 
-                # Verify this secretary is allowed to use this source
+
                 allowed = False
                 if user.role == 'DEPT_SEC' and source.scope == 'COLLEGE':
                     allowed = True
                 elif user.role == 'CAMPUS_SEC' and source.scope == 'CAMPUS':
                     allowed = True
- 
+
                 if not allowed:
                     from django.contrib import messages
                     messages.error(request, 'You cannot use this budget source.')
                 else:
                     from django.utils import timezone as tz
+                    from decimal import Decimal
+
                     travel.budget_source    = source
                     travel.budget_tagged_by = user
                     travel.budget_tagged_at = tz.now()
-                    travel.save(update_fields=['budget_source', 'budget_tagged_by', 'budget_tagged_at'])
-                    result = {'within_budget': True, 'message': 'Tagged successfully.'}
- 
+                    travel.amount_deducted  = Decimal('0')
+                    travel.save(update_fields=[
+                        'budget_source', 'budget_tagged_by',
+                        'budget_tagged_at', 'amount_deducted'
+                    ])
+
+                    # Auto-create usage row so it appears in budget overview
+                    if source.scope == 'COLLEGE' and user.college:
+                        source.get_or_create_college_usage(user.college)
+                    elif source.scope == 'CAMPUS' and user.campus:
+                        source.get_or_create_campus_usage(user.campus)
+
                     from django.contrib import messages
-                    if result['within_budget']:
-                        messages.success(
-                            request,
-                            f'Budget source "{source.name}" assigned successfully.'
-                        )
-                    else:
-                        messages.warning(
-                            request,
-                            f'Budget tagged but over budget: {result["message"]}'
-                        )
- 
+                    messages.success(request, f'Budget source "{source.name}" assigned successfully.')
+
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'Invalid budget source.')
             except Exception as e:
                 from django.contrib import messages
                 messages.error(request, f'Error tagging budget: {str(e)}')
- 
+
     return redirect('travel_app:travel_detail', pk=pk)
 
 
 # ══════════════════════════════════════════════════════════════════════
-# ALL TRAVELS LIST
+# ALL TRAVELS
 # ══════════════════════════════════════════════════════════════════════
 
 @never_cache
@@ -601,11 +611,8 @@ def all_travels(request):
 
     today = timezone.now().date()
 
-    # Filter travels based on role
     if user.role == 'EMPLOYEE':
-        travels = TravelRecord.objects.filter(
-            participants__user=user
-        ).distinct()
+        travels = TravelRecord.objects.filter(participants__user=user).distinct()
     elif user.role == 'DEPT_SEC':
         travels = TravelRecord.objects.filter(
             scope='COLLEGE',
@@ -615,38 +622,34 @@ def all_travels(request):
         travels = TravelRecord.objects.filter(
             participants__campus_snapshot=user.campus.name if user.campus else ''
         ).distinct()
-    else:  # ADMIN
+    else:
         travels = TravelRecord.objects.all()
 
     travels = travels.select_related(
         'created_by__college', 'budget_source'
     ).prefetch_related('participants').order_by('-created_at')
 
-    # Filters from query params
-    filter_tagged    = request.GET.get('tagged')       # 'yes' or 'no'
-    filter_scope     = request.GET.get('scope')        # 'COLLEGE' or 'CAMPUS'
-    filter_year      = request.GET.get('year')
-    search           = request.GET.get('q', '').strip()
+    filter_tagged = request.GET.get('tagged')
+    filter_scope  = request.GET.get('scope')
+    filter_year   = request.GET.get('year')
+    search        = request.GET.get('q', '').strip()
 
     if filter_tagged == 'yes':
         travels = travels.filter(budget_source__isnull=False)
     elif filter_tagged == 'no':
         travels = travels.filter(budget_source__isnull=True)
-
     if filter_scope in ['COLLEGE', 'CAMPUS']:
         travels = travels.filter(scope=filter_scope)
-
     if filter_year:
         travels = travels.filter(start_date__year=filter_year)
-
     if search:
         travels = travels.filter(destination__icontains=search)
 
     context = {
-        'user':       user,
-        'travels':    travels,
-        'today':      today,
-        'total':      travels.count(),
+        'user':          user,
+        'travels':       travels,
+        'today':         today,
+        'total':         travels.count(),
         'filter_tagged': filter_tagged,
         'filter_scope':  filter_scope,
         'filter_year':   filter_year,
@@ -657,7 +660,7 @@ def all_travels(request):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# MY TRAVELS + STATS (employee)
+# MY TRAVELS + STATS
 # ══════════════════════════════════════════════════════════════════════
 
 @never_cache
@@ -673,9 +676,7 @@ def my_stats(request, user=None):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# ADD THESE TWO VIEWS to travel_app/views.py
-# Replace the existing manage_budget_sources and budget_overview
-# placeholder functions
+# MANAGE BUDGET SOURCES (Admin)
 # ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
@@ -689,11 +690,10 @@ def manage_budget_sources(request):
         messages.error(request, 'Admin access required.')
         return redirect('accounts:dashboard')
 
-    from django.utils import timezone as tz
-    today = tz.now().date()
+    from accounts.models import College, Campus
+    today = timezone.now().date()
     year  = int(request.GET.get('year', today.year))
 
-    # Handle POST — create or edit budget source
     if request.method == 'POST':
         action = request.POST.get('action')
 
@@ -704,16 +704,13 @@ def manage_budget_sources(request):
             campus_budget_amount  = request.POST.get('campus_budget_amount', 0) or 0
             description           = request.POST.get('description', '').strip()
             source_year           = int(request.POST.get('year', today.year))
-
             if not name:
                 from django.contrib import messages
                 messages.error(request, 'Budget source name is required.')
             else:
                 try:
                     BudgetSource.objects.create(
-                        name=name,
-                        scope=scope,
-                        year=source_year,
+                        name=name, scope=scope, year=source_year,
                         college_budget_amount=college_budget_amount,
                         campus_budget_amount=campus_budget_amount,
                         description=description,
@@ -731,8 +728,7 @@ def manage_budget_sources(request):
                 source.is_active = not source.is_active
                 source.save(update_fields=['is_active'])
                 from django.contrib import messages
-                status = 'activated' if source.is_active else 'deactivated'
-                messages.success(request, f'"{source.name}" {status}.')
+                messages.success(request, f'"{source.name}" {"activated" if source.is_active else "deactivated"}.')
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'Budget source not found.')
@@ -741,10 +737,9 @@ def manage_budget_sources(request):
             source_id = request.POST.get('source_id')
             try:
                 source = BudgetSource.objects.get(id=source_id)
-                # Only allow delete if no travels are using it
                 if source.travel_records.exists():
                     from django.contrib import messages
-                    messages.error(request, f'Cannot delete "{source.name}" — travels are using it. Deactivate instead.')
+                    messages.error(request, f'Cannot delete "{source.name}" — travels are using it.')
                 else:
                     name = source.name
                     source.delete()
@@ -756,27 +751,20 @@ def manage_budget_sources(request):
 
         return redirect(f"{request.path}?year={year}")
 
-    # Get all sources for this year
-    sources = BudgetSource.objects.filter(year=year).order_by('scope', 'name')
-
-    # Annotate each source with usage stats
-    from accounts.models import College, Campus
+    sources     = BudgetSource.objects.filter(year=year).order_by('scope', 'name')
     source_data = []
     for source in sources:
         if source.scope == 'COLLEGE':
-            usages = BudgetUsage.objects.filter(budget_source=source, year=year)
+            usages          = BudgetUsage.objects.filter(budget_source=source, year=year)
             total_allocated = source.college_budget_amount * College.objects.count()
             total_used      = sum(u.used_amount for u in usages)
-            travel_count    = source.travel_records.count()
         else:
-            usages = CampusBudgetUsage.objects.filter(budget_source=source, year=year)
+            usages          = CampusBudgetUsage.objects.filter(budget_source=source, year=year)
             total_allocated = source.campus_budget_amount
             total_used      = sum(u.used_amount for u in usages)
-            travel_count    = source.travel_records.count()
 
         pct    = round((total_used / total_allocated * 100), 1) if total_allocated > 0 else 0
         status = 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy'
-
         source_data.append({
             'source':       source,
             'allocated':    total_allocated,
@@ -784,19 +772,23 @@ def manage_budget_sources(request):
             'remaining':    total_allocated - total_used,
             'percentage':   pct,
             'status':       status,
-            'travel_count': travel_count,
+            'travel_count': source.travel_records.count(),
         })
 
     context = {
-        'user':         user,
-        'today':        today,
-        'current_year': year,
-        'year_range':   range(today.year - 1, today.year + 3),
-        'source_data':  source_data,
+        'user':          user,
+        'today':         today,
+        'current_year':  year,
+        'year_range':    range(today.year - 1, today.year + 3),
+        'source_data':   source_data,
         'college_count': College.objects.count(),
     }
     return render(request, 'travel_app/admin/manage_budget_sources.html', context)
 
+
+# ══════════════════════════════════════════════════════════════════════
+# BUDGET OVERVIEW
+# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 def budget_overview(request):
@@ -806,14 +798,12 @@ def budget_overview(request):
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
 
-    from django.utils import timezone as tz
     from accounts.models import College, Campus
-    today = tz.now().date()
+    today = timezone.now().date()
     year  = int(request.GET.get('year', today.year))
 
     if user.role == 'ADMIN':
-        # Show all sources with per-college breakdown
-        sources = BudgetSource.objects.filter(year=year, is_active=True).order_by('scope', 'name')
+        sources  = BudgetSource.objects.filter(year=year, is_active=True).order_by('scope', 'name')
         overview = []
         for source in sources:
             if source.scope == 'COLLEGE':
@@ -821,42 +811,44 @@ def budget_overview(request):
                     budget_source=source, year=year
                 ).select_related('college').order_by('college__name')
                 rows = [{
-                    'label':     u.college.name,
-                    'allocated': u.allocated_amount,
-                    'used':      u.used_amount,
-                    'remaining': u.remaining_amount,
+                    'label':      u.college.name,
+                    'allocated':  u.allocated_amount,
+                    'used':       u.used_amount,
+                    'remaining':  u.remaining_amount,
                     'percentage': u.usage_percentage,
-                    'status':    u.status,
+                    'status':     u.status,
                 } for u in usages]
-                total_alloc = source.college_budget_amount * College.objects.count()
-                total_used  = sum(u.used_amount for u in usages)
+                total_alloc  = source.college_budget_amount * College.objects.count()
+                total_used   = sum(u.used_amount for u in usages)
+                tagged_count = source.travel_records.count()
             else:
                 usages = CampusBudgetUsage.objects.filter(
                     budget_source=source, year=year
                 ).select_related('campus').order_by('campus__name')
                 rows = [{
-                    'label':     u.campus.name,
-                    'allocated': u.allocated_amount,
-                    'used':      u.used_amount,
-                    'remaining': u.remaining_amount,
+                    'label':      u.campus.name,
+                    'allocated':  u.allocated_amount,
+                    'used':       u.used_amount,
+                    'remaining':  u.remaining_amount,
                     'percentage': u.usage_percentage,
-                    'status':    u.status,
+                    'status':     u.status,
                 } for u in usages]
-                total_alloc = source.campus_budget_amount
-                total_used  = sum(u.used_amount for u in usages)
+                total_alloc  = source.campus_budget_amount
+                total_used   = sum(u.used_amount for u in usages)
+                tagged_count = source.travel_records.count()
 
             pct = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
             overview.append({
-                'source':    source,
-                'rows':      rows,
+                'source':          source,
+                'rows':            rows,
                 'total_allocated': total_alloc,
                 'total_used':      total_used,
                 'total_remaining': total_alloc - total_used,
                 'percentage':      pct,
+                'tagged_count':    tagged_count,
                 'status': 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy',
             })
     else:
-        # Secretary — show only their sources
         budget_sources = get_sources_for_secretary(user, year=year)
         overview = [{
             'source':          item['source'],
@@ -865,6 +857,7 @@ def budget_overview(request):
             'total_used':      item.get('used', 0),
             'total_remaining': item.get('remaining', 0),
             'percentage':      item.get('percentage', 0),
+            'tagged_count':    item['source'].travel_records.count(),
             'status':          item.get('status', 'healthy'),
         } for item in budget_sources]
 
@@ -878,6 +871,10 @@ def budget_overview(request):
     return render(request, 'travel_app/shared/budget_overview.html', context)
 
 
+# ══════════════════════════════════════════════════════════════════════
+# EVENT GROUPS
+# ══════════════════════════════════════════════════════════════════════
+
 @never_cache
 def event_groups(request):
     user = get_authenticated_user(request)
@@ -886,14 +883,11 @@ def event_groups(request):
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
 
-    from django.utils import timezone as tz
-    today = tz.now().date()
-
+    today  = timezone.now().date()
     groups = EventGroup.objects.select_related('created_by').prefetch_related(
         'travel_records__participants'
     ).order_by('-start_date')
 
-    # Filter by role
     if user.role == 'DEPT_SEC' and user.college:
         groups = groups.filter(
             travel_records__participants__college_snapshot=user.college.name
@@ -903,11 +897,9 @@ def event_groups(request):
             travel_records__participants__campus_snapshot=user.campus.name
         ).distinct()
 
-    # Possible duplicates not yet grouped
     if user.role == 'DEPT_SEC':
         ungrouped = TravelRecord.objects.filter(
-            scope='COLLEGE',
-            event_group__isnull=True,
+            scope='COLLEGE', event_group__isnull=True,
             participants__college_snapshot=user.college.name if user.college else ''
         ).distinct()
     elif user.role == 'CAMPUS_SEC':
@@ -918,113 +910,97 @@ def event_groups(request):
     else:
         ungrouped = TravelRecord.objects.filter(event_group__isnull=True)
 
-    duplicate_alerts = _detect_duplicates(ungrouped)
-
     context = {
         'user':             user,
         'today':            today,
         'groups':           groups,
-        'duplicate_alerts': duplicate_alerts,
+        'duplicate_alerts': _detect_duplicates(ungrouped),
     }
     return render(request, 'travel_app/shared/event_groups.html', context)
 
+
 # ══════════════════════════════════════════════════════════════════════
-# INTERNAL HELPERS
+# SECRETARY QUEUE
 # ══════════════════════════════════════════════════════════════════════
-
-def _notify_if_duplicate(travel, creator):
-    """
-    Check if a newly created travel looks like a duplicate and
-    create a notification for the relevant secretary if so.
-    """
-    from django.db.models import Q
-
-    # Find travels with same destination and overlapping dates
-    a_end = travel.end_date or travel.start_date
-    duplicates = TravelRecord.objects.filter(
-        destination__iexact=travel.destination
-    ).filter(
-        Q(start_date__lte=a_end) & Q(end_date__gte=travel.start_date) |
-        Q(start_date__lte=a_end) & Q(end_date__isnull=True, start_date__gte=travel.start_date)
-    ).exclude(id=travel.id)
-
-    if not duplicates.exists():
-        return
-
-    # Notify the relevant secretary
-    if travel.scope == 'COLLEGE' and creator.college:
-        secretaries = User.objects.filter(
-            role='DEPT_SEC', college=creator.college, is_active=True
-        )
-    else:
-        secretaries = User.objects.filter(
-            role='CAMPUS_SEC', campus=creator.campus, is_active=True
-        )
-
-    for sec in secretaries:
-        Notification.objects.create(
-            user=sec,
-            notification_type='DUPLICATE_DETECTED',
-            title='Possible duplicate travel detected',
-            message=(
-                f'A new travel to {travel.destination} '
-                f'({travel.start_date}) may overlap with an existing record. '
-                f'Consider linking them as an event group.'
-            ),
-            travel_record=travel,
-        )
-
-
-#=================================================
-#  SECRETARY QUEUE
-#=================================================
 
 @never_cache
 def secretary_queue(request):
-    """
-    Shows the secretary their pending budget tagging queue.
-    Dept Secretary: COLLEGE scope travels from their college
-                  + CAMPUS scope travels routed to their college
-    Campus Secretary: CAMPUS scope travels not yet tagged and not routed
-    """
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
     if user.role not in ['DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
- 
+
     if user.role == 'DEPT_SEC' and user.college:
-        # Own college travels untagged
         own_college = TravelRecord.objects.filter(
             scope='COLLEGE',
             budget_source__isnull=True,
             participants__college_snapshot=user.college.name
         ).distinct()
- 
-        # Cross-college travels routed to this college
         routed = TravelRecord.objects.filter(
             scope='CAMPUS',
             budget_source__isnull=True,
             funding_college=user.college
         ).distinct()
- 
         queue = list(own_college) + list(routed)
- 
+
     elif user.role == 'CAMPUS_SEC' and user.campus:
-        # Cross-college travels not yet tagged and not routed to any college
         queue = TravelRecord.objects.filter(
             scope='CAMPUS',
             budget_source__isnull=True,
             funding_college__isnull=True,
             participants__campus_snapshot=user.campus.name
         ).distinct()
- 
     else:
         queue = []
- 
+
     context = {
         'user':  user,
         'queue': queue,
         'today': timezone.now().date(),
     }
     return render(request, 'travel_app/secretary/queue.html', context)
+
+@never_cache
+def download_zip(request, pk):
+    import zipfile
+    import io
+    import os
+    from django.http import HttpResponse
+
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    travel = get_object_or_404(TravelRecord, pk=pk)
+
+    is_participant = travel.participants.filter(user=user).exists()
+    is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
+    is_admin       = user.role == 'ADMIN'
+
+    if not (is_participant or is_secretary or is_admin):
+        from django.contrib import messages
+        messages.error(request, 'You do not have access to this travel.')
+        return redirect('accounts:dashboard')
+
+    documents = travel.documents.all()
+    if not documents.exists():
+        from django.contrib import messages
+        messages.error(request, 'No documents to download.')
+        return redirect('travel_app:travel_detail', pk=pk)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for doc in documents:
+            try:
+                file_path = doc.file.path
+                file_name = f"{doc.get_doc_type_display()} - {os.path.basename(file_path)}"
+                zf.write(file_path, arcname=file_name)
+            except Exception:
+                pass
+
+    buffer.seek(0)
+    zip_name = f"Travel_{travel.destination}_{travel.start_date}.zip".replace(' ', '_')
+    response = HttpResponse(buffer, content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="{zip_name}"'
+    return response

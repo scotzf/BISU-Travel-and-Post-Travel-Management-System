@@ -70,24 +70,30 @@
         <div>
           <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Allocated</div>
           <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)">
-            ₱{{ item.total_allocated|floatformat:0 }}
+            &#8369;{{ item.total_allocated|floatformat:0 }}
           </div>
         </div>
         <div>
           <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Used</div>
           <div style="font-size:17px;font-weight:600;font-family:var(--font-display);
                       color:{% if item.status == 'healthy' %}#1a5c38{% elif item.status == 'warning' %}#8a6400{% else %}#922b21{% endif %}">
-            ₱{{ item.total_used|floatformat:0 }}
+            &#8369;{{ item.total_used|floatformat:0 }}
           </div>
         </div>
         <div>
           <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Remaining</div>
           <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)">
-            ₱{{ item.total_remaining|floatformat:0 }}
+            &#8369;{{ item.total_remaining|floatformat:0 }}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Tagged Travels</div>
+          <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--role-color)">
+            {{ item.tagged_count }}
           </div>
         </div>
       </div>
-
+      
       <!-- Per-college/campus breakdown (admin only) -->
       {% if item.rows %}
       <div style="border-top:1px solid var(--border);padding-top:14px">
