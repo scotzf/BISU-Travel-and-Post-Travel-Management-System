@@ -12,7 +12,7 @@ urlpatterns = [
     # ── Secretary ─────────────────────────────────────────────────────
     path('dept-secretary/',         views.dept_secretary_dashboard,  name='dept_secretary_dashboard'),
     path('campus-secretary/',       views.campus_secretary_dashboard,name='campus_secretary_dashboard'),
-    path('secretary/queue/', views.secretary_queue, name='secretary_queue'),
+    path('secretary/queue/',        views.secretary_queue,           name='secretary_queue'),
 
     # ── Admin ─────────────────────────────────────────────────────────
     path('admin-panel/',            views.admin_dashboard,           name='admin_dashboard'),
@@ -28,6 +28,7 @@ urlpatterns = [
     # ── Budget & events ───────────────────────────────────────────────
     path('budget/',                 views.budget_overview,           name='budget_overview'),
     path('events/',                 views.event_groups,              name='event_groups'),
+    
     #--- Other links ---------------------------------------------------
-    path('travels/<int:pk>/download-zip/', views.download_zip, name='download_zip'),
+    path('travels/<int:pk>/download-zip/', views.download_zip,       name='download_zip'),
 ]
