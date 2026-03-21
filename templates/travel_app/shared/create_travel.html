@@ -148,6 +148,16 @@ textarea.form-control { resize:vertical; min-height:90px; }
           <input type="text" id="participantSearch" class="form-control"
                  placeholder="Search by name..." style="margin-bottom:12px"
                  oninput="filterParticipants(this.value)"/>
+          <!-- Include secretary checkbox -->
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 0;
+                      border-bottom:1px solid var(--border);margin-bottom:12px">
+            <input type="checkbox" name="include_creator" value="yes" id="includeCreator"
+                  style="width:16px;height:16px;accent-color:var(--role-color)"/>
+            <label for="includeCreator" style="font-size:13.5px;color:var(--text-primary);
+                                                cursor:pointer;margin:0">
+              Include myself as a traveler
+            </label>
+          </div>
 
           <!-- Participant tags -->
           <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px">
@@ -223,9 +233,11 @@ textarea.form-control { resize:vertical; min-height:90px; }
                          color:var(--text-primary)" id="summaryCount">
               1
             </div>
+            <!--
             <div style="font-size:12px;color:var(--text-muted)">
               including you
             </div>
+          -->
           </div>
 
           <!-- Budget note -->
@@ -280,10 +292,12 @@ function toggleParticipant(el) {
 }
 
 function updateSummary() {
-  const count = selectedIds.size + 1;  // +1 for creator
+  const includeCreator = document.getElementById('includeCreator');
+  const creatorCount   = includeCreator && includeCreator.checked ? 1 : 0;
+  const count          = selectedIds.size + creatorCount;
   document.getElementById('selectedCount').textContent = selectedIds.size + ' selected';
   document.getElementById('summaryCount').textContent  = count;
-
+document.getElementById('includeCreator')?.addEventListener('change', updateSummary);
   // Detect scope: are selected participants from multiple colleges?
   const colleges = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
   const creatorCollege = '{{ user.college.name|default:"" }}';

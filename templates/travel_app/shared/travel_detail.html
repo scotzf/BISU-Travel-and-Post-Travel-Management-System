@@ -250,49 +250,171 @@
       {% endfor %}
     </div>
 
-    <!-- Budget tagging (secretary only) -->
-    {% if is_secretary %}
+   {% if can_tag_budget or can_route or travel.funding_college or travel.is_budget_tagged %}
     <div class="card">
       <div class="card-header-custom">
         <div class="card-title"><i class="bi bi-tag"></i> Budget Source</div>
       </div>
       <div class="card-body-custom" style="padding:16px 20px">
+
         {% if travel.is_budget_tagged %}
           <div class="alert-custom alert-success" style="margin-bottom:12px">
             <i class="bi bi-check-circle-fill"></i>
             <div>
               <strong>{{ travel.budget_source.name }}</strong><br/>
-              <span style="font-size:12px">Tagged by {{ travel.budget_tagged_by.get_full_name }} on {{ travel.budget_tagged_at|date:"M j, Y" }}</span>
+              <span style="font-size:12px">
+                Tagged by {{ travel.budget_tagged_by.get_full_name }}
+                on {{ travel.budget_tagged_at|date:"M j, Y" }}
+              </span>
             </div>
           </div>
         {% endif %}
 
-        <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
-          {% csrf_token %}
-          <label class="form-label" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block">
-            {% if travel.is_budget_tagged %}Change budget source{% else %}Assign budget source{% endif %}
-          </label>
-          <select name="budget_source_id" class="form-select" style="font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);width:100%;margin-bottom:10px">
-            <option value="">— Select source —</option>
-            {% for item in budget_sources %}
-            <option value="{{ item.source.id }}"
-                    {% if travel.budget_source.id == item.source.id %}selected{% endif %}>
-              {{ item.source.name }}
-              (₱{{ item.remaining|floatformat:0 }} left)
-            </option>
-            {% endfor %}
-          </select>
-          <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
-            <i class="bi bi-tag"></i>
-            {% if travel.is_budget_tagged %}Update Tag{% else %}Tag Budget{% endif %}
-          </button>
-        </form>
+        {% if travel.funding_college and not travel.is_budget_tagged %}
+          <div class="alert-custom alert-info" style="margin-bottom:12px">
+            <i class="bi bi-arrow-right-circle-fill"></i>
+            <div>
+              Routed to <strong>{{ travel.funding_college.name }}</strong> Secretary for tagging.
+              {% if user.role == 'DEPT_SEC' and travel.funding_college == user.college %}
+                <br/><span style="font-size:12px">This is your queue — please assign a budget source below.</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        {% if can_route and not travel.is_budget_tagged and not travel.funding_college %}
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
+                       margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
+            How is this travel funded?
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <button onclick="showPanel('campus')" id="btn_campus"
+                    class="btn-primary-custom"
+                    style="flex:1;justify-content:center;font-size:12px;padding:8px">
+              <i class="bi bi-diagram-3"></i> Campus budget
+            </button>
+            <button onclick="showPanel('college')" id="btn_college"
+                    class="btn-secondary-custom"
+                    style="flex:1;justify-content:center;font-size:12px;padding:8px">
+              <i class="bi bi-building"></i> Route to college
+            </button>
+          </div>
+
+          <div id="panel_campus">
+            <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="tag"/>
+              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                             margin-bottom:5px;display:block">Campus budget source</label>
+              <select name="budget_source_id"
+                      style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
+                             border-radius:var(--radius);width:100%;margin-bottom:10px;
+                             background:var(--surface)">
+                <option value="">— Select source —</option>
+                {% for item in budget_sources %}
+                <option value="{{ item.source.id }}">
+                  {{ item.source.name }} (₱{{ item.remaining|floatformat:0 }} left)
+                </option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
+                <i class="bi bi-tag"></i> Tag Campus Budget
+              </button>
+            </form>
+          </div>
+
+          <div id="panel_college" style="display:none">
+            <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="route"/>
+              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                             margin-bottom:5px;display:block">Which college is funding this?</label>
+              <select name="funding_college_id"
+                      style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
+                             border-radius:var(--radius);width:100%;margin-bottom:10px;
+                             background:var(--surface)">
+                <option value="">— Select college —</option>
+                {% for college in route_colleges %}
+                <option value="{{ college.id }}">{{ college.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn-secondary-custom"
+                      style="width:100%;justify-content:center;color:#0f766e;border-color:#0f766e">
+                <i class="bi bi-arrow-right-circle"></i> Route to Dept Secretary
+              </button>
+            </form>
+          </div>
+
+        {% elif can_tag_budget and not travel.is_budget_tagged %}
+          <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="tag"/>
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                           margin-bottom:5px;display:block">
+              Assign budget source
+              {% if travel.funding_college %}
+                <span style="color:#0f766e">({{ travel.funding_college.name }})</span>
+              {% endif %}
+            </label>
+            <select name="budget_source_id"
+                    style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
+                           border-radius:var(--radius);width:100%;margin-bottom:10px;
+                           background:var(--surface)">
+              <option value="">— Select source —</option>
+              {% for item in budget_sources %}
+              <option value="{{ item.source.id }}"
+                      {% if travel.budget_source.id == item.source.id %}selected{% endif %}>
+                {{ item.source.name }} (₱{{ item.remaining|floatformat:0 }} left)
+              </option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
+              <i class="bi bi-tag"></i>
+              {% if travel.is_budget_tagged %}Update Budget{% else %}Tag Budget{% endif %}
+            </button>
+          </form>
+        {% endif %}
+
       </div>
     </div>
     {% endif %}
 
-  </div>
-</div>
+    {% if is_admin and travel.is_budget_tagged %}
+    <div class="card mt-3">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-tag"></i> Budget Info</div>
+      </div>
+      <div class="card-body-custom" style="padding:16px 20px">
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Source</span>
+            <span style="font-weight:500">{{ travel.budget_source.name }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Scope</span>
+            <span>{{ travel.budget_source.get_scope_display }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Amount deducted</span>
+            <span style="font-weight:500">₱{{ travel.amount_deducted|floatformat:0 }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Tagged by</span>
+            <span>{{ travel.budget_tagged_by.get_full_name }}</span>
+          </div>
+          {% if travel.funding_college %}
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Funded by</span>
+            <span>{{ travel.funding_college.name }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# end col-lg-4 #}
+</div>{# end row #}
 {% endblock %}
 
 {% block extra_js %}
@@ -302,7 +424,7 @@ function toggleSlot(id) {
   const key = id.replace('slot_', '');
   const ch  = document.getElementById('chevron_' + key);
   const open = el.style.display === 'none';
-  el.style.display  = open ? 'block' : 'none';
+  el.style.display   = open ? 'block' : 'none';
   ch.style.transform = open ? 'rotate(180deg)' : '';
 }
 
@@ -319,6 +441,13 @@ function handleDrop(event, docType) {
   dt.items.add(file);
   input.files = dt.files;
   autoSubmit('form_' + docType);
+}
+
+function showPanel(name) {
+  document.getElementById('panel_campus').style.display  = name === 'campus'  ? '' : 'none';
+  document.getElementById('panel_college').style.display = name === 'college' ? '' : 'none';
+  document.getElementById('btn_campus').className  = name === 'campus'  ? 'btn-primary-custom'   : 'btn-secondary-custom';
+  document.getElementById('btn_college').className = name === 'college' ? 'btn-primary-custom'   : 'btn-secondary-custom';
 }
 </script>
 {% endblock %}
