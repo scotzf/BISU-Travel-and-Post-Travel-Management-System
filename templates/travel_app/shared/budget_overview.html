@@ -8,7 +8,6 @@
 }
 {% endblock %}
 
-
 {% block content %}
 <div class="page-header">
   <div class="page-header-row">
@@ -58,14 +57,11 @@
     </div>
 
     <div class="card-body-custom">
-      <!-- Main progress bar -->
       <div class="budget-bar-track" style="height:10px;margin-bottom:10px">
         <div class="budget-bar-fill fill-{{ item.status }}"
              style="width:{% if item.percentage > 100 %}100{% else %}{{ item.percentage }}{% endif %}%">
         </div>
       </div>
-
-      <!-- Summary row -->
       <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:{% if item.rows %}16px{% else %}0{% endif %}">
         <div>
           <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Allocated</div>
@@ -78,6 +74,11 @@
           <div style="font-size:17px;font-weight:600;font-family:var(--font-display);
                       color:{% if item.status == 'healthy' %}#1a5c38{% elif item.status == 'warning' %}#8a6400{% else %}#922b21{% endif %}">
             &#8369;{{ item.total_used|floatformat:0 }}
+            {% if item.total_used == 0 and item.tagged_count > 0 %}
+              <span style="font-size:11px;color:var(--text-muted);font-weight:400;display:block;margin-top:2px">
+                {{ item.tagged_count }} travel{{ item.tagged_count|pluralize }} tagged — pending doc confirmation
+              </span>
+            {% endif %}
           </div>
         </div>
         <div>
@@ -93,8 +94,6 @@
           </div>
         </div>
       </div>
-      
-      <!-- Per-college/campus breakdown (admin only) -->
       {% if item.rows %}
       <div style="border-top:1px solid var(--border);padding-top:14px">
         <div style="font-size:11px;font-weight:600;color:var(--text-muted);
@@ -105,7 +104,7 @@
         <div class="budget-bar-wrap" style="padding:8px 0">
           <div class="budget-bar-header">
             <span class="budget-bar-name" style="font-size:12.5px">{{ row.label }}</span>
-            <span class="budget-bar-amounts">₱{{ row.used|floatformat:0 }} / ₱{{ row.allocated|floatformat:0 }}</span>
+            <span class="budget-bar-amounts">&#8369;{{ row.used|floatformat:0 }} / &#8369;{{ row.allocated|floatformat:0 }}</span>
           </div>
           <div class="budget-bar-track" style="height:5px">
             <div class="budget-bar-fill fill-{{ row.status }}"
@@ -116,11 +115,9 @@
         {% endfor %}
       </div>
       {% endif %}
-
     </div>
   </div>
   {% endfor %}
-
 {% else %}
   <div class="card">
     <div class="empty-state">
