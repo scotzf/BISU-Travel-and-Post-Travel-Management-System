@@ -169,6 +169,119 @@
               </div>
               {% endfor %}
 
+                {% for doc in slot.documents %}
+
+                  {# Show AI extraction results if available and not yet confirmed #}
+                  {% if doc.extraction_attempted and not doc.is_confirmed %}
+
+                    <div style="margin:8px 0;padding:12px;border-radius:8px;
+                                border:1px solid {% if doc.extraction_successful %}#b7dfbe{% else %}#f5b7b1{% endif %};
+                                background:{% if doc.extraction_successful %}#f0faf2{% else %}#fdf2f2{% endif %}">
+
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                        <div style="font-size:12px;font-weight:600;
+                                    color:{% if doc.extraction_successful %}#1a5c38{% else %}#922b21{% endif %}">
+                          <i class="bi bi-{% if doc.extraction_successful %}robot{% else %}exclamation-triangle{% endif %}"></i>
+                          {% if doc.extraction_successful %}
+                            AI Extracted Data — Please Review
+                          {% else %}
+                            AI could not extract data from this document
+                          {% endif %}
+                        </div>
+                      </div>
+
+                      {% if doc.extraction_successful %}
+                        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px">
+
+                          {% if doc.extracted_destination %}
+                          <div>
+                            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Destination</div>
+                            <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ doc.extracted_destination }}</div>
+                          </div>
+                          {% endif %}
+
+                          {% if doc.extracted_start_date %}
+                          <div>
+                            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Start Date</div>
+                            <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ doc.extracted_start_date|date:"M j, Y" }}</div>
+                          </div>
+                          {% endif %}
+
+                          {% if doc.extracted_end_date %}
+                          <div>
+                            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">End Date</div>
+                            <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ doc.extracted_end_date|date:"M j, Y" }}</div>
+                          </div>
+                          {% endif %}
+
+                          {% if doc.extracted_amount %}
+                          <div>
+                            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Amount</div>
+                            <div style="font-size:13px;font-weight:500;color:var(--text-primary)">&#8369;{{ doc.extracted_amount|floatformat:2 }}</div>
+                          </div>
+                          {% endif %}
+
+                          {% if doc.extracted_num_travelers %}
+                          <div>
+                            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Travelers</div>
+                            <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ doc.extracted_num_travelers }}</div>
+                          </div>
+                          {% endif %}
+
+                          {% if doc.extracted_purpose %}
+                          <div style="width:100%">
+                            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Purpose</div>
+                            <div style="font-size:13px;color:var(--text-primary)">{{ doc.extracted_purpose|truncatechars:150 }}</div>
+                          </div>
+                          {% endif %}
+
+                        </div>
+
+                        {# Non-travel warning #}
+                        {% if 'may not be travel-related' in doc.notes %}
+                        <div class="alert-custom alert-warning" style="padding:8px 12px;font-size:12px;margin-bottom:10px">
+                          <i class="bi bi-exclamation-triangle-fill"></i>
+                          AI flagged this document as possibly not travel-related. Please verify before confirming.
+                        </div>
+                        {% endif %}
+
+                        {# Confirm button — secretary only #}
+                        {% if is_secretary or is_admin %}
+                        <form method="post" action="{% url 'travel_app:confirm_extraction' doc.id %}" style="display:inline">
+                          {% csrf_token %}
+                          <button type="submit" class="btn-primary-custom" style="padding:6px 14px;font-size:12px">
+                            <i class="bi bi-check-lg"></i> Confirm & Apply to Travel
+                          </button>
+                        </form>
+                        <form method="post" action="{% url 'travel_app:reject_extraction' doc.id %}"
+                              style="display:inline;margin-left:6px">
+                          {% csrf_token %}
+                          <button type="submit" class="btn-secondary-custom"
+                                  style="padding:6px 14px;font-size:12px;color:#922b21;border-color:#f5b7b1">
+                            <i class="bi bi-x-lg"></i> Reject
+                          </button>
+                        </form>
+                        {% endif %}
+
+                      {% endif %}
+                    </div>
+
+                  {% elif doc.is_confirmed %}
+                    <div style="font-size:11px;color:#1a5c38;padding:4px 8px;
+                                background:#e6f4ea;border-radius:6px;display:inline-flex;
+                                align-items:center;gap:4px;margin-top:4px">
+                      <i class="bi bi-check-circle-fill" style="font-size:10px"></i>
+                      Confirmed by {{ doc.confirmed_by.get_full_name }} on {{ doc.confirmed_at|date:"M j, Y" }}
+                    </div>
+
+                  {% elif doc.extraction_attempted and not doc.extraction_successful %}
+                    <div style="font-size:11px;color:var(--text-muted);padding:4px 0">
+                      <i class="bi bi-hourglass-split"></i> AI extraction pending...
+                    </div>
+                  {% endif %}
+
+                {% endfor %}
+
               <!-- Upload new file -->
               {% if is_creator or is_secretary or is_admin %}
               <form method="post" action="{% url 'travel_app:upload_document' travel.id %}"

@@ -452,6 +452,8 @@ def travel_detail(request, pk):
 # UPLOAD DOCUMENT
 # ══════════════════════════════════════════════════════════════════════
 
+# In travel_app/views.py — REPLACE the existing upload_document view with this:
+
 @csrf_protect
 @never_cache
 def upload_document(request, pk):
@@ -486,7 +488,7 @@ def upload_document(request, pk):
             messages.error(request, 'Invalid document type.')
             return redirect('travel_app:travel_detail', pk=pk)
 
-        TravelDocument.objects.create(
+        doc = TravelDocument.objects.create(
             travel_record=travel,
             doc_type=doc_type,
             file=file,
@@ -494,11 +496,27 @@ def upload_document(request, pk):
             notes=notes,
         )
 
+        # ── Trigger AI extraction in background thread ─────────────────
+        # Runs asynchronously so upload response is instant
+        try:
+            import threading
+            from .ai_service import extract_from_document_async
+            t = threading.Thread(
+                target=extract_from_document_async,
+                args=(doc.id,)
+            )
+            t.daemon = True
+            t.start()
+        except Exception:
+            pass  # Extraction failure should never block upload
+
         from django.contrib import messages
-        messages.success(request, f'Document uploaded successfully.')
+        messages.success(
+            request,
+            f'{doc.get_doc_type_display()} uploaded successfully. AI is extracting data in the background.'
+        )
 
     return redirect('travel_app:travel_detail', pk=pk)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # TAG BUDGET
@@ -1004,3 +1022,120 @@ def download_zip(request, pk):
     response = HttpResponse(buffer, content_type='application/zip')
     response['Content-Disposition'] = f'attachment; filename="{zip_name}"'
     return response
+
+# ADD THESE TWO VIEWS to travel_app/views.py
+
+@csrf_protect
+@never_cache
+def confirm_extraction(request, doc_id):
+    """
+    Secretary confirms the AI-extracted data is correct.
+    This applies the extracted amount to the budget deduction.
+    """
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+    if user.role not in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
+        from django.contrib import messages
+        messages.error(request, 'Access denied.')
+        return redirect('accounts:dashboard')
+
+    from .models import TravelDocument
+    from django.utils import timezone as tz
+    from decimal import Decimal
+
+    doc = get_object_or_404(TravelDocument, id=doc_id)
+    travel = doc.travel_record
+
+    if request.method == 'POST':
+        # Mark document as confirmed
+        doc.is_confirmed  = True
+        doc.confirmed_by  = user
+        doc.confirmed_at  = tz.now()
+        doc.save(update_fields=['is_confirmed', 'confirmed_by', 'confirmed_at'])
+
+        # If this doc has an extracted amount and travel has a budget source,
+        # update the travel's amount_deducted and adjust the usage record
+        if doc.extracted_amount and travel.budget_source:
+            old_amount = travel.amount_deducted or Decimal('0')
+            new_amount = doc.extracted_amount
+
+            # Only update if new amount is different
+            if new_amount != old_amount:
+                source = travel.budget_source
+
+                # Get usage record
+                if source.scope == 'COLLEGE' and user.college:
+                    try:
+                        usage = BudgetUsage.objects.get(
+                            college=user.college,
+                            budget_source=source,
+                            year=source.year
+                        )
+                        # Restore old amount then deduct new amount
+                        usage.restore(old_amount)
+                        usage.deduct(new_amount)
+                    except BudgetUsage.DoesNotExist:
+                        pass
+                elif source.scope == 'CAMPUS' and user.campus:
+                    try:
+                        usage = CampusBudgetUsage.objects.get(
+                            campus=user.campus,
+                            budget_source=source,
+                            year=source.year
+                        )
+                        usage.restore(old_amount)
+                        usage.deduct(new_amount)
+                    except CampusBudgetUsage.DoesNotExist:
+                        pass
+
+                # Update travel's deducted amount
+                travel.amount_deducted = new_amount
+                travel.save(update_fields=['amount_deducted'])
+
+        from django.contrib import messages
+        messages.success(request, 'Extraction confirmed and budget updated.')
+
+    return redirect('travel_app:travel_detail', pk=travel.id)
+
+
+@csrf_protect
+@never_cache
+def reject_extraction(request, doc_id):
+    """
+    Secretary rejects the AI extraction — marks it as not confirmed.
+    Document stays but extracted data is cleared.
+    """
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+    if user.role not in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
+        from django.contrib import messages
+        messages.error(request, 'Access denied.')
+        return redirect('accounts:dashboard')
+
+    from .models import TravelDocument
+
+    doc = get_object_or_404(TravelDocument, id=doc_id)
+    travel = doc.travel_record
+
+    if request.method == 'POST':
+        # Clear extracted data
+        doc.extracted_destination   = ''
+        doc.extracted_start_date    = None
+        doc.extracted_end_date      = None
+        doc.extracted_amount        = None
+        doc.extracted_purpose       = ''
+        doc.extracted_num_travelers = None
+        doc.extraction_successful   = False
+        doc.extraction_attempted    = False  # Allow re-extraction after re-upload
+        doc.save(update_fields=[
+            'extracted_destination', 'extracted_start_date', 'extracted_end_date',
+            'extracted_amount', 'extracted_purpose', 'extracted_num_travelers',
+            'extraction_successful', 'extraction_attempted'
+        ])
+
+        from django.contrib import messages
+        messages.warning(request, 'Extraction rejected. Please re-upload the correct document.')
+
+    return redirect('travel_app:travel_detail', pk=travel.id)
