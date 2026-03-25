@@ -106,6 +106,13 @@
 
 {% endif %}
 
+{% if request.session.role == 'ADMIN' or request.session.role == 'CAMPUS_SEC' or request.session.role == 'DEPT_SEC' %}
+  <span class="sidebar-section-label">Reports</span>
+  <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i> Statistics
+  </a>
+{% endif %}
+
 {# Common bottom links for all roles #}
 <span class="sidebar-section-label">Account</span>
 <a href="{% url 'accounts:profile' %}" class="nav-item-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}">
