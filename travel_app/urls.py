@@ -33,4 +33,5 @@ urlpatterns = [
     path('travels/<int:pk>/download-zip/', views.download_zip,       name='download_zip'),
     path('documents/<int:doc_id>/confirm/', views.confirm_extraction, name='confirm_extraction'),
     path('documents/<int:doc_id>/reject/',  views.reject_extraction,  name='reject_extraction'),
+    path('stats/', views.stats_view, name='stats'),
 ]

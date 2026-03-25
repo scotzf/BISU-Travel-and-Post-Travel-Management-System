@@ -1133,3 +1133,287 @@ def reject_extraction(request, doc_id):
         messages.warning(request, 'Extraction rejected. Please re-upload the correct document.')
 
     return redirect('travel_app:travel_detail', pk=travel.id)
+
+    # ══════════════════════════════════════════════════════════════════════
+# STATS VIEW
+# ══════════════════════════════════════════════════════════════════════
+
+from django.db.models import Count, Sum, Avg, Q
+from django.db.models.functions import TruncMonth, TruncYear
+from datetime import date, timedelta
+import json as json_module
+
+def stats_view(request):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+    if user.role not in ['ADMIN', 'CAMPUS_SEC', 'DEPT_SEC']:
+        return redirect('travel_app:employee_dashboard')
+
+    today      = date.today()
+    this_year  = today.year
+    this_month = today.month
+
+    # ── Scope filter ─────────────────────────────────────────────────
+    # Base queryset scoped per role
+    if user.role == 'ADMIN':
+        travels = TravelRecord.objects.all()
+    elif user.role == 'CAMPUS_SEC':
+        travels = TravelRecord.objects.filter(
+            participants__campus_snapshot=user.campus.name
+        ).distinct()
+    else:  # DEPT_SEC
+        travels = TravelRecord.objects.filter(
+            participants__college_snapshot=user.college.name
+        ).distinct()
+
+    # ── Year filter from GET param (default current year) ────────────
+    selected_year = int(request.GET.get('year', this_year))
+    travels_year  = travels.filter(start_date__year=selected_year)
+
+    # Available years for dropdown
+    all_years = (
+        travels
+        .dates('start_date', 'year')
+        .values_list('start_date__year', flat=True)
+    )
+    # Use a simpler approach for year list
+    year_list = sorted(set(
+        TravelRecord.objects.filter(
+            id__in=travels.values_list('id', flat=True)
+        ).dates('start_date', 'year').values_list('start_date__year', flat=True)
+    ), reverse=True)
+    if not year_list:
+        year_list = [this_year]
+
+    # ══════════════════════════════════════════════════════════════════
+    # SECTION 1 — TRAVEL VOLUME
+    # ══════════════════════════════════════════════════════════════════
+
+    # Travels per month for selected year (Jan–Dec)
+    monthly_raw = (
+        travels_year
+        .annotate(month=TruncMonth('start_date'))
+        .values('month')
+        .annotate(count=Count('id'))
+        .order_by('month')
+    )
+    monthly_counts = {i: 0 for i in range(1, 13)}
+    for row in monthly_raw:
+        monthly_counts[row['month'].month] = row['count']
+    monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun',
+                      'Jul','Aug','Sep','Oct','Nov','Dec']
+    monthly_data   = [monthly_counts[i] for i in range(1, 13)]
+
+    # Travels by scope
+    scope_data = {
+        'COLLEGE': travels_year.filter(scope='COLLEGE').count(),
+        'CAMPUS':  travels_year.filter(scope='CAMPUS').count(),
+    }
+
+    # Travels per college (top 8)
+    college_volume = (
+        travels_year
+        .values('participants__college_snapshot')
+        .annotate(count=Count('id', distinct=True))
+        .exclude(participants__college_snapshot='')
+        .order_by('-count')[:8]
+    )
+    college_vol_labels = [r['participants__college_snapshot'] or 'Unknown' for r in college_volume]
+    college_vol_data   = [r['count'] for r in college_volume]
+
+    # Yearly totals (all years)
+    yearly_raw = (
+        travels
+        .annotate(yr=TruncYear('start_date'))
+        .values('yr')
+        .annotate(count=Count('id'))
+        .order_by('yr')
+    )
+    yearly_labels = [str(r['yr'].year) for r in yearly_raw]
+    yearly_data   = [r['count'] for r in yearly_raw]
+
+    # ══════════════════════════════════════════════════════════════════
+    # SECTION 2 — BUDGET USAGE
+    # ══════════════════════════════════════════════════════════════════
+
+    if user.role == 'ADMIN':
+        budget_usages   = BudgetUsage.objects.filter(year=selected_year).select_related('budget_source', 'college')
+        campus_usages   = CampusBudgetUsage.objects.filter(year=selected_year).select_related('budget_source', 'campus')
+    elif user.role == 'CAMPUS_SEC':
+        budget_usages   = BudgetUsage.objects.none()
+        campus_usages   = CampusBudgetUsage.objects.filter(year=selected_year, campus=user.campus).select_related('budget_source')
+    else:  # DEPT_SEC
+        budget_usages   = BudgetUsage.objects.filter(year=selected_year, college=user.college).select_related('budget_source')
+        campus_usages   = CampusBudgetUsage.objects.none()
+
+    # Monthly spend (amount_deducted per month for selected year)
+    monthly_spend_raw = (
+        travels_year
+        .filter(budget_source__isnull=False)
+        .annotate(month=TruncMonth('start_date'))
+        .values('month')
+        .annotate(total=Sum('amount_deducted'))
+        .order_by('month')
+    )
+    monthly_spend = {i: 0 for i in range(1, 13)}
+    for row in monthly_spend_raw:
+        monthly_spend[row['month'].month] = float(row['total'] or 0)
+    monthly_spend_data = [monthly_spend[i] for i in range(1, 13)]
+
+    # Total budget stats
+    total_allocated = sum(u.allocated_amount for u in budget_usages) + \
+                      sum(u.allocated_amount for u in campus_usages)
+    total_used      = sum(u.used_amount for u in budget_usages) + \
+                      sum(u.used_amount for u in campus_usages)
+    total_remaining = total_allocated - total_used
+
+    # ══════════════════════════════════════════════════════════════════
+    # SECTION 3 — PARTICIPANT STATS
+    # ══════════════════════════════════════════════════════════════════
+
+    from .models import TravelParticipant
+
+    # Top 8 most frequent travelers
+    top_travelers = (
+        TravelParticipant.objects
+        .filter(travel_record__in=travels_year)
+        .values('user__first_name', 'user__last_name', 'college_snapshot')
+        .annotate(count=Count('id'))
+        .order_by('-count')[:8]
+    )
+
+    # Average participants per travel
+    avg_participants = travels_year.annotate(
+        pcount=Count('participants')
+    ).aggregate(avg=Avg('pcount'))['avg'] or 0
+
+    # Total participant-days
+    total_participant_days = 0
+    for t in travels_year.annotate(pcount=Count('participants')):
+        total_participant_days += t.pcount * t.get_duration_days()
+
+    # Travels per college (participant perspective)
+    college_participation = (
+        TravelParticipant.objects
+        .filter(travel_record__in=travels_year)
+        .values('college_snapshot')
+        .annotate(count=Count('id'))
+        .exclude(college_snapshot='')
+        .order_by('-count')[:8]
+    )
+
+    # ══════════════════════════════════════════════════════════════════
+    # SECTION 4 — ANOMALY ALERTS
+    # ══════════════════════════════════════════════════════════════════
+
+    anomalies = []
+
+    # 1. Travels with zero documents
+    no_docs = travels_year.annotate(doc_count=Count('documents')).filter(doc_count=0)
+    if no_docs.exists():
+        anomalies.append({
+            'type':     'warning',
+            'icon':     'bi-folder-x',
+            'title':    f'{no_docs.count()} travel(s) with no documents uploaded',
+            'detail':   ', '.join([str(t.destination) for t in no_docs[:3]]) +
+                        ('...' if no_docs.count() > 3 else ''),
+            'travels':  list(no_docs.values('id', 'destination', 'start_date')[:5]),
+        })
+
+    # 2. Budget sources at ≥80% usage
+    critical_budgets = [u for u in list(budget_usages) + list(campus_usages)
+                        if u.usage_percentage >= 80]
+    for u in critical_budgets:
+        label = u.college.name if hasattr(u, 'college') else u.campus.name
+        anomalies.append({
+            'type':   'critical' if u.usage_percentage >= 100 else 'warning',
+            'icon':   'bi-exclamation-triangle-fill',
+            'title':  f'{u.budget_source.name} — {label} at {u.usage_percentage}%',
+            'detail': f'₱{u.used_amount:,.0f} used of ₱{u.allocated_amount:,.0f}',
+            'travels': [],
+        })
+
+    # 3. Travels with no budget tagged
+    untagged = travels_year.filter(budget_source__isnull=True)
+    if untagged.exists():
+        anomalies.append({
+            'type':    'info',
+            'icon':    'bi-tag',
+            'title':   f'{untagged.count()} travel(s) with no budget tagged',
+            'detail':  ', '.join([str(t.destination) for t in untagged[:3]]) +
+                       ('...' if untagged.count() > 3 else ''),
+            'travels': list(untagged.values('id', 'destination', 'start_date')[:5]),
+        })
+
+    # 4. Possible duplicate travels (same destination, dates within 3 days)
+    duplicates = []
+    travel_list = list(travels_year.values('id', 'destination', 'start_date'))
+    seen = []
+    for t in travel_list:
+        for s in seen:
+            if (t['destination'].lower() == s['destination'].lower() and
+                    abs((t['start_date'] - s['start_date']).days) <= 3 and
+                    t['id'] != s['id']):
+                pair = tuple(sorted([t['id'], s['id']]))
+                if pair not in duplicates:
+                    duplicates.append(pair)
+        seen.append(t)
+
+    if duplicates:
+        anomalies.append({
+            'type':    'info',
+            'icon':    'bi-copy',
+            'title':   f'{len(duplicates)} possible duplicate travel(s) detected',
+            'detail':  'Same destination within 3 days of each other',
+            'travels': [],
+        })
+
+    # ── Summary cards ─────────────────────────────────────────────────
+    total_travels    = travels_year.count()
+    total_this_month = travels_year.filter(start_date__month=this_month).count()
+    out_of_province  = travels_year.filter(is_out_of_province=True).count()
+
+    context = {
+        'user': user,
+        'is_admin':      user.role == 'ADMIN',
+        'is_secretary':  user.role in ['CAMPUS_SEC', 'DEPT_SEC'],
+
+        # Year filter
+        'selected_year': selected_year,
+        'year_list':     year_list,
+        'this_year':     this_year,
+
+        # Summary
+        'total_travels':       total_travels,
+        'total_this_month':    total_this_month,
+        'out_of_province':     out_of_province,
+        'avg_participants':    round(avg_participants, 1),
+        'total_participant_days': total_participant_days,
+        'total_allocated':     total_allocated,
+        'total_used':          total_used,
+        'total_remaining':     total_remaining,
+
+        # Charts — serialized as JSON for Chart.js
+        'monthly_labels':      json_module.dumps(monthly_labels),
+        'monthly_data':        json_module.dumps(monthly_data),
+        'yearly_labels':       json_module.dumps(yearly_labels),
+        'yearly_data':         json_module.dumps(yearly_data),
+        'scope_data':          json_module.dumps(scope_data),
+        'college_vol_labels':  json_module.dumps(college_vol_labels),
+        'college_vol_data':    json_module.dumps(college_vol_data),
+        'monthly_spend_data':  json_module.dumps(monthly_spend_data),
+        'monthly_labels_spend':json_module.dumps(monthly_labels),
+
+        # Tables
+        'budget_usages':       budget_usages,
+        'campus_usages':       campus_usages,
+        'top_travelers':       top_travelers,
+        'college_participation': college_participation,
+
+        # Anomalies
+        'anomalies':           anomalies,
+        'anomaly_count':       len(anomalies),
+    }
+
+    return render(request, 'travel_app/shared/stats.html', context)

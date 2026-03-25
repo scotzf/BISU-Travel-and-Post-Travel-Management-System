@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% block title %}Statistics — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'CAMPUS_SEC' %}#6b21a8{% elif user.role == 'DEPT_SEC' %}#0f766e{% elif user.role == 'ADMIN' %}#92400e{% else %}#1a5c38{% endif %};
+  --role-faint: {% if user.role == 'CAMPUS_SEC' %}#f3e8ff{% elif user.role == 'DEPT_SEC' %}#f0fdfa{% elif user.role == 'ADMIN' %}#fef3c7{% else %}#eaf4ee{% endif %};
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--role-color);
+  line-height: 1;
+}
+.stat-card .stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.stat-card .stat-icon {
+  font-size: 22px;
+  color: var(--role-color);
+  opacity: .5;
+  margin-bottom: 6px;
+}
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.anomaly-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.anomaly-item:last-child { border-bottom: none; }
+.anomaly-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.dot-critical { background: #dc2626; }
+.dot-warning  { background: #d97706; }
+.dot-info     { background: #2563eb; }
+.budget-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.budget-row:last-child { border-bottom: none; }
+.traveler-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.traveler-row:last-child { border-bottom: none; }
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">
+        <i class="bi bi-bar-chart-line"></i> Statistics
+      </div>
+      <div class="page-subtitle">
+        {% if user.role == 'DEPT_SEC' %}{{ user.college.name }} · {% endif %}
+        {% if user.role == 'CAMPUS_SEC' %}{{ user.campus.name }} · {% endif %}
+        Analytics overview
+      </div>
+    </div>
+
+    <!-- Year filter -->
+    <form method="get" style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:12px;color:var(--text-muted)">Year</label>
+      <select name="year" onchange="this.form.submit()"
+              style="font-size:13px;padding:6px 10px;border:1px solid var(--border);
+                     border-radius:var(--radius);background:var(--surface);color:var(--text-primary)">
+        {% for y in year_list %}
+        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+</div>
+
+<!-- Anomaly banner -->
+{% if anomalies %}
+<div class="card mb-3" style="border-color:#fcd34d">
+  <div class="card-header-custom" style="background:#fffbeb">
+    <div class="card-title" style="color:#92400e">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      {{ anomaly_count }} Anomaly Alert{{ anomaly_count|pluralize }}
+    </div>
+  </div>
+  {% for a in anomalies %}
+  <div class="anomaly-item">
+    <div class="anomaly-dot dot-{{ a.type }}"></div>
+    <div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-primary)">
+        <i class="bi {{ a.icon }}" style="font-size:12px"></i>
+        {{ a.title }}
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+        {{ a.detail }}
+      </div>
+      {% if a.travels %}
+      <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">
+        {% for t in a.travels %}
+        <a href="{% url 'travel_app:travel_detail' t.id %}"
+           style="font-size:11px;color:var(--role-color);
+                  background:var(--role-faint);
+                  padding:2px 8px;border-radius:99px;text-decoration:none">
+          {{ t.destination }}
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Summary cards -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <i class="bi bi-airplane stat-icon"></i>
+      <div class="stat-value">{{ total_travels }}</div>
+      <div class="stat-label">Travels in {{ selected_year }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <i class="bi bi-calendar-check stat-icon"></i>
+      <div class="stat-value">{{ total_this_month }}</div>
+      <div class="stat-label">This month</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <i class="bi bi-people stat-icon"></i>
+      <div class="stat-value">{{ avg_participants }}</div>
+      <div class="stat-label">Avg participants/travel</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <i class="bi bi-geo-alt stat-icon"></i>
+      <div class="stat-value">{{ out_of_province }}</div>
+      <div class="stat-label">Out-of-province</div>
+    </div>
+  </div>
+</div>
+
+<!-- Budget summary cards -->
+{% if total_allocated %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-4">
+    <div class="stat-card">
+      <i class="bi bi-bank stat-icon"></i>
+      <div class="stat-value">₱{{ total_allocated|floatformat:0 }}</div>
+      <div class="stat-label">Total allocated {{ selected_year }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="stat-card">
+      <i class="bi bi-cash-stack stat-icon"></i>
+      <div class="stat-value">₱{{ total_used|floatformat:0 }}</div>
+      <div class="stat-label">Total spent</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="stat-card">
+      <i class="bi bi-piggy-bank stat-icon"></i>
+      <div class="stat-value">₱{{ total_remaining|floatformat:0 }}</div>
+      <div class="stat-label">Remaining</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Charts row 1 — Travel Volume -->
+<div class="row g-3 mb-3">
+
+  <!-- Monthly travels bar chart -->
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-bar-chart"></i>
+        Monthly Travels — {{ selected_year }}
+      </div>
+      <canvas id="monthlyChart" height="100"></canvas>
+    </div>
+  </div>
+
+  <!-- Scope donut -->
+  <div class="col-lg-4">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-pie-chart"></i> Travel Scope
+      </div>
+      <canvas id="scopeChart" height="160"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- Charts row 2 — Yearly + College volume -->
+<div class="row g-3 mb-3">
+
+  <!-- Yearly total -->
+  <div class="col-lg-5">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-graph-up"></i> Yearly Travel Totals
+      </div>
+      <canvas id="yearlyChart" height="130"></canvas>
+    </div>
+  </div>
+
+  <!-- College volume -->
+  <div class="col-lg-7">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-building"></i> Travels by College — {{ selected_year }}
+      </div>
+      <canvas id="collegeChart" height="130"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- Charts row 3 — Budget spend + Budget table -->
+<div class="row g-3 mb-3">
+
+  <!-- Monthly spend line chart -->
+  <div class="col-lg-7">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-graph-down"></i> Monthly Budget Spend — {{ selected_year }}
+      </div>
+      <canvas id="spendChart" height="120"></canvas>
+    </div>
+  </div>
+
+  <!-- Budget usage table -->
+  <div class="col-lg-5">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-tag"></i> Budget Source Usage
+      </div>
+      {% for u in budget_usages %}
+      <div class="budget-row">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            {{ u.budget_source.name }}
+          </div>
+          <div style="font-size:11px;color:var(--text-muted)">{{ u.college.name }}</div>
+          <div style="margin-top:4px;height:4px;background:var(--surface-3);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:{{ u.usage_percentage }}%;
+                        background:{% if u.status == 'exhausted' %}#dc2626{% elif u.status == 'critical' %}#d97706{% elif u.status == 'warning' %}#ca8a04{% else %}#16a34a{% endif %};
+                        border-radius:99px"></div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-weight:600;font-size:12px">{{ u.usage_percentage }}%</div>
+          <div style="font-size:11px;color:var(--text-muted)">₱{{ u.remaining_amount|floatformat:0 }} left</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% for u in campus_usages %}
+      <div class="budget-row">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            {{ u.budget_source.name }}
+          </div>
+          <div style="font-size:11px;color:var(--text-muted)">{{ u.campus.name }}</div>
+          <div style="margin-top:4px;height:4px;background:var(--surface-3);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:{{ u.usage_percentage }}%;
+                        background:{% if u.status == 'exhausted' %}#dc2626{% elif u.status == 'critical' %}#d97706{% elif u.status == 'warning' %}#ca8a04{% else %}#16a34a{% endif %};
+                        border-radius:99px"></div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-weight:600;font-size:12px">{{ u.usage_percentage }}%</div>
+          <div style="font-size:11px;color:var(--text-muted)">₱{{ u.remaining_amount|floatformat:0 }} left</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not budget_usages and not campus_usages %}
+      <div style="font-size:13px;color:var(--text-muted);padding:12px 0;text-align:center">
+        No budget data for {{ selected_year }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Row 4 — Participants -->
+<div class="row g-3 mb-3">
+
+  <!-- Top travelers -->
+  <div class="col-lg-5">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-person-check"></i> Top Travelers — {{ selected_year }}
+      </div>
+      {% for t in top_travelers %}
+      <div class="traveler-row">
+        <div>
+          <div style="font-weight:500">{{ t.user__first_name }} {{ t.user__last_name }}</div>
+          <div style="font-size:11px;color:var(--text-muted)">{{ t.college_snapshot|default:"—" }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="height:6px;width:{{ t.count|floatformat:0 }}0px;max-width:80px;
+                      background:var(--role-color);opacity:.6;border-radius:99px"></div>
+          <span style="font-weight:600;font-size:13px;color:var(--role-color)">
+            {{ t.count }}
+          </span>
+        </div>
+      </div>
+      {% empty %}
+      <div style="font-size:13px;color:var(--text-muted);padding:12px 0;text-align:center">
+        No data for {{ selected_year }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- College participation -->
+  <div class="col-lg-7">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-people"></i> Participations by College — {{ selected_year }}
+      </div>
+      <canvas id="participationChart" height="130"></canvas>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const roleColor  = getComputedStyle(document.documentElement)
+                     .getPropertyValue('--role-color').trim() || '#1a5c38';
+const roleFaint  = getComputedStyle(document.documentElement)
+                     .getPropertyValue('--role-faint').trim() || '#eaf4ee';
+
+// ── Monthly travels ───────────────────────────────────────────────────
+new Chart(document.getElementById('monthlyChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ monthly_labels|safe }},
+    datasets: [{
+      label: 'Travels',
+      data: {{ monthly_data|safe }},
+      backgroundColor: roleColor + 'cc',
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 } }
+    }
+  }
+});
+
+// ── Scope donut ───────────────────────────────────────────────────────
+const scopeRaw = {{ scope_data|safe }};
+new Chart(document.getElementById('scopeChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['College', 'Campus'],
+    datasets: [{
+      data: [scopeRaw.COLLEGE, scopeRaw.CAMPUS],
+      backgroundColor: [roleColor, roleColor + '55'],
+      borderWidth: 0,
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '65%',
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 11 } } }
+    }
+  }
+});
+
+// ── Yearly totals ─────────────────────────────────────────────────────
+new Chart(document.getElementById('yearlyChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ yearly_labels|safe }},
+    datasets: [{
+      label: 'Travels',
+      data: {{ yearly_data|safe }},
+      backgroundColor: roleColor + 'aa',
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+
+// ── College volume ────────────────────────────────────────────────────
+new Chart(document.getElementById('collegeChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ college_vol_labels|safe }},
+    datasets: [{
+      label: 'Travels',
+      data: {{ college_vol_data|safe }},
+      backgroundColor: roleColor + 'bb',
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+
+// ── Monthly spend line ────────────────────────────────────────────────
+new Chart(document.getElementById('spendChart'), {
+  type: 'line',
+  data: {
+    labels: {{ monthly_labels_spend|safe }},
+    datasets: [{
+      label: 'Amount Spent (₱)',
+      data: {{ monthly_spend_data|safe }},
+      borderColor: roleColor,
+      backgroundColor: roleColor + '22',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: v => '₱' + v.toLocaleString()
+        }
+      }
+    }
+  }
+});
+
+// ── College participation ─────────────────────────────────────────────
+new Chart(document.getElementById('participationChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ college_vol_labels|safe }},
+    datasets: [{
+      label: 'Participants',
+      data: {{ college_vol_data|safe }},
+      backgroundColor: roleColor + '99',
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+</script>
+{% endblock %}
