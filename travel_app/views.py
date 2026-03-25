@@ -499,14 +499,8 @@ def upload_document(request, pk):
         # ── Trigger AI extraction in background thread ─────────────────
         # Runs asynchronously so upload response is instant
         try:
-            import threading
-            from .ai_service import extract_from_document_async
-            t = threading.Thread(
-                target=extract_from_document_async,
-                args=(doc.id,)
-            )
-            t.daemon = True
-            t.start()
+            from .tasks import extract_document_task
+            extract_document_task.delay(doc.id)
         except Exception:
             pass  # Extraction failure should never block upload
 

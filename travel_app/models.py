@@ -462,6 +462,13 @@ class TravelDocument(models.Model):
         null=True, blank=True, related_name='confirmed_travel_docs'
     )
     confirmed_at    = models.DateTimeField(null=True, blank=True)
+    # Add to TravelDocument
+    detected_doc_type = models.CharField(max_length=30, blank=True,
+        help_text='Document type as detected by AI (may differ from user selection)')
+    extraction_confidence = models.CharField(max_length=10, blank=True,
+        help_text='high / medium / low')
+    extraction_status = models.CharField(max_length=20, default='pending',
+        help_text='pending / processing / done / failed')
 
     def __str__(self):
         return f"{self.get_doc_type_display()} — {self.travel_record}"
