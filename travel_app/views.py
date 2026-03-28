@@ -647,7 +647,7 @@ def all_travels(request):
     search        = request.GET.get('q', '').strip()
 
     if filter_tagged == 'yes':
-        travels = travels.filter(budget_source__isnull=False)
+        travels = travels.filter(budget_source__isnull=False)  # .filter = where() sa sql query
     elif filter_tagged == 'no':
         travels = travels.filter(budget_source__isnull=True)
     if filter_scope in ['COLLEGE', 'CAMPUS']:
