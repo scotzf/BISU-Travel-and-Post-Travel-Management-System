@@ -8,41 +8,95 @@
 }
 .form-label { font-size:12px; font-weight:500; color:var(--text-secondary); margin-bottom:5px; display:block; }
 .form-control, .form-select {
-  font-size:13.5px;
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:9px 12px;
-  color:var(--text-primary);
-  background:var(--surface);
-  width:100%;
-  transition:border-color .15s;
+  font-size:13.5px; border:1px solid var(--border); border-radius:var(--radius);
+  padding:9px 12px; color:var(--text-primary); background:var(--surface);
+  width:100%; transition:border-color .15s;
 }
 .form-control:focus, .form-select:focus {
-  outline:none;
-  border-color:var(--role-color);
+  outline:none; border-color:var(--role-color);
   box-shadow:0 0 0 3px color-mix(in srgb, var(--role-color) 12%, transparent);
 }
 textarea.form-control { resize:vertical; min-height:90px; }
+
+/* Upload zone */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: var(--surface);
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--role-color);
+  background: var(--role-faint);
+}
+.upload-zone.uploading { pointer-events: none; opacity: .7; }
+.upload-icon { font-size: 40px; color: var(--text-muted); margin-bottom: 12px; }
+
+/* Extraction progress */
+.extraction-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+.extraction-bar-fill {
+  height: 100%;
+  background: var(--role-color);
+  width: 0%;
+  transition: width .4s;
+  border-radius: 2px;
+}
+
+/* Form reveal */
+#formSection { display: none; }
+#formSection.revealed { display: block; animation: fadeUp .4s ease; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* Extraction badge */
+.extraction-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.extraction-badge.high { background: #dcfce7; color: #166534; }
+.extraction-badge.medium { background: #fef9c3; color: #854d0e; }
+.extraction-badge.low { background: #fee2e2; color: #991b1b; }
+
+/* Participant tags */
 .participant-tag {
-  display:inline-flex; align-items:center; gap:6px;
-  background:var(--role-faint); color:var(--role-color);
-  border:1px solid color-mix(in srgb, var(--role-color) 25%, transparent);
-  border-radius:20px; padding:4px 10px 4px 8px;
-  font-size:12px; font-weight:500; cursor:pointer;
-  transition:all .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--role-faint); color: var(--role-color);
+  border: 1px solid color-mix(in srgb, var(--role-color) 25%, transparent);
+  border-radius: 20px; padding: 4px 10px 4px 8px;
+  font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s;
 }
-.participant-tag:hover { background:color-mix(in srgb, var(--role-color) 20%, transparent); }
-.participant-tag.selected {
-  background:var(--role-color); color:white;
+.participant-tag:hover { background: color-mix(in srgb, var(--role-color) 20%, transparent); }
+.participant-tag.selected { background: var(--role-color); color: white; }
+.participant-tag.unmatched {
+  background: #fff7ed; color: #c2410c;
+  border-color: #fdba74;
 }
-.participant-tag.selected .tag-remove { color:rgba(255,255,255,.7); }
-.tag-remove { font-size:14px; line-height:1; }
+.tag-remove { font-size: 14px; line-height: 1; }
+
 .scope-badge {
-  display:inline-flex; align-items:center; gap:6px;
-  padding:6px 12px; border-radius:20px;
-  font-size:12px; font-weight:600;
-  transition:all .3s;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; transition: all .3s;
 }
+
+/* Skip upload link */
+.skip-link {
+  font-size: 12px; color: var(--text-muted);
+  cursor: pointer; text-decoration: underline;
+  background: none; border: none; padding: 0;
+}
+.skip-link:hover { color: var(--text-primary); }
 {% endblock %}
 
 {% block content %}
@@ -50,7 +104,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
   <div class="page-header-row">
     <div>
       <div class="page-title">New Travel Record</div>
-      <div class="page-subtitle">Create a document folder for this travel</div>
+      <div class="page-subtitle">Upload your Travel Order to get started</div>
     </div>
     <a href="{% url 'travel_app:all_travels' %}" class="btn-secondary-custom">
       <i class="bi bi-arrow-left"></i> Back
@@ -58,233 +112,500 @@ textarea.form-control { resize:vertical; min-height:90px; }
   </div>
 </div>
 
-<form method="post" id="travelForm">
-  {% csrf_token %}
-  <div class="row g-3">
-
-    <!-- Main form -->
-    <div class="col-lg-8">
-
-      <!-- Travel details -->
+<!-- ── Step 1: Upload Zone ─────────────────────────────────────── -->
+<div id="uploadSection">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
       <div class="card mb-3">
         <div class="card-header-custom">
-          <div class="card-title"><i class="bi bi-geo-alt"></i> Travel Details</div>
+          <div class="card-title"><i class="bi bi-file-earmark-arrow-up"></i> Upload Travel Order</div>
         </div>
         <div class="card-body-custom">
-          <div class="row g-3">
 
-            <div class="col-12">
-              <label class="form-label">Destination *</label>
-              <input type="text" name="destination" class="form-control"
-                     placeholder="e.g. Cebu City, Metro Cebu"
-                     value="{{ post.destination|default:'' }}" required/>
+          <div class="upload-zone" id="uploadZone"
+               onclick="document.getElementById('travelOrderFile').click()"
+               ondragover="handleDragOver(event)"
+               ondragleave="handleDragLeave(event)"
+               ondrop="handleDrop(event)">
+            <div class="upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+            <div style="font-size:15px;font-weight:500;color:var(--text-primary);margin-bottom:6px">
+              Drop your Travel Order here
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+              PDF, DOCX, JPG, PNG or XLSX
+            </div>
+            <div class="btn-primary-custom" style="display:inline-flex;pointer-events:none">
+              <i class="bi bi-folder2-open"></i> Choose File
+            </div>
+            <input type="file" id="travelOrderFile" style="display:none"
+                   accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.xlsx"
+                   onchange="handleFileSelect(this.files[0])"/>
+          </div>
+
+          <!-- Progress -->
+          <div id="uploadProgress" style="display:none;margin-top:16px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)">
+              <div class="spinner-border spinner-border-sm" style="color:var(--role-color)"></div>
+              <span id="progressText">Extracting data from document...</span>
+            </div>
+            <div class="extraction-bar">
+              <div class="extraction-bar-fill" id="extractionBarFill"></div>
+            </div>
+          </div>
+
+          <!-- Error message -->
+          <div id="uploadError" style="display:none;margin-top:12px"
+               class="alert-custom alert-danger">
+            <i class="bi bi-exclamation-circle"></i>
+            <span id="uploadErrorText"></span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Skip option -->
+      <div style="text-align:center;padding-bottom:8px">
+        <button type="button" class="skip-link" onclick="skipUpload()">
+          Skip — fill in details manually
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── Step 2: Form (revealed after extraction) ────────────────── -->
+<div id="formSection">
+
+  <!-- Extraction result banner -->
+  <div id="extractionBanner" style="display:none;margin-bottom:16px">
+    <div class="card" style="border-left:4px solid var(--role-color)">
+      <div class="card-body-custom" style="padding:12px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="bi bi-magic" style="color:var(--role-color);font-size:16px"></i>
+            <div>
+              <div style="font-size:13px;font-weight:500;color:var(--text-primary)">
+                Travel Order data extracted
+              </div>
+              <div style="font-size:12px;color:var(--text-muted)">
+                Review and edit the pre-filled fields below before submitting.
+              </div>
+            </div>
+          </div>
+          <span class="extraction-badge" id="confidenceBadge">high</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="post" id="travelForm">
+    {% csrf_token %}
+    <div class="row g-3">
+
+      <!-- Main form -->
+      <div class="col-lg-8">
+
+        <!-- Travel details -->
+        <div class="card mb-3">
+          <div class="card-header-custom">
+            <div class="card-title"><i class="bi bi-geo-alt"></i> Travel Details</div>
+          </div>
+          <div class="card-body-custom">
+            <div class="row g-3">
+
+              <div class="col-12">
+                <label class="form-label">Destination *</label>
+                <input type="text" name="destination" id="fieldDestination" class="form-control"
+                       placeholder="e.g. Cebu City, Metro Cebu"
+                       value="{{ post.destination|default:'' }}" required/>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Start Date *</label>
+                <input type="date" name="start_date" id="fieldStartDate" class="form-control"
+                       value="{{ post.start_date|default:'' }}"
+                       required onchange="validateDates()"/>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" id="fieldEndDate" class="form-control"
+                       value="{{ post.end_date|default:'' }}"
+                       id="endDate" onchange="validateDates()"/>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Purpose *</label>
+                <textarea name="purpose" id="fieldPurpose" class="form-control"
+                          placeholder="Describe the purpose of this travel...">{{ post.purpose|default:'' }}</textarea>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Notes <span style="color:var(--text-muted)">(optional)</span></label>
+                <textarea name="notes" class="form-control" style="min-height:60px"
+                          placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
+              </div>
+
+              <div class="col-12">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;color:var(--text-primary)">
+                  <input type="checkbox" name="is_out_of_province"
+                         {% if post.is_out_of_province %}checked{% endif %}
+                         style="width:16px;height:16px;accent-color:var(--role-color)"/>
+                  This travel is out of province
+                </label>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Participants -->
+        {% if user.role in 'DEPT_SEC,CAMPUS_SEC' and available_participants %}
+        <div class="card mb-3">
+          <div class="card-header-custom">
+            <div>
+              <div class="card-title"><i class="bi bi-people"></i> Participants</div>
+              <div class="card-subtitle">
+                {% if user.role == 'DEPT_SEC' %}Showing employees from {{ user.college.name }}
+                {% else %}Showing all employees on {{ user.campus.name }}{% endif %}
+              </div>
+            </div>
+            <div id="scopeIndicator" class="scope-badge"
+                 style="background:var(--primary-faint);color:var(--primary)">
+              <i class="bi bi-building"></i> College scope
+            </div>
+          </div>
+          <div class="card-body-custom">
+
+            <!-- Unmatched travelers warning -->
+            <div id="unmatchedWarning" style="display:none;margin-bottom:12px"
+                 class="alert-custom alert-warning">
+              <i class="bi bi-exclamation-triangle"></i>
+              <span id="unmatchedText"></span>
             </div>
 
-            <div class="col-md-6">
-              <label class="form-label">Start Date *</label>
-              <input type="date" name="start_date" class="form-control"
-                      value="{{ post.start_date|default:'' }}"
-                      min="{{ today }}" required
-                      onchange="validateDates()"/>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+              Click names to add/remove.
+              <span id="selectedCount" style="font-weight:600;color:var(--role-color)">0 selected</span>
             </div>
 
-            <div class="col-md-6">
-              <label class="form-label">End Date</label>
-              <input type="date" name="end_date" class="form-control"
-                      value="{{ post.end_date|default:'' }}"
-                      min="{{ today }}"
-                      id="endDate"
-                      onchange="validateDates()"/>
-                            </div>
+            <input type="text" id="participantSearch" class="form-control"
+                   placeholder="Search by name..." style="margin-bottom:12px"
+                   oninput="filterParticipants(this.value)"/>
 
-            <div class="col-12">
-              <label class="form-label">Purpose *</label>
-              <textarea name="purpose" class="form-control"
-                        placeholder="Describe the purpose of this travel...">{{ post.purpose|default:'' }}</textarea>
-            </div>
-
-            <div class="col-12">
-              <label class="form-label">Notes <span style="color:var(--text-muted)">(optional)</span></label>
-              <textarea name="notes" class="form-control" style="min-height:60px"
-                        placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
-            </div>
-
-            <div class="col-12">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;color:var(--text-primary)">
-                <input type="checkbox" name="is_out_of_province"
-                       {% if post.is_out_of_province %}checked{% endif %}
-                       style="width:16px;height:16px;accent-color:var(--role-color)"/>
-                This travel is out of province
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 0;
+                        border-bottom:1px solid var(--border);margin-bottom:12px">
+              <input type="checkbox" name="include_creator" value="yes" id="includeCreator"
+                     style="width:16px;height:16px;accent-color:var(--role-color)"
+                     onchange="updateSummary()"/>
+              <label for="includeCreator"
+                     style="font-size:13.5px;color:var(--text-primary);cursor:pointer;margin:0">
+                Include myself as a traveler
               </label>
             </div>
 
-          </div>
-        </div>
-      </div>
-
-      <!-- Participants (secretary only) -->
-      {% if user.role in 'DEPT_SEC,CAMPUS_SEC' and available_participants %}
-      <div class="card mb-3">
-        <div class="card-header-custom">
-          <div>
-            <div class="card-title"><i class="bi bi-people"></i> Participants</div>
-            <div class="card-subtitle">
-              {% if user.role == 'DEPT_SEC' %}
-                Showing employees from {{ user.college.name }}
-              {% else %}
-                Showing all employees on {{ user.campus.name }}
-              {% endif %}
-            </div>
-          </div>
-          <div id="scopeIndicator" class="scope-badge" style="background:var(--primary-faint);color:var(--primary)">
-            <i class="bi bi-building"></i> College scope
-          </div>
-        </div>
-        <div class="card-body-custom">
-
-          <!-- Selected count -->
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-            Click names to add/remove participants.
-            <span id="selectedCount" style="font-weight:600;color:var(--role-color)">0 selected</span>
-          </div>
-
-          <!-- Search -->
-          <input type="text" id="participantSearch" class="form-control"
-                 placeholder="Search by name..." style="margin-bottom:12px"
-                 oninput="filterParticipants(this.value)"/>
-          <!-- Include secretary checkbox -->
-          <div style="display:flex;align-items:center;gap:8px;padding:10px 0;
-                      border-bottom:1px solid var(--border);margin-bottom:12px">
-            <input type="checkbox" name="include_creator" value="yes" id="includeCreator"
-                  style="width:16px;height:16px;accent-color:var(--role-color)"/>
-            <label for="includeCreator" style="font-size:13.5px;color:var(--text-primary);
-                                                cursor:pointer;margin:0">
-              Include myself as a traveler
-            </label>
-          </div>
-
-          <!-- Participant tags -->
-          <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px">
-            {% regroup available_participants by college as college_groups %}
-            {% for group in college_groups %}
-              {% if user.role == 'CAMPUS_SEC' %}
-                <div style="width:100%;font-size:11px;font-weight:600;color:var(--text-muted);
-                             letter-spacing:.5px;text-transform:uppercase;margin-top:8px;
-                             padding-top:8px;border-top:1px solid var(--border)">
-                  {{ group.grouper.name|default:"No College" }}
-                </div>
-              {% endif %}
-              {% for p in group.list %}
-              <div class="participant-tag"
-                   data-id="{{ p.id }}"
-                   data-college="{{ p.college.name|default:'' }}"
-                   data-name="{{ p.get_full_name|lower }}"
-                   onclick="toggleParticipant(this)">
-                <i class="bi bi-person" style="font-size:12px"></i>
-                {{ p.get_full_name }}
-                <span class="tag-remove">+</span>
-                <input type="checkbox" name="participants" value="{{ p.id }}"
-                       style="display:none" class="participant-checkbox"/>
+            <!-- Extracted traveler suggestions -->
+            <div id="extractedSuggestionsBlock" style="display:none;margin-bottom:12px">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                          letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">
+                <i class="bi bi-magic"></i> Extracted from document
               </div>
+              <div id="extractedSuggestions" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+            </div>
+
+            <!-- All participants -->
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                        letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">
+              All employees
+            </div>
+            <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px">
+              {% regroup available_participants by college as college_groups %}
+              {% for group in college_groups %}
+                {% if user.role == 'CAMPUS_SEC' %}
+                  <div style="width:100%;font-size:11px;font-weight:600;color:var(--text-muted);
+                               letter-spacing:.5px;text-transform:uppercase;margin-top:8px;
+                               padding-top:8px;border-top:1px solid var(--border)">
+                    {{ group.grouper.name|default:"No College" }}
+                  </div>
+                {% endif %}
+                {% for p in group.list %}
+                <div class="participant-tag"
+                     data-id="{{ p.id }}"
+                     data-college="{{ p.college.name|default:'' }}"
+                     data-name="{{ p.get_full_name|lower }}"
+                     onclick="toggleParticipant(this)">
+                  <i class="bi bi-person" style="font-size:12px"></i>
+                  {{ p.get_full_name }}
+                  <span class="tag-remove">+</span>
+                  <input type="checkbox" name="participants" value="{{ p.id }}"
+                         style="display:none" class="participant-checkbox"/>
+                </div>
+                {% endfor %}
               {% endfor %}
-            {% endfor %}
-          </div>
+            </div>
 
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+
+      <!-- Sidebar summary -->
+      <div class="col-lg-4">
+        <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
+          <div class="card-header-custom">
+            <div class="card-title">Summary</div>
+          </div>
+          <div class="card-body-custom" style="padding:16px 20px">
+
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
+                           letter-spacing:.5px;margin-bottom:4px">Created by</div>
+              <div style="font-size:13.5px;font-weight:500;color:var(--text-primary)">
+                {{ user.get_full_name }}
+              </div>
+              <div style="font-size:12px;color:var(--text-muted)">
+                {{ user.college.name|default:user.campus.name|default:"BISU" }}
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
+                           letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
+              <div id="summaryScope" class="scope-badge"
+                   style="background:var(--primary-faint);color:var(--primary)">
+                <i class="bi bi-building"></i> College-level
+              </div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px" id="scopeHint">
+                Budget will be tagged by Dept Secretary
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
+                           letter-spacing:.5px;margin-bottom:4px">Travelers</div>
+              <div style="font-size:22px;font-weight:600;font-family:var(--font-display);
+                           color:var(--text-primary)" id="summaryCount">1</div>
+            </div>
+
+            <div style="padding-top:14px;border-top:1px solid var(--border)">
+              <div class="alert-custom alert-info" style="padding:10px 12px;font-size:12px">
+                <i class="bi bi-info-circle"></i>
+                <span>Budget source will be assigned by the secretary after creation.</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary-custom"
+                    style="width:100%;margin-top:16px;justify-content:center">
+              <i class="bi bi-plus-lg"></i> Create Travel Record
+            </button>
+
+          </div>
         </div>
       </div>
-      {% endif %}
 
     </div>
-
-    <!-- Sidebar summary -->
-    <div class="col-lg-4">
-      <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
-        <div class="card-header-custom">
-          <div class="card-title">Summary</div>
-        </div>
-        <div class="card-body-custom" style="padding:16px 20px">
-
-          <!-- Creator -->
-          <div style="margin-bottom:14px">
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
-                         letter-spacing:.5px;margin-bottom:4px">Created by</div>
-            <div style="font-size:13.5px;font-weight:500;color:var(--text-primary)">
-              {{ user.get_full_name }}
-            </div>
-            <div style="font-size:12px;color:var(--text-muted)">
-              {{ user.college.name|default:user.campus.name|default:"BISU" }}
-            </div>
-          </div>
-
-          <!-- Scope -->
-          <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
-                         letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
-            <div id="summaryScope" class="scope-badge"
-                 style="background:var(--primary-faint);color:var(--primary)">
-              <i class="bi bi-building"></i> College-level
-            </div>
-            <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px" id="scopeHint">
-              Budget will be tagged by Dept Secretary
-            </div>
-          </div>
-
-          <!-- Participant count -->
-          <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
-                         letter-spacing:.5px;margin-bottom:4px">Travelers</div>
-            <div style="font-size:22px;font-weight:600;font-family:var(--font-display);
-                         color:var(--text-primary)" id="summaryCount">
-              1
-            </div>
-            <!--
-            <div style="font-size:12px;color:var(--text-muted)">
-              including you
-            </div>
-          -->
-          </div>
-
-          <!-- Budget note -->
-          <div style="padding-top:14px;border-top:1px solid var(--border)">
-            <div class="alert-custom alert-info" style="padding:10px 12px;font-size:12px">
-              <i class="bi bi-info-circle"></i>
-              <span>Budget source will be assigned by the secretary after creation.</span>
-            </div>
-          </div>
-
-          <!-- Submit -->
-          <button type="submit" class="btn-primary-custom" style="width:100%;margin-top:16px;justify-content:center">
-            <i class="bi bi-plus-lg"></i> Create Travel Record
-          </button>
-
-        </div>
-      </div>
-    </div>
-
-  </div>
-</form>
+  </form>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const selectedIds   = new Set();
-const collegeMap    = {};  // id → college name
-let totalSelected   = 0;
-function validateDates() {
-  const start = document.querySelector('[name=start_date]').value;
-  const end   = document.getElementById('endDate').value;
-  if (start && end && end < start) {
-    document.getElementById('endDate').setCustomValidity('End date cannot be before start date.');
-    document.getElementById('endDate').reportValidity();
-  } else {
-    document.getElementById('endDate').setCustomValidity('');
-  }
-}
+const EXTRACT_URL  = "{% url 'travel_app:extract_travel_order_ajax' %}";
+const CSRF_TOKEN   = "{{ csrf_token }}";
+const selectedIds  = new Set();
+const collegeMap   = {};
 
+// Build college map from rendered tags
 document.querySelectorAll('.participant-tag').forEach(tag => {
   collegeMap[tag.dataset.id] = tag.dataset.college;
 });
 
+
+// ── Drag and Drop ────────────────────────────────────────────────────
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.add('dragover');
+}
+function handleDragLeave(e) {
+  document.getElementById('uploadZone').classList.remove('dragover');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelect(file);
+}
+
+
+// ── File selected — start extraction ────────────────────────────────
+function handleFileSelect(file) {
+  if (!file) return;
+
+  const zone      = document.getElementById('uploadZone');
+  const progress  = document.getElementById('uploadProgress');
+  const errorDiv  = document.getElementById('uploadError');
+  const bar       = document.getElementById('extractionBarFill');
+  const progText  = document.getElementById('progressText');
+
+  zone.classList.add('uploading');
+  progress.style.display = 'block';
+  errorDiv.style.display = 'none';
+
+  // Animate progress bar
+  let pct = 0;
+  const ticker = setInterval(() => {
+    pct = Math.min(pct + 4, 85);
+    bar.style.width = pct + '%';
+  }, 200);
+
+  const steps = [
+    'Reading document...',
+    'Extracting text...',
+    'Identifying fields...',
+    'Matching travelers...',
+  ];
+  let stepIdx = 0;
+  const stepTicker = setInterval(() => {
+    if (stepIdx < steps.length) {
+      progText.textContent = steps[stepIdx++];
+    }
+  }, 1800);
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
+
+  fetch(EXTRACT_URL, { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      clearInterval(ticker);
+      clearInterval(stepTicker);
+      bar.style.width = '100%';
+
+      setTimeout(() => {
+        zone.classList.remove('uploading');
+        progress.style.display = 'none';
+        bar.style.width = '0%';
+
+        if (data.error) {
+          showUploadError(data.error);
+          return;
+        }
+        if (!data.success) {
+          showUploadError(data.error || 'Extraction failed. Try a clearer document.');
+          return;
+        }
+
+        prefillForm(data);
+        revealForm(data);
+      }, 400);
+    })
+    .catch(err => {
+      clearInterval(ticker);
+      clearInterval(stepTicker);
+      zone.classList.remove('uploading');
+      progress.style.display = 'none';
+      showUploadError('Network error. Please try again.');
+    });
+}
+
+function showUploadError(msg) {
+  const el = document.getElementById('uploadError');
+  document.getElementById('uploadErrorText').textContent = msg;
+  el.style.display = 'flex';
+}
+
+
+// ── Pre-fill form fields ─────────────────────────────────────────────
+function prefillForm(data) {
+  if (data.destination) setField('fieldDestination', data.destination);
+  if (data.start_date)  setField('fieldStartDate',   data.start_date);
+  if (data.end_date)    setField('fieldEndDate',      data.end_date);
+  if (data.purpose)     setField('fieldPurpose',      data.purpose);
+}
+
+function setField(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+
+
+// ── Reveal form and show extraction results ──────────────────────────
+function revealForm(data) {
+  document.getElementById('uploadSection').style.display = 'none';
+  const formSection = document.getElementById('formSection');
+  formSection.classList.add('revealed');
+
+  // Show extraction banner
+  const banner = document.getElementById('extractionBanner');
+  banner.style.display = 'block';
+
+  // Confidence badge
+  const badge = document.getElementById('confidenceBadge');
+  const conf  = data.confidence || 'low';
+  badge.textContent = conf + ' confidence';
+  badge.className   = 'extraction-badge ' + conf;
+
+  // Show traveler suggestions
+  const allTravelers = [
+    ...(data.matched_travelers   || []),
+    ...(data.unmatched_travelers || []),
+  ];
+
+  if (allTravelers.length > 0) {
+    const block = document.getElementById('extractedSuggestionsBlock');
+    const container = document.getElementById('extractedSuggestions');
+    block.style.display = 'block';
+    container.innerHTML = '';
+
+    allTravelers.forEach(t => {
+      if (!t.matched) {
+        // Unmatched — show as orange warning tag, no checkbox
+        const tag = document.createElement('div');
+        tag.className = 'participant-tag unmatched';
+        tag.title     = 'Not found in system';
+        tag.innerHTML = `<i class="bi bi-person-x" style="font-size:12px"></i> ${t.name} <i class="bi bi-exclamation-circle" style="font-size:11px"></i>`;
+        container.appendChild(tag);
+      } else {
+        // Matched — pre-select them in the main participant list
+        const mainTag = document.querySelector(`.participant-tag[data-id="${t.id}"]`);
+        if (mainTag && !selectedIds.has(String(t.id))) {
+          toggleParticipant(mainTag);
+        }
+        // Also show a small "extracted" tag as visual confirmation
+        const tag = document.createElement('div');
+        tag.className = 'participant-tag selected';
+        tag.style.cursor = 'default';
+        tag.innerHTML = `<i class="bi bi-person-check" style="font-size:12px"></i> ${t.name}`;
+        container.appendChild(tag);
+      }
+    });
+
+    // Unmatched warning
+    const unmatched = data.unmatched_count || 0;
+    if (unmatched > 0) {
+      const warn = document.getElementById('unmatchedWarning');
+      document.getElementById('unmatchedText').textContent =
+        `${unmatched} traveler${unmatched > 1 ? 's' : ''} from the document could not be found in the system. They are shown in orange above.`;
+      warn.style.display = 'flex';
+    }
+  }
+
+  updateSummary();
+}
+
+
+// ── Skip upload ──────────────────────────────────────────────────────
+function skipUpload() {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('formSection').classList.add('revealed');
+  updateSummary();
+}
+
+
+// ── Participant toggling ─────────────────────────────────────────────
 function toggleParticipant(el) {
   const id  = el.dataset.id;
   const cb  = el.querySelector('.participant-checkbox');
@@ -293,15 +614,14 @@ function toggleParticipant(el) {
   if (selectedIds.has(id)) {
     selectedIds.delete(id);
     el.classList.remove('selected');
-    cb.checked = false;
-    rem.textContent = '+';
+    if (cb)  cb.checked      = false;
+    if (rem) rem.textContent = '+';
   } else {
     selectedIds.add(id);
     el.classList.add('selected');
-    cb.checked = true;
-    rem.textContent = '×';
+    if (cb)  cb.checked      = true;
+    if (rem) rem.textContent = '×';
   }
-
   updateSummary();
 }
 
@@ -309,11 +629,13 @@ function updateSummary() {
   const includeCreator = document.getElementById('includeCreator');
   const creatorCount   = includeCreator && includeCreator.checked ? 1 : 0;
   const count          = selectedIds.size + creatorCount;
-  document.getElementById('selectedCount').textContent = selectedIds.size + ' selected';
-  document.getElementById('summaryCount').textContent  = count;
-document.getElementById('includeCreator')?.addEventListener('change', updateSummary);
-  // Detect scope: are selected participants from multiple colleges?
-  const colleges = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
+
+  const countEl = document.getElementById('selectedCount');
+  if (countEl) countEl.textContent = selectedIds.size + ' selected';
+  document.getElementById('summaryCount').textContent = count;
+
+  // Scope detection
+  const colleges      = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
   const creatorCollege = '{{ user.college.name|default:"" }}';
   if (creatorCollege) colleges.add(creatorCollege);
 
@@ -324,26 +646,32 @@ document.getElementById('includeCreator')?.addEventListener('change', updateSumm
 
   if (isMultiCollege) {
     const style = 'background:#f3e8ff;color:#6b21a8';
-    scopeEl.setAttribute('style', style);
-    scopeEl.innerHTML = '<i class="bi bi-diagram-3"></i> Campus scope';
-    summScope.setAttribute('style', style);
-    summScope.innerHTML = '<i class="bi bi-diagram-3"></i> Campus-level';
-    hintEl.textContent = 'Budget will be tagged by Campus Secretary';
+    if (scopeEl)   { scopeEl.setAttribute('style', style); scopeEl.innerHTML = '<i class="bi bi-diagram-3"></i> Campus scope'; }
+    if (summScope) { summScope.setAttribute('style', style); summScope.innerHTML = '<i class="bi bi-diagram-3"></i> Campus-level'; }
+    if (hintEl)    hintEl.textContent = 'Budget will be tagged by Campus Secretary';
   } else {
     const style = 'background:var(--primary-faint);color:var(--primary)';
-    scopeEl.setAttribute('style', style);
-    scopeEl.innerHTML = '<i class="bi bi-building"></i> College scope';
-    summScope.setAttribute('style', style);
-    summScope.innerHTML = '<i class="bi bi-building"></i> College-level';
-    hintEl.textContent = 'Budget will be tagged by Dept Secretary';
+    if (scopeEl)   { scopeEl.setAttribute('style', style); scopeEl.innerHTML = '<i class="bi bi-building"></i> College scope'; }
+    if (summScope) { summScope.setAttribute('style', style); summScope.innerHTML = '<i class="bi bi-building"></i> College-level'; }
+    if (hintEl)    hintEl.textContent = 'Budget will be tagged by Dept Secretary';
   }
 }
 
 function filterParticipants(query) {
-  document.querySelectorAll('.participant-tag').forEach(tag => {
-    const match = tag.dataset.name.includes(query.toLowerCase());
-    tag.style.display = match ? '' : 'none';
+  document.querySelectorAll('#participantList .participant-tag').forEach(tag => {
+    tag.style.display = tag.dataset.name.includes(query.toLowerCase()) ? '' : 'none';
   });
+}
+
+function validateDates() {
+  const start = document.getElementById('fieldStartDate').value;
+  const end   = document.getElementById('fieldEndDate').value;
+  if (start && end && end < start) {
+    document.getElementById('fieldEndDate').setCustomValidity('End date cannot be before start date.');
+    document.getElementById('fieldEndDate').reportValidity();
+  } else {
+    document.getElementById('fieldEndDate').setCustomValidity('');
+  }
 }
 </script>
 {% endblock %}

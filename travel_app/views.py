@@ -6,6 +6,9 @@ from django.http import JsonResponse
 from django.db import transaction
 from accounts.views import get_authenticated_user
 from accounts.models import User
+import os
+import logging
+logger = logging.getLogger(__name__)
 from .models import (
     TravelRecord, TravelDocument, TravelParticipant,
     BudgetSource, BudgetUsage, CampusBudgetUsage, EventGroup, Notification
@@ -245,10 +248,13 @@ def admin_dashboard(request, user=None):
     return render(request, 'travel_app/admin/dashboard.html', context)
 
 
+ 
 # ══════════════════════════════════════════════════════════════════════
-# CREATE TRAVEL
+# CREATE TRAVEL  (updated)
+# Now handles the pre-filled form submission after extraction.
+# Also links the temp Travel Order file as a TravelDocument.
 # ══════════════════════════════════════════════════════════════════════
-
+ 
 @csrf_protect
 @never_cache
 def create_travel(request):
@@ -257,9 +263,10 @@ def create_travel(request):
         return redirect('accounts:login')
     if user.role not in ['EMPLOYEE', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
-
+ 
     today = timezone.now().date()
-
+ 
+    # Build participant list based on role
     if user.role == 'EMPLOYEE':
         available_participants = []
     elif user.role == 'DEPT_SEC':
@@ -269,14 +276,14 @@ def create_travel(request):
             is_active=True,
             role='EMPLOYEE'
         ).exclude(id=user.id).order_by('last_name', 'first_name')
-    else:
+    else:  # CAMPUS_SEC
         available_participants = User.objects.filter(
             campus=user.campus,
             is_approved=True,
             is_active=True,
             role__in=['EMPLOYEE', 'DEPT_SEC']
         ).exclude(id=user.id).order_by('college__name', 'last_name', 'first_name')
-
+ 
     if request.method == 'POST':
         destination        = request.POST.get('destination', '').strip()
         start_date         = request.POST.get('start_date', '').strip()
@@ -285,7 +292,7 @@ def create_travel(request):
         is_out_of_province = request.POST.get('is_out_of_province') == 'on'
         notes              = request.POST.get('notes', '').strip()
         participant_ids    = request.POST.getlist('participants')
-
+ 
         errors = []
         if not destination:
             errors.append('Destination is required.')
@@ -295,10 +302,7 @@ def create_travel(request):
             errors.append('Purpose is required.')
         if start_date and end_date and end_date < start_date:
             errors.append('End date cannot be before start date.')
-        from datetime import date
-        if start_date and start_date < str(date.today()):
-            errors.append('Start date cannot be in the past.')
-
+ 
         if errors:
             from django.contrib import messages
             for e in errors:
@@ -308,7 +312,7 @@ def create_travel(request):
                 'available_participants': available_participants,
                 'post': request.POST,
             })
-
+ 
         try:
             with transaction.atomic():
                 travel = TravelRecord.objects.create(
@@ -321,12 +325,14 @@ def create_travel(request):
                     created_by=user,
                     scope='COLLEGE',
                 )
-
+ 
+                # Add creator as participant
                 if user.role == 'EMPLOYEE':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
                 elif request.POST.get('include_creator') == 'yes':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
-
+ 
+                # Add selected participants
                 if user.role in ['DEPT_SEC', 'CAMPUS_SEC'] and participant_ids:
                     for pid in participant_ids:
                         try:
@@ -336,25 +342,69 @@ def create_travel(request):
                             )
                         except User.DoesNotExist:
                             pass
-
+ 
                 travel.refresh_scope()
+ 
+                # ── Link the temp Travel Order file if extraction was done ──
+                temp_path = request.session.pop('temp_travel_order_path', None)
+                extracted_names = request.session.pop('temp_travel_order_names', [])
+ 
+                if temp_path:
+                    try:
+                        from django.core.files.storage import default_storage
+                        from django.core.files import File
+ 
+                        full_path = default_storage.path(temp_path)
+ 
+                        # Move temp file into proper TravelDocument
+                        with open(full_path, 'rb') as f:
+                            travel_doc = TravelDocument(
+                                travel_record=travel,
+                                doc_type='TRAVEL_ORDER',
+                                uploaded_by=user,
+                                extracted_destination=destination,
+                                extracted_purpose=purpose,
+                                extracted_traveler_names=extracted_names,
+                                extraction_status='done',
+                                extraction_successful=True,
+                            )
+                            if start_date:
+                                from datetime import datetime
+                                travel_doc.extracted_start_date = datetime.strptime(
+                                    start_date, '%Y-%m-%d'
+                                ).date()
+                            if end_date:
+                                from datetime import datetime
+                                travel_doc.extracted_end_date = datetime.strptime(
+                                    end_date, '%Y-%m-%d'
+                                ).date()
+ 
+                            import os
+                            file_name = os.path.basename(temp_path)
+                            travel_doc.file.save(file_name, File(f), save=True)
+ 
+                        # Delete temp file
+                        default_storage.delete(temp_path)
+ 
+                    except Exception as e:
+                        logger.error(f"Failed to link temp travel order: {e}")
+ 
                 _notify_if_duplicate(travel, user)
-
+ 
                 from django.contrib import messages
                 messages.success(request, f'Travel to {destination} created successfully!')
                 return redirect('travel_app:travel_detail', pk=travel.id)
-
+ 
         except Exception as e:
             from django.contrib import messages
             messages.error(request, f'Error creating travel: {str(e)}')
-
+ 
     return render(request, 'travel_app/shared/create_travel.html', {
         'user':                   user,
         'today':                  today,
         'available_participants': available_participants,
         'post':                   {},
     })
-
 
 # ══════════════════════════════════════════════════════════════════════
 # TRAVEL DETAIL
@@ -1093,13 +1143,13 @@ def confirm_extraction(request, doc_id):
     return redirect('travel_app:travel_detail', pk=travel.id)
 
 
+# ══════════════════════════════════════════════════════════════════════
+# REJECT EXTRACTION  (updated — removed old fields)
+# ══════════════════════════════════════════════════════════════════════
+ 
 @csrf_protect
 @never_cache
 def reject_extraction(request, doc_id):
-    """
-    Secretary rejects the AI extraction — marks it as not confirmed.
-    Document stays but extracted data is cleared.
-    """
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
@@ -1107,32 +1157,30 @@ def reject_extraction(request, doc_id):
         from django.contrib import messages
         messages.error(request, 'Access denied.')
         return redirect('accounts:dashboard')
-
-    from .models import TravelDocument
-
-    doc = get_object_or_404(TravelDocument, id=doc_id)
+ 
+    doc    = get_object_or_404(TravelDocument, id=doc_id)
     travel = doc.travel_record
-
+ 
     if request.method == 'POST':
-        # Clear extracted data
-        doc.extracted_destination   = ''
-        doc.extracted_start_date    = None
-        doc.extracted_end_date      = None
-        doc.extracted_amount        = None
-        doc.extracted_purpose       = ''
-        doc.extracted_num_travelers = None
-        doc.extraction_successful   = False
-        doc.extraction_attempted    = False  # Allow re-extraction after re-upload
+        doc.extracted_destination    = ''
+        doc.extracted_start_date     = None
+        doc.extracted_end_date       = None
+        doc.extracted_amount         = None
+        doc.extracted_purpose        = ''
+        doc.extracted_traveler_names = []
+        doc.extraction_successful    = False
+        doc.extraction_status        = 'failed'
         doc.save(update_fields=[
             'extracted_destination', 'extracted_start_date', 'extracted_end_date',
-            'extracted_amount', 'extracted_purpose', 'extracted_num_travelers',
-            'extraction_successful', 'extraction_attempted'
+            'extracted_amount', 'extracted_purpose', 'extracted_traveler_names',
+            'extraction_successful', 'extraction_status',
         ])
-
+ 
         from django.contrib import messages
         messages.warning(request, 'Extraction rejected. Please re-upload the correct document.')
-
+ 
     return redirect('travel_app:travel_detail', pk=travel.id)
+ 
 
     # ══════════════════════════════════════════════════════════════════════
 # STATS VIEW
@@ -1417,3 +1465,120 @@ def stats_view(request):
     }
 
     return render(request, 'travel_app/shared/stats.html', context)
+
+# ══════════════════════════════════════════════════════════════════════
+# EXTRACT TRAVEL ORDER (AJAX)
+# Called when user uploads a Travel Order on the create travel page.
+# Returns extracted data as JSON for pre-filling the form.
+# ══════════════════════════════════════════════════════════════════════
+ 
+@csrf_protect
+@never_cache
+def extract_travel_order_ajax(request):
+    """
+    POST: Receives a Travel Order file, runs extraction, returns JSON.
+    The file is saved as a temporary TravelDocument (no travel_record yet).
+    The doc ID is returned so it can be linked when the travel is created.
+    """
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+ 
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+ 
+    file = request.FILES.get('file')
+    if not file:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+ 
+    # Validate file type
+    allowed_extensions = {'.pdf', '.docx', '.doc', '.jpg', '.jpeg', '.png', '.xlsx'}
+    ext = os.path.splitext(file.name)[1].lower()
+    if ext not in allowed_extensions:
+        return JsonResponse({'error': f'File type {ext} not supported'}, status=400)
+ 
+    try:
+        # Save file temporarily — no travel_record yet
+        # We store it in a temp TravelDocument, linked after travel creation
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        import tempfile
+ 
+        # Save to a temp path
+        temp_path = default_storage.save(
+            f'travel_documents/temp/{file.name}',
+            ContentFile(file.read())
+        )
+        full_path = default_storage.path(temp_path)
+ 
+        # Run extraction directly (synchronous — acceptable for single doc)
+        from .ai_service import extract_text_from_file, _extract_travel_order
+        text, method = extract_text_from_file(full_path)
+ 
+        if not text or len(text.strip()) < 20:
+            default_storage.delete(temp_path)
+            return JsonResponse({
+                'success': False,
+                'error': 'Could not extract text from this file. Try a clearer scan or different format.'
+            })
+ 
+        result = _extract_travel_order(text)
+ 
+        # Match traveler names against system users
+        matched_travelers   = []
+        unmatched_travelers = []
+ 
+        if result and result.get('traveler_names'):
+            all_users = User.objects.filter(
+                is_active=True, is_approved=True
+            ).exclude(id=user.id)
+ 
+            for name in result['traveler_names']:
+                name_lower = name.lower().strip()
+                # Try to find a matching user by full name
+                match = None
+                for u in all_users:
+                    full_name = u.get_full_name().lower()
+                    # Flexible match — both directions
+                    if name_lower in full_name or full_name in name_lower:
+                        match = u
+                        break
+ 
+                if match:
+                    matched_travelers.append({
+                        'id':       match.id,
+                        'name':     match.get_full_name(),
+                        'college':  match.college.name if match.college else '',
+                        'matched':  True,
+                    })
+                else:
+                    unmatched_travelers.append({
+                        'id':      None,
+                        'name':    name,
+                        'college': '',
+                        'matched': False,
+                    })
+ 
+        # Store temp file path in session so we can link it after travel creation
+        request.session['temp_travel_order_path'] = temp_path
+        request.session['temp_travel_order_names'] = (
+            result.get('traveler_names', []) if result else []
+        )
+ 
+        return JsonResponse({
+            'success':              True,
+            'method':               method,
+            'confidence':           result.get('confidence', 'low') if result else 'low',
+            'destination':          result.get('destination', '') if result else '',
+            'start_date':           result.get('start_date', '') if result else '',
+            'end_date':             result.get('end_date', '') if result else '',
+            'purpose':              result.get('purpose', '') if result else '',
+            'matched_travelers':    matched_travelers,
+            'unmatched_travelers':  unmatched_travelers,
+            'unmatched_count':      len(unmatched_travelers),
+        })
+ 
+    except Exception as e:
+        logger.error(f"extract_travel_order_ajax error: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+ 
