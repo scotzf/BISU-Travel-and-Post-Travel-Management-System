@@ -20,6 +20,7 @@ urlpatterns = [
 
     # ── Travel records ────────────────────────────────────────────────
     path('travels/',                views.all_travels,               name='all_travels'),
+    path('travels/extract-travel-order/', views.extract_travel_order_ajax, name='extract_travel_order_ajax'),
     path('travels/new/',            views.create_travel,             name='create_travel'),
     path('travels/<int:pk>/',       views.travel_detail,             name='travel_detail'),
     path('travels/<int:pk>/upload/',views.upload_document,           name='upload_document'),
@@ -34,4 +35,5 @@ urlpatterns = [
     path('documents/<int:doc_id>/confirm/', views.confirm_extraction, name='confirm_extraction'),
     path('documents/<int:doc_id>/reject/',  views.reject_extraction,  name='reject_extraction'),
     path('stats/', views.stats_view, name='stats'),
+    
 ]

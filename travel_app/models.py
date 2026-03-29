@@ -408,67 +408,100 @@ class TravelDocument(models.Model):
     """
     A single uploaded file attached to a TravelRecord.
 
-    When a document is uploaded, the system passes it to Ollama for
-    extraction. Extracted fields are stored alongside the file.
-    Secretary reviews and confirms — setting is_confirmed=True locks
-    the extracted data into the stats engine.
-
-    One travel can have multiple documents of the same type
-    (e.g. updated versions of a DV). The latest confirmed version
-    of each type is used for stats.
+    TRAVEL_ORDER → full extraction (destination, dates, purpose, traveler names)
+    BURS / ITINERARY → amount extraction only, triggers budget deduction on confirm
+    All others → file storage only, no extraction
     """
     DOC_TYPE_CHOICES = [
-        ('TRAVEL_ORDER',      'Travel Order'),
-        ('ITINERARY',         'Itinerary of Travel'),
-        ('DV',                'Disbursement Voucher'),
-        ('BURS',              'Budget Utilization Request and Status'),
-        ('RECEIPTS',          'Official Receipts'),
-        ('CERTIFICATE',       'Certificate of Appearance / Completion'),
-        ('POST_REPORT',       'Post-Activity Report'),
-        ('LETTER_REQUEST',    'Letter Request (Out-of-Province)'),
+        ('TRAVEL_ORDER',   'Travel Order'),
+        ('ITINERARY',      'Itinerary of Travel'),
+        ('DV',             'Disbursement Voucher'),
+        ('BURS',           'Budget Utilization Request and Status'),
+        ('RECEIPTS',       'Official Receipts'),
+        ('CERTIFICATE',    'Certificate of Appearance / Completion'),
+        ('POST_REPORT',    'Post-Activity Report'),
+        ('LETTER_REQUEST', 'Letter Request (Out-of-Province)'),
     ]
 
-    travel_record = models.ForeignKey(TravelRecord, on_delete=models.CASCADE, related_name='documents')
-    doc_type      = models.CharField(max_length=30, choices=DOC_TYPE_CHOICES)
-    file          = models.FileField(upload_to='travel_documents/%Y/%m/')
-    uploaded_by   = models.ForeignKey(
+    EXTRACTION_STATUS_CHOICES = [
+        ('pending',    'Pending'),
+        ('processing', 'Processing'),
+        ('done',       'Done'),
+        ('failed',     'Failed'),
+        ('skipped',    'Skipped'),   # doc types with no extraction
+    ]
+
+    # ── Core ──────────────────────────────────────────────────────────
+    travel_record = models.ForeignKey(
+        TravelRecord, on_delete=models.CASCADE, related_name='documents'
+    )
+    doc_type    = models.CharField(max_length=30, choices=DOC_TYPE_CHOICES)
+    file        = models.FileField(upload_to='travel_documents/%Y/%m/')
+    uploaded_by = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
         null=True, related_name='uploaded_travel_docs'
     )
-    uploaded_at   = models.DateTimeField(auto_now_add=True)
-    notes         = models.TextField(blank=True, max_length=500)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    notes       = models.TextField(blank=True, max_length=500)
 
-    # ── AI-extracted fields (populated by Ollama on upload) ───────────
-    extracted_destination = models.CharField(max_length=200, blank=True)
-    extracted_start_date  = models.DateField(null=True, blank=True)
-    extracted_end_date    = models.DateField(null=True, blank=True)
-    extracted_amount      = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    extracted_purpose     = models.TextField(blank=True, max_length=500)
-    extracted_num_travelers = models.IntegerField(null=True, blank=True)
-    extraction_raw        = models.TextField(
-        blank=True,
-        help_text='Raw JSON response from Ollama for debugging.'
+    # ── Extracted fields (TRAVEL_ORDER) ───────────────────────────────
+    extracted_destination   = models.CharField(max_length=200, blank=True)
+    extracted_start_date    = models.DateField(null=True, blank=True)
+    extracted_end_date      = models.DateField(null=True, blank=True)
+    extracted_purpose       = models.TextField(blank=True, max_length=500)
+    extracted_traveler_names = models.JSONField(
+        default=list, blank=True,
+        help_text='List of traveler names extracted from Travel Order'
     )
-    extraction_attempted  = models.BooleanField(default=False)
-    extraction_successful = models.BooleanField(default=False)
 
-    # ── Secretary review ──────────────────────────────────────────────
-    is_confirmed    = models.BooleanField(
+    # ── Extracted fields (BURS / ITINERARY) ───────────────────────────
+    extracted_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text='Extracted amount from BURS or Itinerary. Confirmed by user before deduction.'
+    )
+    amount_confirmed = models.BooleanField(
         default=False,
-        help_text='Secretary confirmed extracted data is correct. Used by stats engine.'
+        help_text='User reviewed and confirmed the extracted amount. Triggers budget deduction.'
     )
-    confirmed_by    = models.ForeignKey(
+    amount_confirmed_by = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='amount_confirmed_docs'
+    )
+    amount_confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Extraction status ─────────────────────────────────────────────
+    extraction_status     = models.CharField(
+        max_length=20, choices=EXTRACTION_STATUS_CHOICES, default='pending'
+    )
+    extraction_successful = models.BooleanField(default=False)
+    extraction_confidence = models.CharField(
+        max_length=10, blank=True,
+        help_text='high / medium / low'
+    )
+    detected_doc_type = models.CharField(
+        max_length=30, blank=True,
+        help_text='Document type as detected by AI'
+    )
+
+    # ── Secretary review (general confirm) ────────────────────────────
+    is_confirmed = models.BooleanField(
+        default=False,
+        help_text='Secretary confirmed this document is valid.'
+    )
+    confirmed_by = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='confirmed_travel_docs'
     )
-    confirmed_at    = models.DateTimeField(null=True, blank=True)
-    # Add to TravelDocument
-    detected_doc_type = models.CharField(max_length=30, blank=True,
-        help_text='Document type as detected by AI (may differ from user selection)')
-    extraction_confidence = models.CharField(max_length=10, blank=True,
-        help_text='high / medium / low')
-    extraction_status = models.CharField(max_length=20, default='pending',
-        help_text='pending / processing / done / failed')
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Helpers ───────────────────────────────────────────────────────
+    @property
+    def needs_extraction(self):
+        return self.doc_type in ('TRAVEL_ORDER', 'BURS', 'ITINERARY')
+
+    @property
+    def traveler_count(self):
+        return len(self.extracted_traveler_names)
 
     def __str__(self):
         return f"{self.get_doc_type_display()} — {self.travel_record}"
