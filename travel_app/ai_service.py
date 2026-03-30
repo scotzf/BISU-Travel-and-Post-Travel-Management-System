@@ -162,11 +162,9 @@ def _call_ollama(prompt):
 
 
 def _parse_json_response(raw):
-    """Extract and parse JSON object from Ollama response."""
     if not raw:
         return None
     try:
-        # Strip markdown code fences if present
         if '```' in raw:
             parts = raw.split('```')
             raw = parts[1] if len(parts) > 1 else raw
@@ -176,6 +174,9 @@ def _parse_json_response(raw):
         end   = raw.rfind('}') + 1
         if start >= 0 and end > start:
             return json.loads(raw[start:end])
+        # ── Repair: closing brace missing ──
+        if start >= 0:
+            return json.loads(raw[start:] + '}')
     except json.JSONDecodeError as e:
         logger.error(f"JSON parse error: {e}")
     return None
@@ -187,27 +188,37 @@ def _parse_json_response(raw):
 
 def _extract_travel_order(text):
     """
-    Extract destination, dates, purpose, and traveler names
+    Extract destination, travel dates, purpose, and traveler names
     from a Travel Order document.
     """
-    prompt = f"""Extract data from this Philippine government Travel Order document.
-Return ONLY a JSON object, no explanation.
+    prompt = f"""You are extracting data from a Philippine government Travel Order document.
 
-Document:
+Document text:
 ---
 {text[:3000]}
 ---
 
+Instructions:
+1. TRAVELER NAMES — Look for a "To:" section listing names. Extract ONLY the person names, ignore their titles/roles (like "- CTE Faculty", "- Driver", "Chairperson" etc). Include names with titles like "DR." or "PROF." but strip the role descriptions after the dash.
+                    - Double check traveler_names — every name listed under "To:" must be in the list, none should be skipped
+2. TRAVEL DATES — Look for the actual travel/event dates in the body of the letter (e.g. "October 1-3, 2026", "on October 1 to 3, 2026"). Do NOT use the document date (the date after "Date :"). The travel dates are usually inside the sentence that says "directed to attend" or "hereby authorized".
+
+3. DESTINATION — Look for the venue or city in the body of the letter, usually after "at the" or "in".
+
+4. PURPOSE — The sentence starting with "You are hereby directed to attend..." or "is hereby authorized to travel to...". Keep it concise.
+
 Rules:
-- dates must be YYYY-MM-DD format
-- traveler_names must be a list of full names as they appear in the document
-- if a field is not found, use null for strings/dates and [] for lists
+- Dates must be in YYYY-MM-DD format
+- traveler_names must be a JSON list of full name strings only
+- If a date range is given like "November 5-7", start_date is the 5th and end_date is the 7th
+- Use null if a field is not found
+- Respond with ONLY the JSON object, no explanation
 
 {{
-    "destination": "city or place or null",
+    "destination": "city or venue or null",
     "start_date": "YYYY-MM-DD or null",
     "end_date": "YYYY-MM-DD or null",
-    "purpose": "reason for travel or null",
+    "purpose": "brief purpose or null",
     "traveler_names": ["Full Name", ...],
     "confidence": "high/medium/low"
 }}"""
@@ -216,8 +227,118 @@ Rules:
     result = _parse_json_response(raw)
 
     if not result:
-        # Python regex fallback for dates and destination
         result = _fallback_travel_order(text)
+        raw = _call_ollama(prompt)
+        print("OLLAMA RAW RESPONSE:", raw)  # check your terminal
+        result = _parse_json_response(raw)
+        print("PARSED RESULT:", result)
+
+    return result
+
+
+def _fallback_travel_order(text):
+    """Regex fallback if Ollama fails for Travel Order."""
+    from datetime import datetime
+
+    result = {'traveler_names': [], 'confidence': 'low'}
+
+    # ── Destination ───────────────────────────────────────────────────
+    CITY_PATTERN = (
+        r'(Tagbilaran|Cebu|Manila|Davao|Cagayan de Oro|'
+        r'Dumaguete|Bacolod|Iloilo|Zamboanga|Bohol|'
+        r'Candijay|Bilar|Jagna|Panglao|Ubay|Talibon)'
+        r'(?:\s*City)?'
+    )
+    city = re.search(CITY_PATTERN, text, re.IGNORECASE)
+    if city:
+        result['destination'] = city.group(0).strip()
+
+    # ── Travel dates (range like "November 5-7, 2025") ────────────────
+    range_pattern = (
+        r'(January|February|March|April|May|June|July|August|'
+        r'September|October|November|December)'
+        r'\s+(\d{1,2})-(\d{1,2}),?\s+(\d{4})'
+    )
+    range_match = re.search(range_pattern, text)
+    if range_match:
+        month     = range_match.group(1)
+        day_start = range_match.group(2)
+        day_end   = range_match.group(3)
+        year      = range_match.group(4)
+        try:
+            result['start_date'] = datetime.strptime(
+                f"{month} {day_start} {year}", '%B %d %Y'
+            ).strftime('%Y-%m-%d')
+            result['end_date'] = datetime.strptime(
+                f"{month} {day_end} {year}", '%B %d %Y'
+            ).strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+    else:
+        # Single date pattern — look for it in body text, not document date line
+        MONTH_PATTERN = (
+            r'(January|February|March|April|May|June|'
+            r'July|August|September|October|November|December)'
+            r'\s+\d{1,2},?\s+\d{4}'
+        )
+        # Skip the "Date :" line, find dates in the body
+        body_lines = [
+            l for l in text.split('\n')
+            if not re.match(r'^\s*Date\s*:', l, re.IGNORECASE)
+        ]
+        body_text = '\n'.join(body_lines)
+        dates = list(re.finditer(MONTH_PATTERN, body_text))
+        def parse(d):
+            for fmt in ['%B %d, %Y', '%B %d %Y']:
+                try:
+                    return datetime.strptime(d.strip(), fmt).strftime('%Y-%m-%d')
+                except ValueError:
+                    continue
+            return None
+        if dates:
+            result['start_date'] = parse(dates[0].group(0))
+        if len(dates) > 1:
+            result['end_date'] = parse(dates[-1].group(0))
+
+    # ── Traveler names (lines after "To :") ───────────────────────────
+    lines      = text.split('\n')
+    in_to_block = False
+    names       = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Detect start of "To :" block
+        if re.match(r'^To\s*:', stripped, re.IGNORECASE):
+            in_to_block = True
+            # Name may be on same line as "To :"
+            name_part = re.sub(r'^To\s*:\s*', '', stripped, flags=re.IGNORECASE).strip()
+            name_part = re.sub(r'\s*-\s*.+$', '', name_part).strip()  # strip role
+            if name_part:
+                names.append(name_part)
+            continue
+
+        if in_to_block:
+            # Empty line or a line starting a new section ends the block
+            if not stripped or re.match(r'^(Date|Subject|Sir|Ma\'am|You are|Your travel)', stripped, re.IGNORECASE):
+                in_to_block = False
+                continue
+            # Strip role descriptions after dash
+            name_part = re.sub(r'\s*-\s*.+$', '', stripped).strip()
+            if name_part and len(name_part) > 2:
+                names.append(name_part)
+
+    if names:
+        result['traveler_names'] = names
+
+    # ── Purpose ───────────────────────────────────────────────────────
+    for line in lines:
+        if len(line) > 40 and any(w in line.lower() for w in [
+            'directed to attend', 'authorized to travel',
+            'hereby directed', 'hereby authorized'
+        ]):
+            result.setdefault('purpose', line.strip())
+            break
 
     return result
 

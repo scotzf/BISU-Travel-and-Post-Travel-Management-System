@@ -82,6 +82,32 @@ textarea.form-control { resize:vertical; min-height:90px; }
   background: #fff7ed; color: #c2410c;
   border-color: #fdba74;
 }
+.traveler-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 20px; padding: 6px 12px;
+  font-size: 12.5px; font-weight: 500;
+}
+.traveler-tag.matched {
+  background: #dcfce7; color: #166534;
+  border: 1px solid #86efac;
+}
+.traveler-tag.unmatched {
+  background: #fff7ed; color: #c2410c;
+  border: 1px solid #fdba74;
+}
+.traveler-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 20px; padding: 6px 12px;
+  font-size: 12.5px; font-weight: 500;
+}
+.traveler-tag.matched {
+  background: #dcfce7; color: #166534;
+  border: 1px solid #86efac;
+}
+.traveler-tag.unmatched {
+  background: #fff7ed; color: #c2410c;
+  border: 1px solid #fdba74;
+}
 .tag-remove { font-size: 14px; line-height: 1; }
 
 .scope-badge {
@@ -194,6 +220,57 @@ textarea.form-control { resize:vertical; min-height:90px; }
             </div>
           </div>
           <span class="extraction-badge" id="confidenceBadge">high</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Extracted Travelers Card (always visible after extraction, all roles) -->
+  <div id="extractedTravelersCard" style="display:none;margin-bottom:16px">
+    <div class="card">
+      <div class="card-header-custom">
+        <div>
+          <div class="card-title"><i class="bi bi-people"></i> Extracted Travelers</div>
+          <div class="card-subtitle">Names found in the Travel Order</div>
+        </div>
+        <div id="travelerSummaryBadge" style="font-size:12px;color:var(--text-muted)"></div>
+      </div>
+      <div class="card-body-custom">
+
+        <!-- Unmatched warning -->
+        <div id="unmatchedWarning" style="display:none;margin-bottom:12px"
+             class="alert-custom alert-warning">
+          <i class="bi bi-exclamation-triangle"></i>
+          <span id="unmatchedText"></span>
+        </div>
+
+        <div id="travelerTagsList" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+                <!-- Manual add traveler -->
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                      text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+            Add extra traveler
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="extraTravelerInput" class="form-control"
+                  placeholder="Type full name and press Enter or click Add"
+                  style="flex:1"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();addExtraTraveler();}"/>
+            <button type="button" onclick="addExtraTraveler()"
+                    class="btn-secondary-custom" style="white-space:nowrap">
+              <i class="bi bi-plus-lg"></i> Add
+            </button>
+          </div>
+          <div id="extraTravelersList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+        </div>
+
+        <!-- Hidden inputs for extra travelers -->
+        <div id="allTravelerNamesInputs"></div>
+
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:12px">
+          <i class="bi bi-info-circle"></i>
+          Green = found in system and will be added as participant.
+          Orange = not registered in the system.
         </div>
       </div>
     </div>
@@ -548,47 +625,64 @@ function revealForm(data) {
   badge.textContent = conf + ' confidence';
   badge.className   = 'extraction-badge ' + conf;
 
-  // Show traveler suggestions
+  // Show extracted travelers card
   const allTravelers = [
     ...(data.matched_travelers   || []),
     ...(data.unmatched_travelers || []),
   ];
 
   if (allTravelers.length > 0) {
-    const block = document.getElementById('extractedSuggestionsBlock');
-    const container = document.getElementById('extractedSuggestions');
-    block.style.display = 'block';
-    container.innerHTML = '';
+    const card      = document.getElementById('extractedTravelersCard');
+    const list      = document.getElementById('travelerTagsList');
+    const badge     = document.getElementById('travelerSummaryBadge');
+    const matched   = data.matched_travelers.length;
+    const unmatched = data.unmatched_count || 0;
 
+    card.style.display = 'block';
+    list.innerHTML     = '';
+
+    // Summary badge
+    badge.innerHTML = `
+      <span style="color:#166534;font-weight:600">${matched} matched</span>
+      ${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}
+    `;
+    // Update traveler count in summary to include all extracted names
+    const currentCount = parseInt(document.getElementById('summaryCount').textContent) || 0;
+    document.getElementById('summaryCount').textContent = currentCount + allTravelers.length;
+
+    // Render each traveler tag
     allTravelers.forEach(t => {
-      if (!t.matched) {
-        // Unmatched — show as orange warning tag, no checkbox
-        const tag = document.createElement('div');
-        tag.className = 'participant-tag unmatched';
-        tag.title     = 'Not found in system';
-        tag.innerHTML = `<i class="bi bi-person-x" style="font-size:12px"></i> ${t.name} <i class="bi bi-exclamation-circle" style="font-size:11px"></i>`;
-        container.appendChild(tag);
-      } else {
-        // Matched — pre-select them in the main participant list
+      const tag = document.createElement('div');
+      if (t.matched) {
+        tag.className = 'traveler-tag matched';
+        tag.innerHTML = `
+          <i class="bi bi-person-check-fill" style="font-size:13px"></i>
+          <span>${t.name}</span>
+          ${t.college ? `<span style="font-size:11px;opacity:.7">· ${t.college}</span>` : ''}
+        `;
+        tag.title = 'Found in system — will be added as participant';
+        // Also pre-select in the participant list below (for secretaries)
         const mainTag = document.querySelector(`.participant-tag[data-id="${t.id}"]`);
         if (mainTag && !selectedIds.has(String(t.id))) {
           toggleParticipant(mainTag);
         }
-        // Also show a small "extracted" tag as visual confirmation
-        const tag = document.createElement('div');
-        tag.className = 'participant-tag selected';
-        tag.style.cursor = 'default';
-        tag.innerHTML = `<i class="bi bi-person-check" style="font-size:12px"></i> ${t.name}`;
-        container.appendChild(tag);
+      } else {
+        tag.className = 'traveler-tag unmatched';
+        tag.innerHTML = `
+          <i class="bi bi-person-x-fill" style="font-size:13px"></i>
+          <span>${t.name}</span>
+          <span style="font-size:11px;opacity:.7">· not in system</span>
+        `;
+        tag.title = 'Not found in system';
       }
+      list.appendChild(tag);
     });
 
-    // Unmatched warning
-    const unmatched = data.unmatched_count || 0;
+    // Unmatched warning banner
     if (unmatched > 0) {
       const warn = document.getElementById('unmatchedWarning');
       document.getElementById('unmatchedText').textContent =
-        `${unmatched} traveler${unmatched > 1 ? 's' : ''} from the document could not be found in the system. They are shown in orange above.`;
+        `${unmatched} traveler${unmatched > 1 ? 's are' : ' is'} not registered in the system and cannot be added automatically.`;
       warn.style.display = 'flex';
     }
   }
@@ -656,7 +750,60 @@ function updateSummary() {
     if (hintEl)    hintEl.textContent = 'Budget will be tagged by Dept Secretary';
   }
 }
+const extraTravelers = [];
 
+function addExtraTraveler() {
+  const input = document.getElementById('extraTravelerInput');
+  const name  = input.value.trim();
+  if (!name) return;
+
+  if (extraTravelers.includes(name.toLowerCase())) {
+    input.value = '';
+    return;
+  }
+
+  extraTravelers.push(name.toLowerCase());
+
+  const list = document.getElementById('extraTravelersList');
+  const tag  = document.createElement('div');
+  tag.className    = 'traveler-tag unmatched';
+  tag.dataset.name = name.toLowerCase();
+  tag.innerHTML    = `
+    <i class="bi bi-person-plus-fill" style="font-size:13px"></i>
+    <span>${name}</span>
+    <span style="font-size:11px;opacity:.7">· manually added</span>
+    <span onclick="removeExtraTraveler(this, '${name.toLowerCase()}')"
+          style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
+  `;
+  list.appendChild(tag);
+
+  const hidden = document.createElement('input');
+  hidden.type          = 'hidden';
+  hidden.name          = 'extra_travelers';
+  hidden.value         = name;
+  hidden.dataset.name  = name.toLowerCase();
+  document.getElementById('allTravelerNamesInputs').appendChild(hidden);
+
+  const countEl = document.getElementById('summaryCount');
+  countEl.textContent = parseInt(countEl.textContent || 0) + 1;
+
+  input.value = '';
+}
+
+function removeExtraTraveler(el, nameLower) {
+  const idx = extraTravelers.indexOf(nameLower);
+  if (idx > -1) extraTravelers.splice(idx, 1);
+
+  el.closest('.traveler-tag').remove();
+
+  const hidden = document.querySelector(
+    `#allTravelerNamesInputs input[data-name="${nameLower}"]`
+  );
+  if (hidden) hidden.remove();
+
+  const countEl = document.getElementById('summaryCount');
+  countEl.textContent = Math.max(0, parseInt(countEl.textContent || 0) - 1);
+}
 function filterParticipants(query) {
   document.querySelectorAll('#participantList .participant-tag').forEach(tag => {
     tag.style.display = tag.dataset.name.includes(query.toLowerCase()) ? '' : 'none';
