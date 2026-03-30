@@ -285,13 +285,14 @@ def create_travel(request):
         ).exclude(id=user.id).order_by('college__name', 'last_name', 'first_name')
  
     if request.method == 'POST':
-        destination        = request.POST.get('destination', '').strip()
-        start_date         = request.POST.get('start_date', '').strip()
-        end_date           = request.POST.get('end_date', '').strip() or None
-        purpose            = request.POST.get('purpose', '').strip()
-        is_out_of_province = request.POST.get('is_out_of_province') == 'on'
-        notes              = request.POST.get('notes', '').strip()
-        participant_ids    = request.POST.getlist('participants')
+        destination          = request.POST.get('destination', '').strip()
+        start_date           = request.POST.get('start_date', '').strip()
+        end_date             = request.POST.get('end_date', '').strip() or None
+        purpose              = request.POST.get('purpose', '').strip()
+        is_out_of_province   = request.POST.get('is_out_of_province') == 'on'
+        notes                = request.POST.get('notes', '').strip()
+        participant_ids      = request.POST.getlist('participants')
+        extra_traveler_names = request.POST.getlist('extra_travelers')
  
         errors = []
         if not destination:
@@ -346,7 +347,7 @@ def create_travel(request):
                 travel.refresh_scope()
  
                 # ── Link the temp Travel Order file if extraction was done ──
-                temp_path = request.session.pop('temp_travel_order_path', None)
+                temp_path       = request.session.pop('temp_travel_order_path', None)
                 extracted_names = request.session.pop('temp_travel_order_names', [])
  
                 if temp_path:
@@ -356,7 +357,9 @@ def create_travel(request):
  
                         full_path = default_storage.path(temp_path)
  
-                        # Move temp file into proper TravelDocument
+                        # Merge extracted names + manually added names
+                        all_traveler_names = extracted_names + extra_traveler_names
+ 
                         with open(full_path, 'rb') as f:
                             travel_doc = TravelDocument(
                                 travel_record=travel,
@@ -364,7 +367,7 @@ def create_travel(request):
                                 uploaded_by=user,
                                 extracted_destination=destination,
                                 extracted_purpose=purpose,
-                                extracted_traveler_names=extracted_names,
+                                extracted_traveler_names=all_traveler_names,
                                 extraction_status='done',
                                 extraction_successful=True,
                             )
@@ -405,7 +408,7 @@ def create_travel(request):
         'available_participants': available_participants,
         'post':                   {},
     })
-
+ 
 # ══════════════════════════════════════════════════════════════════════
 # TRAVEL DETAIL
 # ══════════════════════════════════════════════════════════════════════
@@ -1471,15 +1474,9 @@ def stats_view(request):
 # Called when user uploads a Travel Order on the create travel page.
 # Returns extracted data as JSON for pre-filling the form.
 # ══════════════════════════════════════════════════════════════════════
- 
 @csrf_protect
 @never_cache
 def extract_travel_order_ajax(request):
-    """
-    POST: Receives a Travel Order file, runs extraction, returns JSON.
-    The file is saved as a temporary TravelDocument (no travel_record yet).
-    The doc ID is returned so it can be linked when the travel is created.
-    """
     user = get_authenticated_user(request)
     if not user:
         return JsonResponse({'error': 'Not authenticated'}, status=401)
@@ -1491,28 +1488,25 @@ def extract_travel_order_ajax(request):
     if not file:
         return JsonResponse({'error': 'No file provided'}, status=400)
  
-    # Validate file type
     allowed_extensions = {'.pdf', '.docx', '.doc', '.jpg', '.jpeg', '.png', '.xlsx'}
     ext = os.path.splitext(file.name)[1].lower()
     if ext not in allowed_extensions:
         return JsonResponse({'error': f'File type {ext} not supported'}, status=400)
  
     try:
-        # Save file temporarily — no travel_record yet
-        # We store it in a temp TravelDocument, linked after travel creation
         from django.core.files.storage import default_storage
         from django.core.files.base import ContentFile
-        import tempfile
+        from django.db.models import Q
+        from .ai_service import extract_text_from_file, _extract_travel_order
  
-        # Save to a temp path
+        # Save file temporarily
         temp_path = default_storage.save(
             f'travel_documents/temp/{file.name}',
             ContentFile(file.read())
         )
         full_path = default_storage.path(temp_path)
  
-        # Run extraction directly (synchronous — acceptable for single doc)
-        from .ai_service import extract_text_from_file, _extract_travel_order
+        # Extract text + run Ollama
         text, method = extract_text_from_file(full_path)
  
         if not text or len(text.strip()) < 20:
@@ -1524,32 +1518,40 @@ def extract_travel_order_ajax(request):
  
         result = _extract_travel_order(text)
  
-        # Match traveler names against system users
+        # ── Match traveler names against DB (fast — one query per name) ──
         matched_travelers   = []
         unmatched_travelers = []
  
         if result and result.get('traveler_names'):
-            all_users = User.objects.filter(
-                is_active=True, is_approved=True
-            ).exclude(id=user.id)
+            HONORIFICS = {'dr.', 'dr', 'prof.', 'prof', 'mr.', 'mr', 'ms.', 'ms', 'mrs.', 'mrs', 'engr.', 'engr'}
  
             for name in result['traveler_names']:
-                name_lower = name.lower().strip()
-                # Try to find a matching user by full name
+                name = name.strip()
+                if not name:
+                    continue
+ 
+                parts = name.split()
+                parts = [p for p in parts if p.lower() not in HONORIFICS]
+ 
+                query = Q()
+                for part in parts:
+                    if len(part) > 1:
+                        query |= Q(first_name__icontains=part) | Q(last_name__icontains=part)
+ 
                 match = None
-                for u in all_users:
-                    full_name = u.get_full_name().lower()
-                    # Flexible match — both directions
-                    if name_lower in full_name or full_name in name_lower:
-                        match = u
-                        break
+                if query:
+                    match = User.objects.filter(
+                        query,
+                        is_active=True,
+                        is_approved=True
+                    ).exclude(id=user.id).first()
  
                 if match:
                     matched_travelers.append({
-                        'id':       match.id,
-                        'name':     match.get_full_name(),
-                        'college':  match.college.name if match.college else '',
-                        'matched':  True,
+                        'id':      match.id,
+                        'name':    match.get_full_name(),
+                        'college': match.college.name if match.college else '',
+                        'matched': True,
                     })
                 else:
                     unmatched_travelers.append({
@@ -1559,26 +1561,23 @@ def extract_travel_order_ajax(request):
                         'matched': False,
                     })
  
-        # Store temp file path in session so we can link it after travel creation
-        request.session['temp_travel_order_path'] = temp_path
-        request.session['temp_travel_order_names'] = (
-            result.get('traveler_names', []) if result else []
-        )
+        # Store temp path and extracted names in session
+        request.session['temp_travel_order_path']  = temp_path
+        request.session['temp_travel_order_names'] = result.get('traveler_names', []) if result else []
  
         return JsonResponse({
-            'success':              True,
-            'method':               method,
-            'confidence':           result.get('confidence', 'low') if result else 'low',
-            'destination':          result.get('destination', '') if result else '',
-            'start_date':           result.get('start_date', '') if result else '',
-            'end_date':             result.get('end_date', '') if result else '',
-            'purpose':              result.get('purpose', '') if result else '',
-            'matched_travelers':    matched_travelers,
-            'unmatched_travelers':  unmatched_travelers,
-            'unmatched_count':      len(unmatched_travelers),
+            'success':             True,
+            'method':              method,
+            'confidence':          result.get('confidence', 'low') if result else 'low',
+            'destination':         result.get('destination', '') if result else '',
+            'start_date':          result.get('start_date', '') if result else '',
+            'end_date':            result.get('end_date', '') if result else '',
+            'purpose':             result.get('purpose', '') if result else '',
+            'matched_travelers':   matched_travelers,
+            'unmatched_travelers': unmatched_travelers,
+            'unmatched_count':     len(unmatched_travelers),
         })
  
     except Exception as e:
         logger.error(f"extract_travel_order_ajax error: {e}")
         return JsonResponse({'error': str(e)}, status=500)
- 
