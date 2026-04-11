@@ -665,6 +665,13 @@ function revealForm(data) {
           <span style="font-size:11px;opacity:.7">· not in system</span>
         `;
         tag.title = 'Not found in system';
+
+        // Store unregistered name so view can save it to unregistered_travelers field
+        const unregHidden = document.createElement('input');
+        unregHidden.type  = 'hidden';
+        unregHidden.name  = 'unregistered_travelers';
+        unregHidden.value = t.name;
+        document.getElementById('allTravelerNamesInputs').appendChild(unregHidden);
       }
 
       list.appendChild(tag);
@@ -769,31 +776,94 @@ function addExtraTraveler() {
   }
 
   extraTravelers.push(name.toLowerCase());
-
-  const list = document.getElementById('extraTravelersList');
-  const tag  = document.createElement('div');
-  tag.className    = 'traveler-tag unmatched';
-  tag.dataset.name = name.toLowerCase();
-  tag.innerHTML    = `
-    <i class="bi bi-person-plus-fill" style="font-size:13px"></i>
-    <span>${name}</span>
-    <span style="font-size:11px;opacity:.7">· manually added</span>
-    <span onclick="removeExtraTraveler(this, '${name.toLowerCase()}')"
-          style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
-  `;
-  list.appendChild(tag);
-
-  const hidden = document.createElement('input');
-  hidden.type         = 'hidden';
-  hidden.name         = 'extra_travelers';
-  hidden.value        = name;
-  hidden.dataset.name = name.toLowerCase();
-  document.getElementById('allTravelerNamesInputs').appendChild(hidden);
-
-  const countEl = document.getElementById('summaryCount');
-  countEl.textContent = parseInt(countEl.textContent || 0) + 1;
-
   input.value = '';
+
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
+
+  fetch("{% url 'travel_app:lookup_traveler_ajax' %}", { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      const list      = document.getElementById('extraTravelersList');
+      const tag       = document.createElement('div');
+      const nameLower = name.toLowerCase();
+
+      if (data.found) {
+        tag.className = 'traveler-tag matched';
+        tag.innerHTML = `
+          <i class="bi bi-person-check-fill" style="font-size:13px"></i>
+          <span>${data.name}</span>
+          ${data.college ? `<span style="font-size:11px;opacity:.7">· ${data.college}</span>` : ''}
+          <span onclick="removeExtraTraveler(this, '${nameLower}')"
+                style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
+        `;
+        tag.title = 'Found in system — will be added as participant';
+
+        const hidden = document.createElement('input');
+        hidden.type         = 'hidden';
+        hidden.name         = 'matched_travelers';
+        hidden.value        = data.id;
+        hidden.dataset.name = nameLower;
+        document.getElementById('allTravelerNamesInputs').appendChild(hidden);
+
+      } else {
+        tag.className = 'traveler-tag unmatched';
+        tag.innerHTML = `
+          <i class="bi bi-person-plus-fill" style="font-size:13px"></i>
+          <span>${name}</span>
+          <span style="font-size:11px;opacity:.7">· not in system</span>
+          <span onclick="removeExtraTraveler(this, '${nameLower}')"
+                style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
+        `;
+
+        const hidden = document.createElement('input');
+        hidden.type         = 'hidden';
+        hidden.name         = 'extra_travelers';
+        hidden.value        = name;
+        hidden.dataset.name = nameLower;
+        document.getElementById('allTravelerNamesInputs').appendChild(hidden);
+
+        // Also save as unregistered so it appears in travel_detail
+        const unregHidden = document.createElement('input');
+        unregHidden.type         = 'hidden';
+        unregHidden.name         = 'unregistered_travelers';
+        unregHidden.value        = name;
+        unregHidden.dataset.name = nameLower + '_unreg';
+        document.getElementById('allTravelerNamesInputs').appendChild(unregHidden);
+      }
+
+      tag.dataset.name = nameLower;
+      list.appendChild(tag);
+
+      const countEl = document.getElementById('summaryCount');
+      countEl.textContent = parseInt(countEl.textContent || 0) + 1;
+    })
+    .catch(() => {
+      const list      = document.getElementById('extraTravelersList');
+      const tag       = document.createElement('div');
+      const nameLower = name.toLowerCase();
+      tag.className    = 'traveler-tag unmatched';
+      tag.dataset.name = nameLower;
+      tag.innerHTML    = `
+        <i class="bi bi-person-plus-fill" style="font-size:13px"></i>
+        <span>${name}</span>
+        <span style="font-size:11px;opacity:.7">· not in system</span>
+        <span onclick="removeExtraTraveler(this, '${nameLower}')"
+              style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
+      `;
+      list.appendChild(tag);
+
+      const hidden = document.createElement('input');
+      hidden.type         = 'hidden';
+      hidden.name         = 'extra_travelers';
+      hidden.value        = name;
+      hidden.dataset.name = nameLower;
+      document.getElementById('allTravelerNamesInputs').appendChild(hidden);
+
+      const countEl = document.getElementById('summaryCount');
+      countEl.textContent = parseInt(countEl.textContent || 0) + 1;
+    });
 }
 
 function removeExtraTraveler(el, nameLower) {

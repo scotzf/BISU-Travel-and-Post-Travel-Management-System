@@ -297,6 +297,10 @@ class TravelRecord(models.Model):
     default=False,
     help_text='If True, scope was manually set and will not be auto-detected from participants.'
     )
+    unregistered_travelers = models.JSONField(
+    default=list, blank=True,
+    help_text='Names of travelers not registered in the system at time of creation.'
+)
 
     # ── Notes ─────────────────────────────────────────────────────────
     notes = models.TextField(blank=True, max_length=1000)
