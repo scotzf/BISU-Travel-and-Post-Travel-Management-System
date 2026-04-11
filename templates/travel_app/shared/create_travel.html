@@ -68,33 +68,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
 .extraction-badge.medium { background: #fef9c3; color: #854d0e; }
 .extraction-badge.low { background: #fee2e2; color: #991b1b; }
 
-/* Participant tags */
-.participant-tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--role-faint); color: var(--role-color);
-  border: 1px solid color-mix(in srgb, var(--role-color) 25%, transparent);
-  border-radius: 20px; padding: 4px 10px 4px 8px;
-  font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s;
-}
-.participant-tag:hover { background: color-mix(in srgb, var(--role-color) 20%, transparent); }
-.participant-tag.selected { background: var(--role-color); color: white; }
-.participant-tag.unmatched {
-  background: #fff7ed; color: #c2410c;
-  border-color: #fdba74;
-}
-.traveler-tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  border-radius: 20px; padding: 6px 12px;
-  font-size: 12.5px; font-weight: 500;
-}
-.traveler-tag.matched {
-  background: #dcfce7; color: #166534;
-  border: 1px solid #86efac;
-}
-.traveler-tag.unmatched {
-  background: #fff7ed; color: #c2410c;
-  border: 1px solid #fdba74;
-}
+/* Traveler tags */
 .traveler-tag {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: 20px; padding: 6px 12px;
@@ -109,6 +83,21 @@ textarea.form-control { resize:vertical; min-height:90px; }
   border: 1px solid #fdba74;
 }
 .tag-remove { font-size: 14px; line-height: 1; }
+
+/* Participant tags */
+.participant-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--role-faint); color: var(--role-color);
+  border: 1px solid color-mix(in srgb, var(--role-color) 25%, transparent);
+  border-radius: 20px; padding: 4px 10px 4px 8px;
+  font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s;
+}
+.participant-tag:hover { background: color-mix(in srgb, var(--role-color) 20%, transparent); }
+.participant-tag.selected { background: var(--role-color); color: white; }
+.participant-tag.unmatched {
+  background: #fff7ed; color: #c2410c;
+  border-color: #fdba74;
+}
 
 .scope-badge {
   display: inline-flex; align-items: center; gap: 6px;
@@ -225,7 +214,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
     </div>
   </div>
 
-  <!-- Extracted Travelers Card (always visible after extraction, all roles) -->
+  <!-- Extracted Travelers Card -->
   <div id="extractedTravelersCard" style="display:none;margin-bottom:16px">
     <div class="card">
       <div class="card-header-custom">
@@ -245,7 +234,8 @@ textarea.form-control { resize:vertical; min-height:90px; }
         </div>
 
         <div id="travelerTagsList" style="display:flex;flex-wrap:wrap;gap:10px"></div>
-                <!-- Manual add traveler -->
+
+        <!-- Manual add traveler -->
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
           <div style="font-size:11px;font-weight:600;color:var(--text-muted);
                       text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
@@ -264,9 +254,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
           <div id="extraTravelersList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
         </div>
 
-        <!-- Hidden inputs for extra travelers -->
-        <div id="allTravelerNamesInputs"></div>
-
         <div style="font-size:11.5px;color:var(--text-muted);margin-top:12px">
           <i class="bi bi-info-circle"></i>
           Green = found in system and will be added as participant.
@@ -278,6 +265,10 @@ textarea.form-control { resize:vertical; min-height:90px; }
 
   <form method="post" id="travelForm">
     {% csrf_token %}
+
+    <!-- ↓ Hidden inputs live INSIDE the form so they get submitted -->
+    <div id="allTravelerNamesInputs"></div>
+
     <div class="row g-3">
 
       <!-- Main form -->
@@ -309,7 +300,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
                 <label class="form-label">End Date</label>
                 <input type="date" name="end_date" id="fieldEndDate" class="form-control"
                        value="{{ post.end_date|default:'' }}"
-                       id="endDate" onchange="validateDates()"/>
+                       onchange="validateDates()"/>
               </div>
 
               <div class="col-12">
@@ -337,7 +328,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
         </div>
 
-        <!-- Participants -->
+        <!-- Participants (secretaries only) -->
         {% if user.role in 'DEPT_SEC,CAMPUS_SEC' and available_participants %}
         <div class="card mb-3">
           <div class="card-header-custom">
@@ -354,13 +345,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
             </div>
           </div>
           <div class="card-body-custom">
-
-            <!-- Unmatched travelers warning -->
-            <div id="unmatchedWarning" style="display:none;margin-bottom:12px"
-                 class="alert-custom alert-warning">
-              <i class="bi bi-exclamation-triangle"></i>
-              <span id="unmatchedText"></span>
-            </div>
 
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
               Click names to add/remove.
@@ -380,15 +364,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
                      style="font-size:13.5px;color:var(--text-primary);cursor:pointer;margin:0">
                 Include myself as a traveler
               </label>
-            </div>
-
-            <!-- Extracted traveler suggestions -->
-            <div id="extractedSuggestionsBlock" style="display:none;margin-bottom:12px">
-              <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                          letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">
-                <i class="bi bi-magic"></i> Extracted from document
-              </div>
-              <div id="extractedSuggestions" style="display:flex;flex-wrap:wrap;gap:8px"></div>
             </div>
 
             <!-- All participants -->
@@ -493,6 +468,7 @@ const EXTRACT_URL  = "{% url 'travel_app:extract_travel_order_ajax' %}";
 const CSRF_TOKEN   = "{{ csrf_token }}";
 const selectedIds  = new Set();
 const collegeMap   = {};
+let unmatchedTravelerCount = 0;
 
 // Build college map from rendered tags
 document.querySelectorAll('.participant-tag').forEach(tag => {
@@ -520,17 +496,16 @@ function handleDrop(e) {
 function handleFileSelect(file) {
   if (!file) return;
 
-  const zone      = document.getElementById('uploadZone');
-  const progress  = document.getElementById('uploadProgress');
-  const errorDiv  = document.getElementById('uploadError');
-  const bar       = document.getElementById('extractionBarFill');
-  const progText  = document.getElementById('progressText');
+  const zone     = document.getElementById('uploadZone');
+  const progress = document.getElementById('uploadProgress');
+  const errorDiv = document.getElementById('uploadError');
+  const bar      = document.getElementById('extractionBarFill');
+  const progText = document.getElementById('progressText');
 
   zone.classList.add('uploading');
   progress.style.display = 'block';
   errorDiv.style.display = 'none';
 
-  // Animate progress bar
   let pct = 0;
   const ticker = setInterval(() => {
     pct = Math.min(pct + 4, 85);
@@ -545,9 +520,7 @@ function handleFileSelect(file) {
   ];
   let stepIdx = 0;
   const stepTicker = setInterval(() => {
-    if (stepIdx < steps.length) {
-      progText.textContent = steps[stepIdx++];
-    }
+    if (stepIdx < steps.length) progText.textContent = steps[stepIdx++];
   }, 1800);
 
   const formData = new FormData();
@@ -566,20 +539,14 @@ function handleFileSelect(file) {
         progress.style.display = 'none';
         bar.style.width = '0%';
 
-        if (data.error) {
-          showUploadError(data.error);
-          return;
-        }
-        if (!data.success) {
-          showUploadError(data.error || 'Extraction failed. Try a clearer document.');
-          return;
-        }
+        if (data.error) { showUploadError(data.error); return; }
+        if (!data.success) { showUploadError(data.error || 'Extraction failed. Try a clearer document.'); return; }
 
         prefillForm(data);
         revealForm(data);
       }, 400);
     })
-    .catch(err => {
+    .catch(() => {
       clearInterval(ticker);
       clearInterval(stepTicker);
       zone.classList.remove('uploading');
@@ -612,20 +579,15 @@ function setField(id, value) {
 // ── Reveal form and show extraction results ──────────────────────────
 function revealForm(data) {
   document.getElementById('uploadSection').style.display = 'none';
-  const formSection = document.getElementById('formSection');
-  formSection.classList.add('revealed');
+  document.getElementById('formSection').classList.add('revealed');
 
-  // Show extraction banner
-  const banner = document.getElementById('extractionBanner');
-  banner.style.display = 'block';
-
-  // Confidence badge
+  // Extraction banner
+  document.getElementById('extractionBanner').style.display = 'block';
   const badge = document.getElementById('confidenceBadge');
   const conf  = data.confidence || 'low';
   badge.textContent = conf + ' confidence';
   badge.className   = 'extraction-badge ' + conf;
 
-  // Show extracted travelers card
   const allTravelers = [
     ...(data.matched_travelers   || []),
     ...(data.unmatched_travelers || []),
@@ -634,25 +596,25 @@ function revealForm(data) {
   if (allTravelers.length > 0) {
     const card      = document.getElementById('extractedTravelersCard');
     const list      = document.getElementById('travelerTagsList');
-    const badge     = document.getElementById('travelerSummaryBadge');
+    const badgeEl   = document.getElementById('travelerSummaryBadge');
     const matched   = data.matched_travelers.length;
     const unmatched = data.unmatched_count || 0;
 
     card.style.display = 'block';
     list.innerHTML     = '';
 
-    // Summary badge
-    badge.innerHTML = `
+    badgeEl.innerHTML = `
       <span style="color:#166534;font-weight:600">${matched} matched</span>
       ${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}
     `;
-    // Update traveler count in summary to include all extracted names
-    const currentCount = parseInt(document.getElementById('summaryCount').textContent) || 0;
-    document.getElementById('summaryCount').textContent = currentCount + allTravelers.length;
 
-    // Render each traveler tag
+    // Traveler count — matched go into selectedIds (if picker exists), else count all here
+    const hasPicker = document.getElementById('participantList') !== null;
+    unmatchedTravelerCount = hasPicker ? unmatched : allTravelers.length;
+
     allTravelers.forEach(t => {
       const tag = document.createElement('div');
+
       if (t.matched) {
         tag.className = 'traveler-tag matched';
         tag.innerHTML = `
@@ -661,11 +623,20 @@ function revealForm(data) {
           ${t.college ? `<span style="font-size:11px;opacity:.7">· ${t.college}</span>` : ''}
         `;
         tag.title = 'Found in system — will be added as participant';
-        // Also pre-select in the participant list below (for secretaries)
+
+        // Hidden input inside the form so it gets submitted
+        const hidden = document.createElement('input');
+        hidden.type  = 'hidden';
+        hidden.name  = 'matched_travelers';
+        hidden.value = t.id;
+        document.getElementById('allTravelerNamesInputs').appendChild(hidden);
+
+        // Pre-select in the participant picker for secretaries
         const mainTag = document.querySelector(`.participant-tag[data-id="${t.id}"]`);
         if (mainTag && !selectedIds.has(String(t.id))) {
           toggleParticipant(mainTag);
         }
+
       } else {
         tag.className = 'traveler-tag unmatched';
         tag.innerHTML = `
@@ -675,10 +646,10 @@ function revealForm(data) {
         `;
         tag.title = 'Not found in system';
       }
+
       list.appendChild(tag);
     });
 
-    // Unmatched warning banner
     if (unmatched > 0) {
       const warn = document.getElementById('unmatchedWarning');
       document.getElementById('unmatchedText').textContent =
@@ -722,14 +693,14 @@ function toggleParticipant(el) {
 function updateSummary() {
   const includeCreator = document.getElementById('includeCreator');
   const creatorCount   = includeCreator && includeCreator.checked ? 1 : 0;
-  const count          = selectedIds.size + creatorCount;
+  const count          = selectedIds.size + creatorCount + unmatchedTravelerCount;
 
   const countEl = document.getElementById('selectedCount');
   if (countEl) countEl.textContent = selectedIds.size + ' selected';
   document.getElementById('summaryCount').textContent = count;
 
   // Scope detection
-  const colleges      = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
+  const colleges       = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
   const creatorCollege = '{{ user.college.name|default:"" }}';
   if (creatorCollege) colleges.add(creatorCollege);
 
@@ -740,16 +711,19 @@ function updateSummary() {
 
   if (isMultiCollege) {
     const style = 'background:#f3e8ff;color:#6b21a8';
-    if (scopeEl)   { scopeEl.setAttribute('style', style); scopeEl.innerHTML = '<i class="bi bi-diagram-3"></i> Campus scope'; }
+    if (scopeEl)   { scopeEl.setAttribute('style', style);   scopeEl.innerHTML   = '<i class="bi bi-diagram-3"></i> Campus scope'; }
     if (summScope) { summScope.setAttribute('style', style); summScope.innerHTML = '<i class="bi bi-diagram-3"></i> Campus-level'; }
     if (hintEl)    hintEl.textContent = 'Budget will be tagged by Campus Secretary';
   } else {
     const style = 'background:var(--primary-faint);color:var(--primary)';
-    if (scopeEl)   { scopeEl.setAttribute('style', style); scopeEl.innerHTML = '<i class="bi bi-building"></i> College scope'; }
+    if (scopeEl)   { scopeEl.setAttribute('style', style);   scopeEl.innerHTML   = '<i class="bi bi-building"></i> College scope'; }
     if (summScope) { summScope.setAttribute('style', style); summScope.innerHTML = '<i class="bi bi-building"></i> College-level'; }
     if (hintEl)    hintEl.textContent = 'Budget will be tagged by Dept Secretary';
   }
 }
+
+
+// ── Extra travelers (manually added) ────────────────────────────────
 const extraTravelers = [];
 
 function addExtraTraveler() {
@@ -778,10 +752,10 @@ function addExtraTraveler() {
   list.appendChild(tag);
 
   const hidden = document.createElement('input');
-  hidden.type          = 'hidden';
-  hidden.name          = 'extra_travelers';
-  hidden.value         = name;
-  hidden.dataset.name  = name.toLowerCase();
+  hidden.type         = 'hidden';
+  hidden.name         = 'extra_travelers';
+  hidden.value        = name;
+  hidden.dataset.name = name.toLowerCase();
   document.getElementById('allTravelerNamesInputs').appendChild(hidden);
 
   const countEl = document.getElementById('summaryCount');
@@ -796,20 +770,23 @@ function removeExtraTraveler(el, nameLower) {
 
   el.closest('.traveler-tag').remove();
 
-  const hidden = document.querySelector(
-    `#allTravelerNamesInputs input[data-name="${nameLower}"]`
-  );
+  const hidden = document.querySelector(`#allTravelerNamesInputs input[data-name="${nameLower}"]`);
   if (hidden) hidden.remove();
 
   const countEl = document.getElementById('summaryCount');
   countEl.textContent = Math.max(0, parseInt(countEl.textContent || 0) - 1);
 }
+
+
+// ── Participant search filter ────────────────────────────────────────
 function filterParticipants(query) {
   document.querySelectorAll('#participantList .participant-tag').forEach(tag => {
     tag.style.display = tag.dataset.name.includes(query.toLowerCase()) ? '' : 'none';
   });
 }
 
+
+// ── Date validation ──────────────────────────────────────────────────
 function validateDates() {
   const start = document.getElementById('fieldStartDate').value;
   const end   = document.getElementById('fieldEndDate').value;

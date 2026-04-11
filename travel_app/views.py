@@ -332,6 +332,15 @@ def create_travel(request):
                     TravelParticipant.objects.create(travel_record=travel, user=user)
                 elif request.POST.get('include_creator') == 'yes':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
+                matched_traveler_ids = request.POST.getlist('matched_travelers')
+                for pid in matched_traveler_ids:
+                    try:
+                        participant = User.objects.get(id=pid, is_active=True)
+                        TravelParticipant.objects.get_or_create(
+                            travel_record=travel, user=participant
+                        )
+                    except User.DoesNotExist:
+                        pass
  
                 # Add selected participants
                 if user.role in ['DEPT_SEC', 'CAMPUS_SEC'] and participant_ids:
@@ -1541,10 +1550,8 @@ def extract_travel_order_ajax(request):
                 match = None
                 if query:
                     match = User.objects.filter(
-                        query,
-                        is_active=True,
-                        is_approved=True
-                    ).exclude(id=user.id).first()
+                        query, is_active=True, is_approved=True
+                    ).first()
  
                 if match:
                     matched_travelers.append({
