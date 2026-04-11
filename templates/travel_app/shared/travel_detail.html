@@ -1,4 +1,4 @@
-={% extends "base.html" %}
+{% extends "base.html" %}
 {% load travel_tags %}
 {% block title %}{{ travel.destination }} — BISU Travel Hub{% endblock %}
 
@@ -383,7 +383,7 @@
     <!-- Participants -->
     <div class="card mb-3">
       <div class="card-header-custom">
-        <div class="card-title">Participants ({{ travel.participant_count }})</div>
+        <div class="card-title">Participants ({{ travel.participant_count }}{% if travel.unregistered_travelers %} + {{ travel.unregistered_travelers|length }} unregistered{% endif %})</div>
       </div>
       {% for p in travel.participants.all %}
       <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
@@ -399,6 +399,30 @@
         </div>
       </div>
       {% endfor %}
+
+      {% if travel.unregistered_travelers %}
+        <div style="padding:8px 16px;background:var(--surface-2);
+                    border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                      text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">
+            <i class="bi bi-person-x"></i> Not registered in system
+          </div>
+          {% for name in travel.unregistered_travelers %}
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;
+                      border-bottom:1px solid var(--border);font-size:13px">
+            <div style="width:30px;height:30px;border-radius:50%;background:#fff7ed;
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:11px;font-weight:600;color:#c2410c;flex-shrink:0">
+              {{ name|slice:":1" }}
+            </div>
+            <div>
+              <div style="font-weight:500;color:var(--text-primary)">{{ name }}</div>
+              <div style="font-size:11px;color:#c2410c">Not in system</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% endif %}
     </div>
 
     {% if can_tag_budget or can_route or travel.funding_college or travel.is_budget_tagged %}

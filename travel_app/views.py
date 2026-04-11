@@ -263,9 +263,9 @@ def create_travel(request):
         return redirect('accounts:login')
     if user.role not in ['EMPLOYEE', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
- 
+
     today = timezone.now().date()
- 
+
     # Build participant list based on role
     if user.role == 'EMPLOYEE':
         available_participants = []
@@ -283,7 +283,7 @@ def create_travel(request):
             is_active=True,
             role__in=['EMPLOYEE', 'DEPT_SEC']
         ).exclude(id=user.id).order_by('college__name', 'last_name', 'first_name')
- 
+
     if request.method == 'POST':
         destination          = request.POST.get('destination', '').strip()
         start_date           = request.POST.get('start_date', '').strip()
@@ -293,7 +293,9 @@ def create_travel(request):
         notes                = request.POST.get('notes', '').strip()
         participant_ids      = request.POST.getlist('participants')
         extra_traveler_names = request.POST.getlist('extra_travelers')
- 
+        matched_traveler_ids = request.POST.getlist('matched_travelers')
+        unregistered_names   = request.POST.getlist('unregistered_travelers')
+
         errors = []
         if not destination:
             errors.append('Destination is required.')
@@ -303,7 +305,7 @@ def create_travel(request):
             errors.append('Purpose is required.')
         if start_date and end_date and end_date < start_date:
             errors.append('End date cannot be before start date.')
- 
+
         if errors:
             from django.contrib import messages
             for e in errors:
@@ -313,7 +315,7 @@ def create_travel(request):
                 'available_participants': available_participants,
                 'post': request.POST,
             })
- 
+
         try:
             with transaction.atomic():
                 travel = TravelRecord.objects.create(
@@ -326,13 +328,21 @@ def create_travel(request):
                     created_by=user,
                     scope='COLLEGE',
                 )
- 
+
+                # Apply manual scope override if provided (employee only)
+                scope_override = request.POST.get('scope_override', '').strip()
+                if scope_override in ['COLLEGE', 'CAMPUS']:
+                    travel.scope = scope_override
+                    travel.scope_overridden = True
+                    travel.save(update_fields=['scope', 'scope_overridden'])
+
                 # Add creator as participant
                 if user.role == 'EMPLOYEE':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
                 elif request.POST.get('include_creator') == 'yes':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
-                matched_traveler_ids = request.POST.getlist('matched_travelers')
+
+                # Add matched travelers from extraction (all roles)
                 for pid in matched_traveler_ids:
                     try:
                         participant = User.objects.get(id=pid, is_active=True)
@@ -341,8 +351,8 @@ def create_travel(request):
                         )
                     except User.DoesNotExist:
                         pass
- 
-                # Add selected participants
+
+                # Add selected participants from picker (secretaries only)
                 if user.role in ['DEPT_SEC', 'CAMPUS_SEC'] and participant_ids:
                     for pid in participant_ids:
                         try:
@@ -352,23 +362,28 @@ def create_travel(request):
                             )
                         except User.DoesNotExist:
                             pass
- 
+
+                # Save unregistered traveler names (not in system, can't be participants)
+                if unregistered_names:
+                    travel.unregistered_travelers = unregistered_names
+                    travel.save(update_fields=['unregistered_travelers'])
+
                 travel.refresh_scope()
- 
+
                 # ── Link the temp Travel Order file if extraction was done ──
                 temp_path       = request.session.pop('temp_travel_order_path', None)
                 extracted_names = request.session.pop('temp_travel_order_names', [])
- 
+
                 if temp_path:
                     try:
                         from django.core.files.storage import default_storage
                         from django.core.files import File
- 
+
                         full_path = default_storage.path(temp_path)
- 
+
                         # Merge extracted names + manually added names
                         all_traveler_names = extracted_names + extra_traveler_names
- 
+
                         with open(full_path, 'rb') as f:
                             travel_doc = TravelDocument(
                                 travel_record=travel,
@@ -390,27 +405,27 @@ def create_travel(request):
                                 travel_doc.extracted_end_date = datetime.strptime(
                                     end_date, '%Y-%m-%d'
                                 ).date()
- 
+
                             import os
                             file_name = os.path.basename(temp_path)
                             travel_doc.file.save(file_name, File(f), save=True)
- 
+
                         # Delete temp file
                         default_storage.delete(temp_path)
- 
+
                     except Exception as e:
                         logger.error(f"Failed to link temp travel order: {e}")
- 
+
                 _notify_if_duplicate(travel, user)
- 
+
                 from django.contrib import messages
                 messages.success(request, f'Travel to {destination} created successfully!')
                 return redirect('travel_app:travel_detail', pk=travel.id)
- 
+
         except Exception as e:
             from django.contrib import messages
             messages.error(request, f'Error creating travel: {str(e)}')
- 
+
     return render(request, 'travel_app/shared/create_travel.html', {
         'user':                   user,
         'today':                  today,
@@ -1623,3 +1638,38 @@ def change_scope(request, pk):
             messages.error(request, 'Invalid scope.')
 
     return redirect('travel_app:travel_detail', pk=pk)
+
+@csrf_protect
+@never_cache
+def lookup_traveler_ajax(request):
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    name = request.POST.get('name', '').strip()
+    if not name:
+        return JsonResponse({'found': False})
+
+    from django.db.models import Q
+    HONORIFICS = {'dr.', 'dr', 'prof.', 'prof', 'mr.', 'mr', 'ms.', 'ms', 'mrs.', 'mrs', 'engr.', 'engr'}
+
+    parts = [p for p in name.split() if p.lower() not in HONORIFICS]
+    query = Q()
+    for part in parts:
+        if len(part) > 1:
+            query |= Q(first_name__icontains=part) | Q(last_name__icontains=part)
+
+    match = None
+    if query:
+        match = User.objects.filter(query, is_active=True, is_approved=True).first()
+
+    if match:
+        return JsonResponse({
+            'found':    True,
+            'id':       match.id,
+            'name':     match.get_full_name(),
+            'college':  match.college.name if match.college else '',
+        })
+    return JsonResponse({'found': False})
