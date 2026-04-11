@@ -1588,3 +1588,38 @@ def extract_travel_order_ajax(request):
     except Exception as e:
         logger.error(f"extract_travel_order_ajax error: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+    
+
+@csrf_protect
+@never_cache
+def change_scope(request, pk):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    travel = get_object_or_404(TravelRecord, pk=pk)
+
+    # Only secretary or participants/creator can change scope
+    is_participant = travel.participants.filter(user=user).exists()
+    is_creator     = travel.created_by == user
+    is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
+
+    if not (is_participant or is_creator or is_secretary):
+        from django.contrib import messages
+        messages.error(request, 'You do not have permission to change the scope.')
+        return redirect('travel_app:travel_detail', pk=pk)
+
+    if request.method == 'POST':
+        new_scope = request.POST.get('scope')
+        if new_scope in ['COLLEGE', 'CAMPUS']:
+            travel.scope            = new_scope
+            travel.scope_overridden = True
+            travel.save(update_fields=['scope', 'scope_overridden'])
+
+            from django.contrib import messages
+            messages.success(request, f'Travel scope changed to {travel.get_scope_display()}.')
+        else:
+            from django.contrib import messages
+            messages.error(request, 'Invalid scope.')
+
+    return redirect('travel_app:travel_detail', pk=pk)

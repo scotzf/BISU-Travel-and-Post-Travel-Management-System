@@ -35,5 +35,6 @@ urlpatterns = [
     path('documents/<int:doc_id>/confirm/', views.confirm_extraction, name='confirm_extraction'),
     path('documents/<int:doc_id>/reject/',  views.reject_extraction,  name='reject_extraction'),
     path('stats/', views.stats_view, name='stats'),
+    path('travels/<int:pk>/change-scope/', views.change_scope, name='change_scope'),
     
 ]

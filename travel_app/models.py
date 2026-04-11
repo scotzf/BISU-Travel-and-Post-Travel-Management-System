@@ -293,11 +293,20 @@ class TravelRecord(models.Model):
     related_name='funded_travels',
     help_text='Set by Campus Secretary when cross-college travel is funded by a specific college'
     )
+    scope_overridden = models.BooleanField(
+    default=False,
+    help_text='If True, scope was manually set and will not be auto-detected from participants.'
+    )
 
     # ── Notes ─────────────────────────────────────────────────────────
     notes = models.TextField(blank=True, max_length=1000)
 
     # ── Helpers ───────────────────────────────────────────────────────
+    def refresh_scope(self):
+        if self.scope_overridden:
+            return  # don't touch manually set scope
+        self.scope = self.detect_scope()
+        self.save(update_fields=['scope'])
     def get_duration_days(self):
         if self.end_date:
             return (self.end_date - self.start_date).days + 1

@@ -64,9 +64,9 @@ textarea.form-control { resize:vertical; min-height:90px; }
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
 }
-.extraction-badge.high { background: #dcfce7; color: #166534; }
+.extraction-badge.high   { background: #dcfce7; color: #166534; }
 .extraction-badge.medium { background: #fef9c3; color: #854d0e; }
-.extraction-badge.low { background: #fee2e2; color: #991b1b; }
+.extraction-badge.low    { background: #fee2e2; color: #991b1b; }
 
 /* Traveler tags */
 .traveler-tag {
@@ -74,14 +74,8 @@ textarea.form-control { resize:vertical; min-height:90px; }
   border-radius: 20px; padding: 6px 12px;
   font-size: 12.5px; font-weight: 500;
 }
-.traveler-tag.matched {
-  background: #dcfce7; color: #166534;
-  border: 1px solid #86efac;
-}
-.traveler-tag.unmatched {
-  background: #fff7ed; color: #c2410c;
-  border: 1px solid #fdba74;
-}
+.traveler-tag.matched   { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.traveler-tag.unmatched { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
 .tag-remove { font-size: 14px; line-height: 1; }
 
 /* Participant tags */
@@ -92,12 +86,9 @@ textarea.form-control { resize:vertical; min-height:90px; }
   border-radius: 20px; padding: 4px 10px 4px 8px;
   font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s;
 }
-.participant-tag:hover { background: color-mix(in srgb, var(--role-color) 20%, transparent); }
+.participant-tag:hover    { background: color-mix(in srgb, var(--role-color) 20%, transparent); }
 .participant-tag.selected { background: var(--role-color); color: white; }
-.participant-tag.unmatched {
-  background: #fff7ed; color: #c2410c;
-  border-color: #fdba74;
-}
+.participant-tag.unmatched { background: #fff7ed; color: #c2410c; border-color: #fdba74; }
 
 .scope-badge {
   display: inline-flex; align-items: center; gap: 6px;
@@ -243,9 +234,9 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="text" id="extraTravelerInput" class="form-control"
-                  placeholder="Type full name and press Enter or click Add"
-                  style="flex:1"
-                  onkeydown="if(event.key==='Enter'){event.preventDefault();addExtraTraveler();}"/>
+                   placeholder="Type full name and press Enter or click Add"
+                   style="flex:1"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();addExtraTraveler();}"/>
             <button type="button" onclick="addExtraTraveler()"
                     class="btn-secondary-custom" style="white-space:nowrap">
               <i class="bi bi-plus-lg"></i> Add
@@ -266,7 +257,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
   <form method="post" id="travelForm">
     {% csrf_token %}
 
-    <!-- ↓ Hidden inputs live INSIDE the form so they get submitted -->
+    <!-- Hidden inputs live INSIDE the form so they get submitted -->
     <div id="allTravelerNamesInputs"></div>
 
     <div class="row g-3">
@@ -411,6 +402,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
           <div class="card-body-custom" style="padding:16px 20px">
 
+            <!-- Created by -->
             <div style="margin-bottom:14px">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
                            letter-spacing:.5px;margin-bottom:4px">Created by</div>
@@ -422,9 +414,11 @@ textarea.form-control { resize:vertical; min-height:90px; }
               </div>
             </div>
 
+            <!-- Travel scope -->
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
                            letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
+
               <div id="summaryScope" class="scope-badge"
                    style="background:var(--primary-faint);color:var(--primary)">
                 <i class="bi bi-building"></i> College-level
@@ -432,8 +426,23 @@ textarea.form-control { resize:vertical; min-height:90px; }
               <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px" id="scopeHint">
                 Budget will be tagged by Dept Secretary
               </div>
+
+              <!-- Manual override — available to all roles -->
+              <div style="margin-top:10px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">
+                  Override scope manually:
+                </div>
+                <select name="scope_override" id="scopeOverride" class="form-select"
+                        style="font-size:12px;padding:6px 10px"
+                        onchange="manualScopeOverride(this.value)">
+                  <option value="">Auto-detect from participants</option>
+                  <option value="COLLEGE">College-Level</option>
+                  <option value="CAMPUS">Campus-Level</option>
+                </select>
+              </div>
             </div>
 
+            <!-- Travelers -->
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
                            letter-spacing:.5px;margin-bottom:4px">Travelers</div>
@@ -441,6 +450,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
                            color:var(--text-primary)" id="summaryCount">1</div>
             </div>
 
+            <!-- Info -->
             <div style="padding-top:14px;border-top:1px solid var(--border)">
               <div class="alert-custom alert-info" style="padding:10px 12px;font-size:12px">
                 <i class="bi bi-info-circle"></i>
@@ -469,6 +479,7 @@ const CSRF_TOKEN   = "{{ csrf_token }}";
 const selectedIds  = new Set();
 const collegeMap   = {};
 let unmatchedTravelerCount = 0;
+let scopeManualOverride    = null;  // null = auto-detect
 
 // Build college map from rendered tags
 document.querySelectorAll('.participant-tag').forEach(tag => {
@@ -539,7 +550,7 @@ function handleFileSelect(file) {
         progress.style.display = 'none';
         bar.style.width = '0%';
 
-        if (data.error) { showUploadError(data.error); return; }
+        if (data.error)    { showUploadError(data.error); return; }
         if (!data.success) { showUploadError(data.error || 'Extraction failed. Try a clearer document.'); return; }
 
         prefillForm(data);
@@ -608,9 +619,18 @@ function revealForm(data) {
       ${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}
     `;
 
-    // Traveler count — matched go into selectedIds (if picker exists), else count all here
+    // Traveler count — matched go into selectedIds via toggleParticipant (if they exist in the
+    // picker). But secretaries only see their own college/campus, so some matched travelers
+    // may not appear in the picker at all — count those separately.
     const hasPicker = document.getElementById('participantList') !== null;
-    unmatchedTravelerCount = hasPicker ? unmatched : allTravelers.length;
+    let pickerMissCount = 0;
+    if (hasPicker) {
+      data.matched_travelers.forEach(t => {
+        const mainTag = document.querySelector(`.participant-tag[data-id="${t.id}"]`);
+        if (!mainTag) pickerMissCount++;
+      });
+    }
+    unmatchedTravelerCount = hasPicker ? (unmatched + pickerMissCount) : allTravelers.length;
 
     allTravelers.forEach(t => {
       const tag = document.createElement('div');
@@ -670,6 +690,13 @@ function skipUpload() {
 }
 
 
+// ── Manual scope override ────────────────────────────────────────────
+function manualScopeOverride(value) {
+  scopeManualOverride = value || null;
+  updateSummary();
+}
+
+
 // ── Participant toggling ─────────────────────────────────────────────
 function toggleParticipant(el) {
   const id  = el.dataset.id;
@@ -699,12 +726,17 @@ function updateSummary() {
   if (countEl) countEl.textContent = selectedIds.size + ' selected';
   document.getElementById('summaryCount').textContent = count;
 
-  // Scope detection
-  const colleges       = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
-  const creatorCollege = '{{ user.college.name|default:"" }}';
-  if (creatorCollege) colleges.add(creatorCollege);
+  // Use manual override if set, otherwise auto-detect from participants
+  let isMultiCollege;
+  if (scopeManualOverride) {
+    isMultiCollege = scopeManualOverride === 'CAMPUS';
+  } else {
+    const colleges       = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
+    const creatorCollege = '{{ user.college.name|default:"" }}';
+    if (creatorCollege) colleges.add(creatorCollege);
+    isMultiCollege = colleges.size > 1;
+  }
 
-  const isMultiCollege = colleges.size > 1;
   const scopeEl   = document.getElementById('scopeIndicator');
   const summScope = document.getElementById('summaryScope');
   const hintEl    = document.getElementById('scopeHint');
