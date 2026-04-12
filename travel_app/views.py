@@ -1758,3 +1758,90 @@ def replace_document(request, doc_id):
         messages.success(request, f'{doc.get_doc_type_display()} replaced successfully.')
 
     return redirect('travel_app:travel_detail', pk=travel.id)
+
+@never_cache
+def liquidation_calculator(request):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    # Scope travels based on role
+    if user.role == 'EMPLOYEE':
+        travels = TravelRecord.objects.filter(
+            participants__user=user
+        ).distinct()
+    elif user.role == 'DEPT_SEC':
+        travels = TravelRecord.objects.filter(
+            scope='COLLEGE',
+            participants__college_snapshot=user.college.name if user.college else ''
+        ).distinct()
+    elif user.role == 'CAMPUS_SEC':
+        travels = TravelRecord.objects.filter(
+            participants__campus_snapshot=user.campus.name if user.campus else ''
+        ).distinct()
+    else:  # ADMIN
+        travels = TravelRecord.objects.all()
+
+    travels = travels.filter(
+        budget_source__isnull=False
+    ).order_by('-start_date')
+
+    # Only show travels that have a budget tagged
+    selected_travel = None
+    result          = None
+    selected_id     = request.GET.get('travel_id') or request.POST.get('travel_id')
+    actual_amount   = request.POST.get('actual_amount', '').strip()
+
+    if selected_id:
+        try:
+            selected_travel = travels.get(id=selected_id)
+        except TravelRecord.DoesNotExist:
+            selected_travel = None
+
+    if selected_travel and actual_amount:
+        from decimal import Decimal, InvalidOperation
+        try:
+            actual = Decimal(actual_amount.replace(',', ''))
+            tagged = selected_travel.amount_deducted or Decimal('0')
+            diff   = actual - tagged
+
+            if diff > 0:
+                result = {
+                    'type':    'reimbursement',
+                    'label':   'Reimbursement',
+                    'message': f'Actual spending exceeded the budget by ₱{diff:,.2f}. The employee may file a reimbursement request.',
+                    'diff':    diff,
+                    'actual':  actual,
+                    'tagged':  tagged,
+                }
+            elif diff < 0:
+                result = {
+                    'type':    'refund',
+                    'label':   'Refund Due',
+                    'message': f'Actual spending was ₱{abs(diff):,.2f} less than the budget. The employee must refund this amount to the school.',
+                    'diff':    abs(diff),
+                    'actual':  actual,
+                    'tagged':  tagged,
+                }
+            else:
+                result = {
+                    'type':    'settled',
+                    'label':   'Settled',
+                    'message': 'Actual spending matches the budget exactly. No refund or reimbursement needed.',
+                    'diff':    Decimal('0'),
+                    'actual':  actual,
+                    'tagged':  tagged,
+                }
+        except InvalidOperation:
+            result = None
+
+    context = {
+        'user':           user,
+        'travels':        travels,
+        'selected_travel': selected_travel,
+        'selected_id':    selected_id,
+        'actual_amount':  actual_amount,
+        'result':         result,
+        'today':          timezone.now().date(),
+    }
+    return render(request, 'travel_app/shared/liquidation_calculator.html', context)

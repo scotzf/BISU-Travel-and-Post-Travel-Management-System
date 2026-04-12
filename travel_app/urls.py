@@ -39,5 +39,6 @@ urlpatterns = [
     path('travels/<int:pk>/change-scope/', views.change_scope, name='change_scope'),
     path('documents/<int:doc_id>/replace/', views.replace_document, name='replace_document'),
     path('documents/<int:doc_id>/set-amount/', views.set_document_amount, name='set_document_amount'),
+    path('liquidation/', views.liquidation_calculator, name='liquidation_calculator'),
     
 ]
