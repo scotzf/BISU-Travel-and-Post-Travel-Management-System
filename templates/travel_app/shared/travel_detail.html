@@ -30,13 +30,13 @@
 .doc-slot-icon.done   { background:#1a5c38; color:white; }
 .doc-slot-icon.empty  { background:var(--surface-3); color:var(--text-muted); }
 .doc-slot-name { font-size:13px; font-weight:500; color:var(--text-primary); flex:1; }
-.doc-slot-status { font-size:11px; }
 .doc-files { padding:0 16px 12px; background:var(--surface-2); }
 .doc-file-row {
   display:flex; align-items:center; gap:10px;
   padding:8px 0;
   border-bottom:1px solid var(--border);
   font-size:12.5px;
+  flex-wrap:wrap;
 }
 .doc-file-row:last-child { border-bottom:none; }
 .upload-area {
@@ -57,6 +57,21 @@
 .form-select {
   font-size:13px; border:1px solid var(--border); border-radius:var(--radius);
   padding:7px 10px; color:var(--text-primary); background:var(--surface);
+}
+.amount-inline-form {
+  display:flex; align-items:center; gap:6px;
+  margin-top:6px; width:100%;
+}
+.amount-inline-form input[type=number] {
+  font-size:13px; border:1px solid var(--border); border-radius:6px;
+  padding:5px 8px 5px 22px; width:130px; background:var(--surface);
+  color:var(--text-primary);
+}
+.amount-peso-wrap { position:relative; display:inline-block; }
+.amount-peso-wrap::before {
+  content:'₱'; position:absolute; left:7px; top:50%;
+  transform:translateY(-50%); font-size:12px; color:var(--text-muted);
+  pointer-events:none;
 }
 {% endblock %}
 
@@ -95,9 +110,7 @@
 <div class="card mb-3">
   <div class="card-body-custom" style="padding:14px 20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:13px;font-weight:500;color:var(--text-primary)">
-        Document completeness
-      </span>
+      <span style="font-size:13px;font-weight:500;color:var(--text-primary)">Document completeness</span>
       <span style="font-size:13px;font-weight:600;color:var(--role-color)">
         {{ travel.completeness_percentage }}%
         ({{ travel.document_types_uploaded|length }}/{{ travel.documents.model.DOC_TYPE_CHOICES|length }})
@@ -167,100 +180,75 @@
                 <span style="color:var(--text-muted);flex-shrink:0">
                   {{ doc.uploaded_at|date:"M j, Y" }}
                 </span>
+
+                {# ── Amount badge for BURS / ITINERARY ── #}
+                {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+                  {% if doc.extracted_amount %}
+                    <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+                                 border-radius:6px;background:#dcfce7;color:#166534;
+                                 font-size:11px;font-weight:600;flex-shrink:0">
+                      ₱{{ doc.extracted_amount|floatformat:2 }}
+                    </span>
+                  {% endif %}
+                {% endif %}
+
                 <a href="{{ doc.file.url }}" target="_blank" class="btn-secondary-custom"
                    style="padding:4px 10px;font-size:11px;flex-shrink:0">
                   <i class="bi bi-download"></i> Download
                 </a>
-              </div>
-              {% endfor %}
 
-              {% for doc in slot.documents %}
-                {% if doc.extraction_attempted and not doc.is_confirmed %}
-                  <div style="margin:8px 0;padding:12px;border-radius:8px;
-                              border:1px solid {% if doc.extraction_successful %}#b7dfbe{% else %}#f5b7b1{% endif %};
-                              background:{% if doc.extraction_successful %}#f0faf2{% else %}#fdf2f2{% endif %}">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                      <div style="font-size:12px;font-weight:600;
-                                  color:{% if doc.extraction_successful %}#1a5c38{% else %}#922b21{% endif %}">
-                        <i class="bi bi-{% if doc.extraction_successful %}robot{% else %}exclamation-triangle{% endif %}"></i>
-                        {% if doc.extraction_successful %}AI Extracted Data — Please Review
-                        {% else %}AI could not extract data from this document{% endif %}
-                      </div>
-                    </div>
-
-                    {% if doc.extraction_successful %}
-                      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px">
-                        {% if doc.extracted_destination %}
-                        <div>
-                          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Destination</div>
-                          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ doc.extracted_destination }}</div>
-                        </div>
-                        {% endif %}
-                        {% if doc.extracted_start_date %}
-                        <div>
-                          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Start Date</div>
-                          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ doc.extracted_start_date|date:"M j, Y" }}</div>
-                        </div>
-                        {% endif %}
-                        {% if doc.extracted_end_date %}
-                        <div>
-                          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">End Date</div>
-                          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ doc.extracted_end_date|date:"M j, Y" }}</div>
-                        </div>
-                        {% endif %}
-                        {% if doc.extracted_amount %}
-                        <div>
-                          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Amount</div>
-                          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">&#8369;{{ doc.extracted_amount|floatformat:2 }}</div>
-                        </div>
-                        {% endif %}
-                        {% if doc.extracted_purpose %}
-                        <div style="width:100%">
-                          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Purpose</div>
-                          <div style="font-size:13px;color:var(--text-primary)">{{ doc.extracted_purpose|truncatechars:150 }}</div>
-                        </div>
-                        {% endif %}
-                      </div>
-
-                      {% if 'may not be travel-related' in doc.notes %}
-                      <div class="alert-custom alert-warning" style="padding:8px 12px;font-size:12px;margin-bottom:10px">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
-                        AI flagged this document as possibly not travel-related. Please verify before confirming.
-                      </div>
-                      {% endif %}
-
-                      {% if is_secretary or is_admin %}
-                      <form method="post" action="{% url 'travel_app:confirm_extraction' doc.id %}" style="display:inline">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-primary-custom" style="padding:6px 14px;font-size:12px">
-                          <i class="bi bi-check-lg"></i> Confirm & Apply to Travel
-                        </button>
-                      </form>
-                      <form method="post" action="{% url 'travel_app:reject_extraction' doc.id %}"
-                            style="display:inline;margin-left:6px">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-secondary-custom"
-                                style="padding:6px 14px;font-size:12px;color:#922b21;border-color:#f5b7b1">
-                          <i class="bi bi-x-lg"></i> Reject
-                        </button>
-                      </form>
-                      {% endif %}
-                    {% endif %}
-                  </div>
-
-                {% elif doc.is_confirmed %}
-                  <div style="font-size:11px;color:#1a5c38;padding:4px 8px;
-                              background:#e6f4ea;border-radius:6px;display:inline-flex;
-                              align-items:center;gap:4px;margin-top:4px">
-                    <i class="bi bi-check-circle-fill" style="font-size:10px"></i>
-                    Confirmed by {{ doc.confirmed_by.get_full_name }} on {{ doc.confirmed_at|date:"M j, Y" }}
-                  </div>
-
-                {% elif doc.extraction_attempted and not doc.extraction_successful %}
-                  <div style="font-size:11px;color:var(--text-muted);padding:4px 0">
-                    <i class="bi bi-hourglass-split"></i> AI extraction pending...
-                  </div>
+                {% if doc.doc_type != 'TRAVEL_ORDER' %}
+                {% if is_creator or is_secretary or is_admin %}
+                <form method="post"
+                      action="{% url 'travel_app:replace_document' doc.id %}"
+                      enctype="multipart/form-data"
+                      id="replaceForm_{{ doc.id }}"
+                      style="display:inline;flex-shrink:0">
+                  {% csrf_token %}
+                  <input type="file" id="replaceFile_{{ doc.id }}" name="file" style="display:none"
+                         onchange="document.getElementById('replaceForm_{{ doc.id }}').submit()"/>
+                  <button type="button"
+                          onclick="document.getElementById('replaceFile_{{ doc.id }}').click()"
+                          style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+                                 border-radius:6px;border:1px solid var(--border);background:var(--surface);
+                                 color:var(--text-muted);font-size:11px;cursor:pointer;">
+                    <i class="bi bi-arrow-repeat"></i> Replace
+                  </button>
+                </form>
                 {% endif %}
+                {% endif %}
+              </div>
+
+              {# ── Amount entry row for BURS / ITINERARY ── #}
+              {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+              {% if is_creator or is_secretary or is_admin %}
+              <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+                <form method="post" action="{% url 'travel_app:set_document_amount' doc.id %}"
+                      style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  {% csrf_token %}
+                  <span style="font-size:12px;color:var(--text-muted)">
+                    {% if doc.extracted_amount %}Edit amount:{% else %}Enter amount:{% endif %}
+                  </span>
+                  <div class="amount-peso-wrap">
+                    <input type="number" name="amount" step="0.01" min="0"
+                           value="{% if doc.extracted_amount %}{{ doc.extracted_amount }}{% endif %}"
+                           placeholder="0.00"
+                           style="font-size:13px;border:1px solid var(--border);border-radius:6px;
+                                  padding:5px 8px 5px 22px;width:130px;background:var(--surface);
+                                  color:var(--text-primary);"
+                           required/>
+                  </div>
+                  <button type="submit"
+                          style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;
+                                 border-radius:6px;border:none;background:var(--role-color);
+                                 color:white;font-size:12px;font-weight:600;cursor:pointer;">
+                    <i class="bi bi-check2"></i> Save
+                  </button>
+                </form>
+              </div>
+              {% endif %}
+              {% endif %}
+
               {% endfor %}
 
               <!-- Upload new file -->
@@ -317,6 +305,22 @@
           <div style="display:flex;justify-content:space-between;font-size:13px">
             <span style="color:var(--text-muted)">Out of province</span>
             <span>{% if travel.is_out_of_province %}Yes{% else %}No{% endif %}</span>
+          </div>
+
+          <!-- Amount row -->
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <span style="color:var(--text-muted)">Amount</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              {% if travel.amount_deducted %}
+                <span style="font-weight:600;color:var(--text-primary)">
+                  ₱{{ travel.amount_deducted|floatformat:2 }}
+                </span>
+              {% else %}
+                <span style="color:var(--text-muted);font-size:12px;font-style:italic">
+                  Not set
+                </span>
+              {% endif %}
+            </div>
           </div>
 
           <!-- Scope row with change option -->
@@ -383,8 +387,9 @@
     <!-- Participants -->
     <div class="card mb-3">
       <div class="card-header-custom">
-        <div class="card-title">Participants ({{ travel.participant_count }}{% if travel.unregistered_travelers %} + {{ travel.unregistered_travelers|length }} unregistered{% endif %})</div>
+        <div class="card-title">Participants ({{ travel.total_participant_count }})</div>
       </div>
+
       {% for p in travel.participants.all %}
       <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
                   border-bottom:1px solid var(--border)">
@@ -400,29 +405,21 @@
       </div>
       {% endfor %}
 
-      {% if travel.unregistered_travelers %}
-        <div style="padding:8px 16px;background:var(--surface-2);
-                    border-top:1px solid var(--border)">
-          <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                      text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">
-            <i class="bi bi-person-x"></i> Not registered in system
-          </div>
-          {% for name in travel.unregistered_travelers %}
-          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;
-                      border-bottom:1px solid var(--border);font-size:13px">
-            <div style="width:30px;height:30px;border-radius:50%;background:#fff7ed;
-                        display:flex;align-items:center;justify-content:center;
-                        font-size:11px;font-weight:600;color:#c2410c;flex-shrink:0">
-              {{ name|slice:":1" }}
-            </div>
-            <div>
-              <div style="font-weight:500;color:var(--text-primary)">{{ name }}</div>
-              <div style="font-size:11px;color:#c2410c">Not in system</div>
-            </div>
-          </div>
-          {% endfor %}
+      {% for name in travel.unregistered_travelers %}
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
+                  border-bottom:1px solid var(--border)">
+        <div style="width:30px;height:30px;border-radius:50%;background:#fff7ed;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:11px;font-weight:600;color:#c2410c;flex-shrink:0">
+          {{ name|slice:":1" }}
         </div>
-      {% endif %}
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ name }}</div>
+          <div style="font-size:11px;color:#c2410c">Not in system</div>
+        </div>
+      </div>
+      {% endfor %}
+
     </div>
 
     {% if can_tag_budget or can_route or travel.funding_college or travel.is_budget_tagged %}
@@ -492,6 +489,20 @@
                 </option>
                 {% endfor %}
               </select>
+
+              <!-- Amount field for secretary -->
+              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                             margin-bottom:5px;display:block">Amount (₱)</label>
+              <div class="amount-peso-wrap" style="width:100%;margin-bottom:10px">
+                <input type="number" name="amount" step="0.01" min="0"
+                       value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% endif %}"
+                       placeholder="0.00"
+                       style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
+                              padding:8px 10px 8px 24px;width:100%;background:var(--surface);
+                              color:var(--text-primary);"
+                       required/>
+              </div>
+
               <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
                 <i class="bi bi-tag"></i> Tag Campus Budget
               </button>
@@ -543,6 +554,20 @@
               </option>
               {% endfor %}
             </select>
+
+            <!-- Amount field for secretary -->
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                           margin-bottom:5px;display:block">Amount (₱)</label>
+            <div class="amount-peso-wrap" style="width:100%;margin-bottom:10px">
+              <input type="number" name="amount" step="0.01" min="0"
+                     value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% endif %}"
+                     placeholder="0.00"
+                     style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
+                            padding:8px 10px 8px 24px;width:100%;background:var(--surface);
+                            color:var(--text-primary);"
+                     required/>
+            </div>
+
             <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
               <i class="bi bi-tag"></i>
               {% if travel.is_budget_tagged %}Update Budget{% else %}Tag Budget{% endif %}
@@ -571,7 +596,7 @@
           </div>
           <div style="display:flex;justify-content:space-between">
             <span style="color:var(--text-muted)">Amount deducted</span>
-            <span style="font-weight:500">₱{{ travel.amount_deducted|floatformat:0 }}</span>
+            <span style="font-weight:500">₱{{ travel.amount_deducted|floatformat:2 }}</span>
           </div>
           <div style="display:flex;justify-content:space-between">
             <span style="color:var(--text-muted)">Tagged by</span>

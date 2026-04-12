@@ -573,26 +573,13 @@ def upload_document(request, pk):
             notes=notes,
         )
 
-        # ── Trigger AI extraction in background thread ─────────────────
-        # Runs asynchronously so upload response is instant
-        try:
-            from .tasks import extract_document_task
-            extract_document_task.delay(doc.id)
-        except Exception:
-            pass  # Extraction failure should never block upload
-
         from django.contrib import messages
-        messages.success(
-            request,
-            f'{doc.get_doc_type_display()} uploaded successfully. AI is extracting data in the background.'
-        )
+        messages.success(request, f'{doc.get_doc_type_display()} uploaded successfully.')
 
     return redirect('travel_app:travel_detail', pk=pk)
-
 # ══════════════════════════════════════════════════════════════════════
 # TAG BUDGET
 # ══════════════════════════════════════════════════════════════════════
-
 @csrf_protect
 @never_cache
 def tag_budget(request, pk):
@@ -603,12 +590,12 @@ def tag_budget(request, pk):
         from django.contrib import messages
         messages.error(request, 'Only secretaries can tag budget sources.')
         return redirect('travel_app:travel_detail', pk=pk)
-
+ 
     travel = get_object_or_404(TravelRecord, pk=pk)
-
+ 
     if request.method == 'POST':
         action = request.POST.get('action', 'tag')
-
+ 
         # Route to a college (Campus Secretary only)
         if action == 'route' and user.role == 'CAMPUS_SEC':
             from accounts.models import College
@@ -617,7 +604,7 @@ def tag_budget(request, pk):
                 college = College.objects.get(id=college_id)
                 travel.funding_college = college
                 travel.save(update_fields=['funding_college'])
-
+ 
                 dept_secs = User.objects.filter(
                     role='DEPT_SEC', college=college,
                     is_active=True, is_approved=True
@@ -634,57 +621,70 @@ def tag_budget(request, pk):
                         ),
                         travel_record=travel,
                     )
-
+ 
                 from django.contrib import messages
                 messages.success(request, f'Travel routed to {college.name} Secretary for budget tagging.')
             except College.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'College not found.')
-
+ 
         # Tag budget directly
         elif action == 'tag':
             budget_source_id = request.POST.get('budget_source_id')
             try:
                 source = BudgetSource.objects.get(id=budget_source_id, is_active=True)
-
+ 
                 allowed = False
                 if user.role == 'DEPT_SEC' and source.scope == 'COLLEGE':
                     allowed = True
                 elif user.role == 'CAMPUS_SEC' and source.scope == 'CAMPUS':
                     allowed = True
-
+ 
                 if not allowed:
                     from django.contrib import messages
                     messages.error(request, 'You cannot use this budget source.')
                 else:
                     from django.utils import timezone as tz
-                    from decimal import Decimal
-
+                    from decimal import Decimal, InvalidOperation
+ 
+                    # Read amount from form
+                    raw_amount = request.POST.get('amount', '').strip().replace(',', '')
+                    try:
+                        amount_deducted = Decimal(raw_amount) if raw_amount else Decimal('0')
+                        if amount_deducted < 0:
+                            amount_deducted = Decimal('0')
+                    except InvalidOperation:
+                        amount_deducted = Decimal('0')
+ 
                     travel.budget_source    = source
                     travel.budget_tagged_by = user
                     travel.budget_tagged_at = tz.now()
-                    travel.amount_deducted  = Decimal('0')
+                    travel.amount_deducted  = amount_deducted
                     travel.save(update_fields=[
                         'budget_source', 'budget_tagged_by',
                         'budget_tagged_at', 'amount_deducted'
                     ])
-
-                    # Auto-create usage row so it appears in budget overview
+ 
+                    # Create usage row and deduct amount
                     if source.scope == 'COLLEGE' and user.college:
-                        source.get_or_create_college_usage(user.college)
+                        usage, _ = source.get_or_create_college_usage(user.college)
+                        if amount_deducted > 0:
+                            usage.deduct(amount_deducted)
                     elif source.scope == 'CAMPUS' and user.campus:
-                        source.get_or_create_campus_usage(user.campus)
-
+                        usage, _ = source.get_or_create_campus_usage(user.campus)
+                        if amount_deducted > 0:
+                            usage.deduct(amount_deducted)
+ 
                     from django.contrib import messages
-                    messages.success(request, f'Budget source "{source.name}" assigned successfully.')
-
+                    messages.success(request, f'Budget source "{source.name}" assigned with ₱{amount_deducted:,.2f} deducted.')
+ 
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'Invalid budget source.')
             except Exception as e:
                 from django.contrib import messages
                 messages.error(request, f'Error tagging budget: {str(e)}')
-
+ 
     return redirect('travel_app:travel_detail', pk=pk)
 
 
@@ -1673,3 +1673,88 @@ def lookup_traveler_ajax(request):
             'college':  match.college.name if match.college else '',
         })
     return JsonResponse({'found': False})
+
+@csrf_protect
+@never_cache
+def set_document_amount(request, doc_id):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+ 
+    doc    = get_object_or_404(TravelDocument, id=doc_id)
+    travel = doc.travel_record
+ 
+    is_participant = travel.participants.filter(user=user).exists()
+    is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
+    is_admin       = user.role == 'ADMIN'
+ 
+    if not (is_participant or is_secretary or is_admin):
+        from django.contrib import messages
+        messages.error(request, 'You do not have permission to set this amount.')
+        return redirect('travel_app:travel_detail', pk=travel.id)
+ 
+    if doc.doc_type not in ('BURS', 'ITINERARY'):
+        from django.contrib import messages
+        messages.error(request, 'Amount can only be set on BURS or Itinerary documents.')
+        return redirect('travel_app:travel_detail', pk=travel.id)
+ 
+    if request.method == 'POST':
+        from decimal import Decimal, InvalidOperation
+        raw = request.POST.get('amount', '').strip().replace(',', '')
+        try:
+            amount = Decimal(raw)
+            if amount < 0:
+                raise ValueError
+        except (InvalidOperation, ValueError):
+            from django.contrib import messages
+            messages.error(request, 'Invalid amount. Please enter a valid number.')
+            return redirect('travel_app:travel_detail', pk=travel.id)
+ 
+        doc.extracted_amount = amount
+        doc.save(update_fields=['extracted_amount'])
+ 
+        from django.contrib import messages
+        messages.success(request, f'Amount of ₱{amount:,.2f} saved successfully.')
+ 
+    return redirect('travel_app:travel_detail', pk=travel.id)
+
+@csrf_protect
+@never_cache
+def replace_document(request, doc_id):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    doc    = get_object_or_404(TravelDocument, id=doc_id)
+    travel = doc.travel_record
+
+    is_participant = travel.participants.filter(user=user).exists()
+    is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
+    is_admin       = user.role == 'ADMIN'
+
+    if not (is_participant or is_secretary or is_admin):
+        from django.contrib import messages
+        messages.error(request, 'You cannot replace documents on this travel.')
+        return redirect('travel_app:travel_detail', pk=travel.id)
+
+    if doc.doc_type == 'TRAVEL_ORDER':
+        from django.contrib import messages
+        messages.error(request, 'Travel Order cannot be replaced.')
+        return redirect('travel_app:travel_detail', pk=travel.id)
+
+    if request.method == 'POST':
+        file = request.FILES.get('file')
+        if not file:
+            from django.contrib import messages
+            messages.error(request, 'No file provided.')
+            return redirect('travel_app:travel_detail', pk=travel.id)
+
+        doc.file        = file
+        doc.uploaded_by = user
+        doc.uploaded_at = timezone.now()
+        doc.save(update_fields=['file', 'uploaded_by', 'uploaded_at'])
+
+        from django.contrib import messages
+        messages.success(request, f'{doc.get_doc_type_display()} replaced successfully.')
+
+    return redirect('travel_app:travel_detail', pk=travel.id)

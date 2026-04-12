@@ -300,7 +300,8 @@ class TravelRecord(models.Model):
     unregistered_travelers = models.JSONField(
     default=list, blank=True,
     help_text='Names of travelers not registered in the system at time of creation.'
-)
+    )
+    
 
     # ── Notes ─────────────────────────────────────────────────────────
     notes = models.TextField(blank=True, max_length=1000)
@@ -358,6 +359,9 @@ class TravelRecord(models.Model):
     @property
     def participant_count(self):
         return self.participants.count()
+    @property
+    def total_participant_count(self):
+        return self.participants.count() + len(self.unregistered_travelers)
 
     def __str__(self):
         return f"{self.destination} | {self.start_date} | {self.created_by.get_full_name()}"

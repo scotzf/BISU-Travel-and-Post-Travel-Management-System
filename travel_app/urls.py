@@ -37,5 +37,7 @@ urlpatterns = [
     path('documents/<int:doc_id>/reject/',  views.reject_extraction,  name='reject_extraction'),
     path('stats/', views.stats_view, name='stats'),
     path('travels/<int:pk>/change-scope/', views.change_scope, name='change_scope'),
+    path('documents/<int:doc_id>/replace/', views.replace_document, name='replace_document'),
+    path('documents/<int:doc_id>/set-amount/', views.set_document_amount, name='set_document_amount'),
     
 ]
