@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Create Event Group — BISU Travel Hub{% endblock %}
+{% block title %}Link Duplicate Travels — BISU Travel Hub{% endblock %}
 
 {% block extra_css %}
 :root {
@@ -16,16 +16,11 @@
   outline:none; border-color:var(--role-color);
   box-shadow:0 0 0 3px color-mix(in srgb, var(--role-color) 12%, transparent);
 }
-.travel-checkbox-row {
-  display:flex; align-items:flex-start; gap:10px;
-  padding:10px 14px; border:1px solid var(--border);
-  border-radius:var(--radius); background:var(--surface);
-  cursor:pointer; transition:all .15s;
-}
-.travel-checkbox-row:hover { background:var(--role-faint); border-color:var(--role-color); }
-.travel-checkbox-row.selected {
-  background:var(--role-faint);
-  border-color:var(--role-color);
+.travel-card {
+  padding:14px 16px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:var(--surface);
 }
 {% endblock %}
 
@@ -33,8 +28,8 @@
 <div class="page-header">
   <div class="page-header-row">
     <div>
-      <div class="page-title">Create Event Group</div>
-      <div class="page-subtitle">Link travels that belong to the same event</div>
+      <div class="page-title">Link Duplicate Travels</div>
+      <div class="page-subtitle">These two travels appear to be the same trip — link them as one event</div>
     </div>
     <a href="{% url 'travel_app:event_groups' %}" class="btn-secondary-custom">
       <i class="bi bi-arrow-left"></i> Back
@@ -42,153 +37,139 @@
   </div>
 </div>
 
-<div class="row g-3">
+<div class="row g-3 justify-content-center">
   <div class="col-lg-8">
-    <form method="post" id="createGroupForm">
-      {% csrf_token %}
 
-      <!-- Group name -->
-      <div class="card mb-3">
-        <div class="card-header-custom">
-          <div class="card-title"><i class="bi bi-tag"></i> Group Details</div>
+    <!-- The two duplicate travels -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-copy"></i> Duplicate Travels Detected</div>
+        <div style="font-size:12px;color:var(--text-muted)">Same destination · same dates · same participant count</div>
+      </div>
+      <div class="card-body-custom">
+        <div class="row g-3">
+
+          <div class="col-md-5">
+            <div class="travel-card">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                          text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+                Travel 1
+              </div>
+              <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">
+                {{ travel_a.destination }}
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
+                {{ travel_a.start_date|date:"M j, Y" }}{% if travel_a.end_date %} – {{ travel_a.end_date|date:"M j, Y" }}{% endif %}
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary)">
+                <i class="bi bi-person"></i> {{ travel_a.created_by.get_full_name }}
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary)">
+                <i class="bi bi-people"></i> {{ travel_a.participant_count }} participant{{ travel_a.participant_count|pluralize }}
+              </div>
+              {% if travel_a.is_budget_tagged %}
+              <div style="font-size:12px;color:#166534;margin-top:4px">
+                <i class="bi bi-tag"></i> ₱{{ travel_a.amount_deducted|floatformat:2 }}
+              </div>
+              {% endif %}
+              <a href="{% url 'travel_app:travel_detail' travel_a.id %}"
+                 style="display:inline-flex;align-items:center;gap:4px;margin-top:8px;
+                        font-size:11px;color:var(--role-color);text-decoration:none">
+                View travel <i class="bi bi-arrow-right" style="font-size:10px"></i>
+              </a>
+            </div>
+          </div>
+
+          <div class="col-md-2" style="display:flex;align-items:center;justify-content:center">
+            <div style="text-align:center;color:var(--text-muted)">
+              <i class="bi bi-link-45deg" style="font-size:28px"></i>
+              <div style="font-size:11px;margin-top:4px">Link</div>
+            </div>
+          </div>
+
+          <div class="col-md-5">
+            <div class="travel-card">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                          text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+                Travel 2
+              </div>
+              <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">
+                {{ travel_b.destination }}
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
+                {{ travel_b.start_date|date:"M j, Y" }}{% if travel_b.end_date %} – {{ travel_b.end_date|date:"M j, Y" }}{% endif %}
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary)">
+                <i class="bi bi-person"></i> {{ travel_b.created_by.get_full_name }}
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary)">
+                <i class="bi bi-people"></i> {{ travel_b.participant_count }} participant{{ travel_b.participant_count|pluralize }}
+              </div>
+              {% if travel_b.is_budget_tagged %}
+              <div style="font-size:12px;color:#166534;margin-top:4px">
+                <i class="bi bi-tag"></i> ₱{{ travel_b.amount_deducted|floatformat:2 }}
+              </div>
+              {% endif %}
+              <a href="{% url 'travel_app:travel_detail' travel_b.id %}"
+                 style="display:inline-flex;align-items:center;gap:4px;margin-top:8px;
+                        font-size:11px;color:var(--role-color);text-decoration:none">
+                View travel <i class="bi bi-arrow-right" style="font-size:10px"></i>
+              </a>
+            </div>
+          </div>
+
         </div>
-        <div class="card-body-custom">
+      </div>
+    </div>
+
+    <!-- Name the group -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-tag"></i> Name this Event Group</div>
+      </div>
+      <div class="card-body-custom">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="a" value="{{ travel_a.id }}"/>
+          <input type="hidden" name="b" value="{{ travel_b.id }}"/>
+
           <div style="margin-bottom:16px">
             <label class="form-label">Event Group Name *</label>
             <input type="text" name="name" class="form-control"
                    placeholder="e.g. CHED Regional Conference June 2026"
                    value="{{ post.name|default:suggested_name }}" required/>
             <div style="font-size:11.5px;color:var(--text-muted);margin-top:5px">
-              Use a descriptive name that identifies the event.
+              Use a name that identifies the event for both travels.
             </div>
           </div>
-          <div>
+
+          <div style="margin-bottom:20px">
             <label class="form-label">Notes <span style="color:var(--text-muted)">(optional)</span></label>
             <textarea name="notes" class="form-control" style="min-height:70px"
-                      placeholder="Any additional notes about this event...">{{ post.notes|default:'' }}</textarea>
-          </div>
-        </div>
-      </div>
-
-      <!-- Travel selection -->
-      <div class="card mb-3">
-        <div class="card-header-custom">
-          <div>
-            <div class="card-title"><i class="bi bi-folder2-open"></i> Select Travels</div>
-            <div class="card-subtitle">Choose at least 2 travels to link under this event</div>
-          </div>
-          <span id="selectedCountBadge"
-                style="font-size:12px;font-weight:600;color:var(--role-color)">
-            0 selected
-          </span>
-        </div>
-        <div class="card-body-custom">
-
-          <!-- Search -->
-          <input type="text" id="travelSearch" class="form-control"
-                 placeholder="Search by destination..."
-                 style="margin-bottom:14px"
-                 oninput="filterTravels(this.value)"/>
-
-          <div style="display:flex;flex-direction:column;gap:8px" id="travelList">
-            {% for travel in available_travels %}
-            <label class="travel-checkbox-row {% if travel.id|stringformat:'s' in preselected_ids %}selected{% endif %}"
-                   id="row_{{ travel.id }}"
-                   data-dest="{{ travel.destination|lower }}">
-              <input type="checkbox" name="travel_ids" value="{{ travel.id }}"
-                     style="width:16px;height:16px;accent-color:var(--role-color);flex-shrink:0;margin-top:2px"
-                     {% if travel.id|stringformat:'s' in preselected_ids %}checked{% endif %}
-                     onchange="updateSelectedCount()"/>
-              <div style="flex:1">
-                <div style="font-size:13px;font-weight:500;color:var(--text-primary)">
-                  {{ travel.destination }}
-                </div>
-                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">
-                  {{ travel.start_date|date:"M j, Y" }}{% if travel.end_date %} – {{ travel.end_date|date:"M j, Y" }}{% endif %}
-                  &nbsp;·&nbsp; {{ travel.participant_count }} traveler{{ travel.participant_count|pluralize }}
-                  &nbsp;·&nbsp; by {{ travel.created_by.get_full_name }}
-                  {% if travel.event_group %}
-                    &nbsp;·&nbsp;
-                    <span style="color:#c2410c">Already in: {{ travel.event_group.name }}</span>
-                  {% endif %}
-                </div>
-              </div>
-              <div style="text-align:right;flex-shrink:0">
-                {% if travel.is_budget_tagged %}
-                  <span style="font-size:11px;color:#166534;font-weight:600">
-                    ₱{{ travel.amount_deducted|floatformat:0 }}
-                  </span>
-                {% else %}
-                  <span style="font-size:11px;color:var(--text-muted)">Untagged</span>
-                {% endif %}
-              </div>
-            </label>
-            {% empty %}
-            <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">
-              No travels available.
-            </div>
-            {% endfor %}
+                      placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
           </div>
 
-        </div>
-      </div>
-
-      <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
-        <i class="bi bi-diagram-3"></i> Create Event Group
-      </button>
-    </form>
-  </div>
-
-  <!-- Sidebar info -->
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header-custom">
-        <div class="card-title"><i class="bi bi-info-circle"></i> What is an Event Group?</div>
-      </div>
-      <div class="card-body-custom" style="font-size:13px;color:var(--text-secondary)">
-        <p style="margin-bottom:12px">
-          An Event Group links multiple travel records that are for the <strong>same event</strong>
-          but were created separately by different employees.
-        </p>
-        <p style="margin-bottom:12px">
-          For example, if 3 employees from different colleges all traveled to the same
-          conference but created their own travel records, you can group them here so
-          the system knows they're part of the same trip.
-        </p>
-        <p style="color:var(--text-muted);font-size:12px">
-          <i class="bi bi-lightbulb"></i>
-          Grouping prevents double-counting in statistics and shows the true total cost of an event.
-        </p>
+          <div style="display:flex;gap:10px">
+            <button type="submit" class="btn-primary-custom" style="flex:1;justify-content:center">
+              <i class="bi bi-diagram-3"></i> Link as Event Group
+            </button>
+            <a href="{% url 'travel_app:event_groups' %}" class="btn-secondary-custom">
+              Cancel
+            </a>
+          </div>
+        </form>
       </div>
     </div>
+
+    <!-- Not a duplicate? -->
+    <div style="text-align:center;padding:8px 0">
+      <div style="font-size:12.5px;color:var(--text-muted)">
+        <i class="bi bi-info-circle"></i>
+        Not actually a duplicate? Just go back — the alert will disappear once the travels
+        are different enough or one of them is updated.
+      </div>
+    </div>
+
   </div>
-
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-function updateSelectedCount() {
-  const checked = document.querySelectorAll('input[name="travel_ids"]:checked').length;
-  document.getElementById('selectedCountBadge').textContent = checked + ' selected';
-
-  document.querySelectorAll('.travel-checkbox-row').forEach(row => {
-    const cb = row.querySelector('input[type="checkbox"]');
-    if (cb.checked) {
-      row.classList.add('selected');
-    } else {
-      row.classList.remove('selected');
-    }
-  });
-}
-
-function filterTravels(query) {
-  document.querySelectorAll('.travel-checkbox-row').forEach(row => {
-    row.style.display = row.dataset.dest.includes(query.toLowerCase()) ? '' : 'none';
-  });
-}
-
-// Init count on load
-document.addEventListener('DOMContentLoaded', updateSelectedCount);
-</script>
 {% endblock %}

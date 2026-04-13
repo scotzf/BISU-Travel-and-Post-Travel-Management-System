@@ -140,37 +140,6 @@
 
     </div>
 
-    <!-- Add travel to group -->
-    <div class="card">
-      <div class="card-header-custom">
-        <div class="card-title"><i class="bi bi-plus-circle"></i> Add Travel to Group</div>
-      </div>
-      <div class="card-body-custom">
-        <form method="post" action="{% url 'travel_app:add_travel_to_group' group.id %}">
-          {% csrf_token %}
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-            <div style="flex:1;min-width:200px">
-              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
-                             margin-bottom:5px;display:block">Select travel to add</label>
-              <select name="travel_id" class="form-select" required>
-                <option value="">— Search travels —</option>
-                {% for travel in addable %}
-                <option value="{{ travel.id }}">
-                  {{ travel.destination }} — {{ travel.start_date|date:"M j, Y" }}
-                  ({{ travel.participant_count }}p)
-                  {% if travel.event_group %} [In: {{ travel.event_group.name }}]{% endif %}
-                </option>
-                {% endfor %}
-              </select>
-            </div>
-            <button type="submit" class="btn-primary-custom">
-              <i class="bi bi-plus-lg"></i> Add
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
   </div>
 
   <!-- Right: group info + actions -->

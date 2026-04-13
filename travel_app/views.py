@@ -45,23 +45,39 @@ def _travel_stats_for_queryset(qs):
     }
 
 
+ 
 def _detect_duplicates(travels_qs):
     travels = list(travels_qs.filter(event_group__isnull=True).order_by('destination', 'start_date'))
     alerts, seen = [], set()
+ 
     for i, a in enumerate(travels):
         for b in travels[i+1:]:
-            if len(alerts) >= 5:
+            if len(alerts) >= 10:
                 break
+ 
+            # Same destination (case insensitive)
             if a.destination.lower() != b.destination.lower():
                 continue
-            a_end = a.end_date or a.start_date
-            b_end = b.end_date or b.start_date
-            if a.start_date <= b_end and b.start_date <= a_end:
-                key = tuple(sorted([a.id, b.id]))
-                if key not in seen:
-                    seen.add(key)
-                    alerts.append((a, b))
+ 
+            # Same start date (exact)
+            if a.start_date != b.start_date:
+                continue
+ 
+            # Same end date (exact)
+            if a.end_date != b.end_date:
+                continue
+ 
+            # Same number of participants
+            if a.participant_count != b.participant_count:
+                continue
+ 
+            key = tuple(sorted([a.id, b.id]))
+            if key not in seen:
+                seen.add(key)
+                alerts.append((a, b))
+ 
     return alerts
+ 
 
 
 def _notify_if_duplicate(travel, creator):
@@ -967,7 +983,6 @@ def budget_overview(request):
 # ══════════════════════════════════════════════════════════════════════
 # EVENT GROUPS — full feature
 # ══════════════════════════════════════════════════════════════════════
-
 @never_cache
 def event_groups(request):
     user = get_authenticated_user(request)
@@ -975,12 +990,12 @@ def event_groups(request):
         return redirect('accounts:login')
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
-
+ 
     today  = timezone.now().date()
     groups = EventGroup.objects.select_related('created_by').prefetch_related(
         'travel_records__participants'
     ).order_by('-start_date')
-
+ 
     if user.role == 'DEPT_SEC' and user.college:
         groups = groups.filter(
             travel_records__participants__college_snapshot=user.college.name
@@ -989,7 +1004,7 @@ def event_groups(request):
         groups = groups.filter(
             travel_records__participants__campus_snapshot=user.campus.name
         ).distinct()
-
+ 
     if user.role == 'DEPT_SEC':
         ungrouped = TravelRecord.objects.filter(
             scope='COLLEGE', event_group__isnull=True,
@@ -1002,7 +1017,7 @@ def event_groups(request):
         ).distinct()
     else:
         ungrouped = TravelRecord.objects.filter(event_group__isnull=True)
-
+ 
     context = {
         'user':             user,
         'today':            today,
@@ -1011,7 +1026,7 @@ def event_groups(request):
     }
     return render(request, 'travel_app/shared/event_groups.html', context)
 
-
+ 
 @csrf_protect
 @never_cache
 def create_event_group(request):
@@ -1020,69 +1035,47 @@ def create_event_group(request):
         return redirect('accounts:login')
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
-
-    # Travels available to this secretary (ungrouped + already grouped)
-    if user.role == 'DEPT_SEC':
-        available_travels = TravelRecord.objects.filter(
-            participants__college_snapshot=user.college.name if user.college else ''
-        ).distinct().order_by('-start_date')
-    elif user.role == 'CAMPUS_SEC':
-        available_travels = TravelRecord.objects.filter(
-            participants__campus_snapshot=user.campus.name if user.campus else ''
-        ).distinct().order_by('-start_date')
-    else:
-        available_travels = TravelRecord.objects.all().order_by('-start_date')
-
-    # Pre-selected travels from duplicate alert (passed as ?a=ID&b=ID)
-    preselected_ids = []
-    if request.GET.get('a'):
-        preselected_ids.append(request.GET.get('a'))
-    if request.GET.get('b'):
-        preselected_ids.append(request.GET.get('b'))
-
-    # Suggested name from pre-selected travels
-    suggested_name = ''
-    if preselected_ids:
-        try:
-            first = TravelRecord.objects.get(id=preselected_ids[0])
-            suggested_name = f"{first.destination} — {first.start_date.strftime('%B %Y')}"
-        except TravelRecord.DoesNotExist:
-            pass
-
+ 
+    # Must come with ?a=ID&b=ID from duplicate alert
+    a_id = request.GET.get('a') or request.POST.get('a')
+    b_id = request.GET.get('b') or request.POST.get('b')
+ 
+    if not a_id or not b_id:
+        from django.contrib import messages
+        messages.error(request, 'Please use the "Link as Event Group" button from a duplicate alert.')
+        return redirect('travel_app:event_groups')
+ 
+    try:
+        travel_a = TravelRecord.objects.get(id=a_id)
+        travel_b = TravelRecord.objects.get(id=b_id)
+    except TravelRecord.DoesNotExist:
+        from django.contrib import messages
+        messages.error(request, 'One or both travels not found.')
+        return redirect('travel_app:event_groups')
+ 
+    # Suggested name
+    suggested_name = f"{travel_a.destination} — {travel_a.start_date.strftime('%B %Y')}"
+ 
     if request.method == 'POST':
-        name        = request.POST.get('name', '').strip()
-        notes       = request.POST.get('notes', '').strip()
-        travel_ids  = request.POST.getlist('travel_ids')
-
+        name  = request.POST.get('name', '').strip()
+        notes = request.POST.get('notes', '').strip()
+ 
         if not name:
             from django.contrib import messages
             messages.error(request, 'Event group name is required.')
             return render(request, 'travel_app/shared/create_event_group.html', {
-                'user': user, 'available_travels': available_travels,
-                'preselected_ids': preselected_ids, 'suggested_name': suggested_name,
-                'post': request.POST,
+                'user': user, 'travel_a': travel_a, 'travel_b': travel_b,
+                'suggested_name': suggested_name, 'post': request.POST,
             })
-
-        if len(travel_ids) < 2:
-            from django.contrib import messages
-            messages.error(request, 'Please select at least 2 travels to link.')
-            return render(request, 'travel_app/shared/create_event_group.html', {
-                'user': user, 'available_travels': available_travels,
-                'preselected_ids': preselected_ids, 'suggested_name': suggested_name,
-                'post': request.POST,
-            })
-
+ 
         with transaction.atomic():
-            # Infer dates and destination from selected travels
-            travels = TravelRecord.objects.filter(id__in=travel_ids)
-            destinations = list(set(t.destination for t in travels))
-            start_dates  = [t.start_date for t in travels]
-            end_dates    = [t.end_date for t in travels if t.end_date]
-
+            travels  = [travel_a, travel_b]
+            end_dates = [t.end_date for t in travels if t.end_date]
+ 
             group = EventGroup.objects.create(
                 name        = name,
-                destination = destinations[0] if destinations else '',
-                start_date  = min(start_dates) if start_dates else timezone.now().date(),
+                destination = travel_a.destination,
+                start_date  = travel_a.start_date,
                 end_date    = max(end_dates) if end_dates else None,
                 notes       = notes,
                 created_by  = user,
@@ -1093,20 +1086,22 @@ def create_event_group(request):
                     if p.college_snapshot
                 )) > 1 else 'COLLEGE',
             )
-
-            # Link travels to group
-            travels.update(event_group=group)
-
+ 
+            travel_a.event_group = group
+            travel_b.event_group = group
+            travel_a.save(update_fields=['event_group'])
+            travel_b.save(update_fields=['event_group'])
+ 
         from django.contrib import messages
-        messages.success(request, f'Event group "{name}" created with {len(travel_ids)} travels.')
-        return redirect('travel_app:event_group_detail', pk=group.id)
-
+        messages.success(request, f'Event group "{name}" created. Both travels are now linked.')
+        return redirect('travel_app:event_groups')
+    
     return render(request, 'travel_app/shared/create_event_group.html', {
-        'user':              user,
-        'available_travels': available_travels,
-        'preselected_ids':   preselected_ids,
-        'suggested_name':    suggested_name,
-        'post':              {},
+        'user':           user,
+        'travel_a':       travel_a,
+        'travel_b':       travel_b,
+        'suggested_name': suggested_name,
+        'post':           {},
     })
 
 
@@ -1117,7 +1112,7 @@ def event_group_detail(request, pk):
         return redirect('accounts:login')
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
-
+ 
     group = get_object_or_404(
         EventGroup.objects.prefetch_related(
             'travel_records__participants__user',
@@ -1125,29 +1120,16 @@ def event_group_detail(request, pk):
         ),
         pk=pk
     )
-
-    # Travels available to add (not yet in this group, scoped to user)
-    if user.role == 'DEPT_SEC':
-        addable = TravelRecord.objects.filter(
-            participants__college_snapshot=user.college.name if user.college else ''
-        ).exclude(event_group=group).distinct().order_by('-start_date')
-    elif user.role == 'CAMPUS_SEC':
-        addable = TravelRecord.objects.filter(
-            participants__campus_snapshot=user.campus.name if user.campus else ''
-        ).exclude(event_group=group).distinct().order_by('-start_date')
-    else:
-        addable = TravelRecord.objects.exclude(event_group=group).order_by('-start_date')
-
+ 
     context = {
         'user':    user,
         'group':   group,
         'travels': group.travel_records.all(),
-        'addable': addable,
         'today':   timezone.now().date(),
     }
     return render(request, 'travel_app/shared/event_group_detail.html', context)
-
-
+ 
+ 
 @csrf_protect
 @never_cache
 def edit_event_group(request, pk):
@@ -1156,28 +1138,27 @@ def edit_event_group(request, pk):
         return redirect('accounts:login')
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
-
+ 
     group = get_object_or_404(EventGroup, pk=pk)
-
+ 
     if request.method == 'POST':
         name  = request.POST.get('name', '').strip()
         notes = request.POST.get('notes', '').strip()
-
+ 
         if not name:
             from django.contrib import messages
             messages.error(request, 'Name is required.')
             return redirect('travel_app:event_group_detail', pk=pk)
-
+ 
         group.name  = name
         group.notes = notes
         group.save(update_fields=['name', 'notes'])
-
+ 
         from django.contrib import messages
         messages.success(request, f'Event group renamed to "{name}".')
-
+ 
     return redirect('travel_app:event_group_detail', pk=pk)
-
-
+ 
 @csrf_protect
 @never_cache
 def delete_event_group(request, pk):
@@ -1186,20 +1167,19 @@ def delete_event_group(request, pk):
         return redirect('accounts:login')
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
-
+ 
     group = get_object_or_404(EventGroup, pk=pk)
-
+ 
     if request.method == 'POST':
         name = group.name
-        # Unlink all travels before deleting
         group.travel_records.all().update(event_group=None)
         group.delete()
-
+ 
         from django.contrib import messages
         messages.success(request, f'Event group "{name}" deleted. Travels have been unlinked.')
-
+ 
     return redirect('travel_app:event_groups')
-
+ 
 
 @csrf_protect
 @never_cache
@@ -1209,49 +1189,31 @@ def unlink_travel_from_group(request, pk, travel_pk):
         return redirect('accounts:login')
     if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         return redirect('accounts:dashboard')
-
+ 
     group  = get_object_or_404(EventGroup, pk=pk)
     travel = get_object_or_404(TravelRecord, pk=travel_pk, event_group=group)
-
+ 
     if request.method == 'POST':
         travel.event_group = None
         travel.save(update_fields=['event_group'])
-
+ 
         from django.contrib import messages
         messages.success(request, f'"{travel.destination}" unlinked from {group.name}.')
-
+ 
     return redirect('travel_app:event_group_detail', pk=pk)
-
-
+ 
+ 
+# ══════════════════════════════════════════════════════════════════════
+# ADD TRAVEL TO GROUP (removed — duplicates only, no manual adding)
+# Keep this stub so the URL doesn't 404 if old links exist
+# ══════════════════════════════════════════════════════════════════════
+ 
 @csrf_protect
 @never_cache
 def add_travel_to_group(request, pk):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
-        return redirect('accounts:dashboard')
-
-    group = get_object_or_404(EventGroup, pk=pk)
-
-    if request.method == 'POST':
-        travel_id = request.POST.get('travel_id')
-        try:
-            travel = TravelRecord.objects.get(id=travel_id)
-            if travel.event_group:
-                from django.contrib import messages
-                messages.error(request, f'This travel is already in group "{travel.event_group.name}".')
-            else:
-                travel.event_group = group
-                travel.save(update_fields=['event_group'])
-                from django.contrib import messages
-                messages.success(request, f'"{travel.destination}" added to {group.name}.')
-        except TravelRecord.DoesNotExist:
-            from django.contrib import messages
-            messages.error(request, 'Travel not found.')
-
+    from django.contrib import messages
+    messages.error(request, 'Travels can only be linked via duplicate detection.')
     return redirect('travel_app:event_group_detail', pk=pk)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # SECRETARY QUEUE
