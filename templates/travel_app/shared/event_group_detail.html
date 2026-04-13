@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'ADMIN' %}#92400e{% elif user.role == 'CAMPUS_SEC' %}#6b21a8{% else %}#0f766e{% endif %};
+  --role-faint: {% if user.role == 'ADMIN' %}#fef3c7{% elif user.role == 'CAMPUS_SEC' %}#f3e8ff{% else %}#f0fdfa{% endif %};
+}
+.form-control, .form-select {
+  font-size:13px; border:1px solid var(--border); border-radius:var(--radius);
+  padding:8px 12px; color:var(--text-primary); background:var(--surface); width:100%;
+}
+.form-control:focus, .form-select:focus {
+  outline:none; border-color:var(--role-color);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--role-color) 12%, transparent);
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">{{ group.name }}</div>
+      <div class="page-subtitle">
+        <i class="bi bi-geo-alt" style="font-size:11px"></i> {{ group.destination }}
+        &nbsp;·&nbsp;
+        {{ group.start_date|date:"M j" }}{% if group.end_date %} – {{ group.end_date|date:"M j, Y" }}{% endif %}
+        &nbsp;·&nbsp; Created by {{ group.created_by.get_full_name }}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="badge-status badge-{% if group.scope == 'CAMPUS' %}campus{% else %}college{% endif %}">
+        {{ group.scope|title }} scope
+      </span>
+      <a href="{% url 'travel_app:event_groups' %}" class="btn-secondary-custom">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <!-- Left: linked travels -->
+  <div class="col-lg-8">
+
+    <!-- Summary stats -->
+    <div class="row g-3 mb-3">
+      <div class="col-4">
+        <div class="stat-card">
+          <div class="stat-label">Travels</div>
+          <div class="stat-value">{{ travels.count }}</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="stat-card">
+          <div class="stat-label">Travelers</div>
+          <div class="stat-value">{{ group.total_participants }}</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="stat-card">
+          <div class="stat-label">Total Cost</div>
+          <div class="stat-value" style="font-size:18px">₱{{ group.total_amount_deducted|floatformat:0 }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Linked travels -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-folder2-open"></i> Linked Travels</div>
+        <div style="font-size:12px;color:var(--text-muted)">{{ travels.count }} travel{{ travels.count|pluralize }}</div>
+      </div>
+
+      {% for travel in travels %}
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div style="flex:1">
+            <a href="{% url 'travel_app:travel_detail' travel.id %}"
+               style="font-size:13.5px;font-weight:500;color:var(--text-primary);text-decoration:none">
+              {{ travel.destination }}
+            </a>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">
+              {{ travel.start_date|date:"M j, Y" }}{% if travel.end_date %} – {{ travel.end_date|date:"M j, Y" }}{% endif %}
+              &nbsp;·&nbsp; {{ travel.participant_count }} traveler{{ travel.participant_count|pluralize }}
+              &nbsp;·&nbsp; by {{ travel.created_by.get_full_name }}
+            </div>
+
+            <!-- Participants preview -->
+            <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">
+              {% for p in travel.participants.all|slice:":5" %}
+              <span style="font-size:11px;padding:2px 8px;border-radius:20px;
+                           background:var(--surface-2);color:var(--text-secondary);
+                           border:1px solid var(--border)">
+                {{ p.user.get_full_name }}
+              </span>
+              {% endfor %}
+              {% if travel.participant_count > 5 %}
+              <span style="font-size:11px;padding:2px 8px;border-radius:20px;
+                           background:var(--surface-2);color:var(--text-muted)">
+                +{{ travel.participant_count|add:"-5" }} more
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div style="text-align:right;flex-shrink:0">
+            {% if travel.is_budget_tagged %}
+              <div style="font-size:13px;font-weight:600;color:var(--role-color)">
+                ₱{{ travel.amount_deducted|floatformat:2 }}
+              </div>
+              <div style="font-size:11px;color:var(--text-muted)">{{ travel.budget_source.name }}</div>
+            {% else %}
+              <span class="badge-status badge-untagged" style="font-size:10px">Untagged</span>
+            {% endif %}
+
+            <!-- Unlink button -->
+            <form method="post"
+                  action="{% url 'travel_app:unlink_travel_from_group' group.id travel.id %}"
+                  style="margin-top:8px"
+                  onsubmit="return confirm('Unlink this travel from the group?');">
+              {% csrf_token %}
+              <button type="submit"
+                      style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+                             border-radius:6px;border:1px solid #fecaca;background:#fff5f5;
+                             color:#c0392b;font-size:11px;cursor:pointer;">
+                <i class="bi bi-x-lg"></i> Unlink
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="empty-state" style="padding:32px">
+        <i class="bi bi-folder2"></i>
+        <p>No travels linked yet.</p>
+      </div>
+      {% endfor %}
+
+    </div>
+
+    <!-- Add travel to group -->
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-plus-circle"></i> Add Travel to Group</div>
+      </div>
+      <div class="card-body-custom">
+        <form method="post" action="{% url 'travel_app:add_travel_to_group' group.id %}">
+          {% csrf_token %}
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                             margin-bottom:5px;display:block">Select travel to add</label>
+              <select name="travel_id" class="form-select" required>
+                <option value="">— Search travels —</option>
+                {% for travel in addable %}
+                <option value="{{ travel.id }}">
+                  {{ travel.destination }} — {{ travel.start_date|date:"M j, Y" }}
+                  ({{ travel.participant_count }}p)
+                  {% if travel.event_group %} [In: {{ travel.event_group.name }}]{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn-primary-custom">
+              <i class="bi bi-plus-lg"></i> Add
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right: group info + actions -->
+  <div class="col-lg-4">
+
+    <!-- Group info -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title">Group Info</div>
+      </div>
+      <div class="card-body-custom" style="padding:16px 20px">
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Created by</span>
+            <span style="font-weight:500">{{ group.created_by.get_full_name }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Created on</span>
+            <span>{{ group.created_at|date:"M j, Y" }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Scope</span>
+            <span class="badge-status badge-{% if group.scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
+                  style="font-size:10px">
+              {{ group.scope|title }}
+            </span>
+          </div>
+          {% if group.notes %}
+          <div style="padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Notes</div>
+            <div style="color:var(--text-secondary)">{{ group.notes }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Rename group -->
+    <div class="card mb-3">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-pencil"></i> Rename Group</div>
+      </div>
+      <div class="card-body-custom">
+        <form method="post" action="{% url 'travel_app:edit_event_group' group.id %}">
+          {% csrf_token %}
+          <input type="text" name="name" class="form-control"
+                 value="{{ group.name }}" required
+                 style="margin-bottom:8px"/>
+          <textarea name="notes" class="form-control"
+                    placeholder="Notes (optional)"
+                    style="min-height:60px;margin-bottom:8px">{{ group.notes }}</textarea>
+          <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
+            <i class="bi bi-check2"></i> Save Changes
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="card" style="border-color:#fecaca">
+      <div class="card-header-custom" style="background:#fff5f5">
+        <div class="card-title" style="color:#c0392b">
+          <i class="bi bi-exclamation-triangle"></i> Danger Zone
+        </div>
+      </div>
+      <div class="card-body-custom">
+        <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:12px">
+          Deleting this group will unlink all travels from it. The travels themselves will not be deleted.
+        </div>
+        <form method="post" action="{% url 'travel_app:delete_event_group' group.id %}"
+              onsubmit="return confirm('Delete this event group? All travels will be unlinked.');">
+          {% csrf_token %}
+          <button type="submit"
+                  style="display:flex;align-items:center;gap:6px;padding:8px 16px;
+                         border-radius:8px;border:1px solid #fecaca;background:#fff5f5;
+                         color:#c0392b;font-size:13px;font-weight:600;cursor:pointer;width:100%;
+                         justify-content:center">
+            <i class="bi bi-trash3"></i> Delete Event Group
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
