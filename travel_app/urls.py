@@ -40,5 +40,13 @@ urlpatterns = [
     path('documents/<int:doc_id>/replace/', views.replace_document, name='replace_document'),
     path('documents/<int:doc_id>/set-amount/', views.set_document_amount, name='set_document_amount'),
     path('liquidation/', views.liquidation_calculator, name='liquidation_calculator'),
-    
+
+    # --- Event Grups ----------------------------------------------
+    path('events/create/', views.create_event_group, name='create_event_group'),
+    path('events/<int:pk>/', views.event_group_detail, name='event_group_detail'),
+    path('events/<int:pk>/edit/', views.edit_event_group, name='edit_event_group'),
+    path('events/<int:pk>/delete/', views.delete_event_group, name='delete_event_group'),
+    path('events/<int:pk>/unlink/<int:travel_pk>/', views.unlink_travel_from_group, name='unlink_travel_from_group'),
+    path('events/<int:pk>/add-travel/', views.add_travel_to_group, name='add_travel_to_group'),
+        
 ]

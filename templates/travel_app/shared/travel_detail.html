@@ -380,6 +380,19 @@
             <div style="font-size:13px;color:var(--text-secondary)">{{ travel.purpose }}</div>
           </div>
 
+          {% if travel.event_group %}
+          <div style="padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Event Group</div>
+            <a href="{% url 'travel_app:event_group_detail' travel.event_group.id %}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
+                      border-radius:20px;background:var(--role-faint);color:var(--role-color);
+                      font-size:12px;font-weight:500;text-decoration:none">
+              <i class="bi bi-diagram-3" style="font-size:11px"></i>
+              {{ travel.event_group.name }}
+            </a>
+          </div>
+          {% endif %}
+
         </div>
       </div>
     </div>

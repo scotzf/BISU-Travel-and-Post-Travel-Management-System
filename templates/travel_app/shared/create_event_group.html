@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Create Event Group — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'ADMIN' %}#92400e{% elif user.role == 'CAMPUS_SEC' %}#6b21a8{% else %}#0f766e{% endif %};
+  --role-faint: {% if user.role == 'ADMIN' %}#fef3c7{% elif user.role == 'CAMPUS_SEC' %}#f3e8ff{% else %}#f0fdfa{% endif %};
+}
+.form-label { font-size:12px; font-weight:500; color:var(--text-secondary); margin-bottom:5px; display:block; }
+.form-control {
+  font-size:13.5px; border:1px solid var(--border); border-radius:var(--radius);
+  padding:9px 12px; color:var(--text-primary); background:var(--surface);
+  width:100%; transition:border-color .15s;
+}
+.form-control:focus {
+  outline:none; border-color:var(--role-color);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--role-color) 12%, transparent);
+}
+.travel-checkbox-row {
+  display:flex; align-items:flex-start; gap:10px;
+  padding:10px 14px; border:1px solid var(--border);
+  border-radius:var(--radius); background:var(--surface);
+  cursor:pointer; transition:all .15s;
+}
+.travel-checkbox-row:hover { background:var(--role-faint); border-color:var(--role-color); }
+.travel-checkbox-row.selected {
+  background:var(--role-faint);
+  border-color:var(--role-color);
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Create Event Group</div>
+      <div class="page-subtitle">Link travels that belong to the same event</div>
+    </div>
+    <a href="{% url 'travel_app:event_groups' %}" class="btn-secondary-custom">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form method="post" id="createGroupForm">
+      {% csrf_token %}
+
+      <!-- Group name -->
+      <div class="card mb-3">
+        <div class="card-header-custom">
+          <div class="card-title"><i class="bi bi-tag"></i> Group Details</div>
+        </div>
+        <div class="card-body-custom">
+          <div style="margin-bottom:16px">
+            <label class="form-label">Event Group Name *</label>
+            <input type="text" name="name" class="form-control"
+                   placeholder="e.g. CHED Regional Conference June 2026"
+                   value="{{ post.name|default:suggested_name }}" required/>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:5px">
+              Use a descriptive name that identifies the event.
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Notes <span style="color:var(--text-muted)">(optional)</span></label>
+            <textarea name="notes" class="form-control" style="min-height:70px"
+                      placeholder="Any additional notes about this event...">{{ post.notes|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Travel selection -->
+      <div class="card mb-3">
+        <div class="card-header-custom">
+          <div>
+            <div class="card-title"><i class="bi bi-folder2-open"></i> Select Travels</div>
+            <div class="card-subtitle">Choose at least 2 travels to link under this event</div>
+          </div>
+          <span id="selectedCountBadge"
+                style="font-size:12px;font-weight:600;color:var(--role-color)">
+            0 selected
+          </span>
+        </div>
+        <div class="card-body-custom">
+
+          <!-- Search -->
+          <input type="text" id="travelSearch" class="form-control"
+                 placeholder="Search by destination..."
+                 style="margin-bottom:14px"
+                 oninput="filterTravels(this.value)"/>
+
+          <div style="display:flex;flex-direction:column;gap:8px" id="travelList">
+            {% for travel in available_travels %}
+            <label class="travel-checkbox-row {% if travel.id|stringformat:'s' in preselected_ids %}selected{% endif %}"
+                   id="row_{{ travel.id }}"
+                   data-dest="{{ travel.destination|lower }}">
+              <input type="checkbox" name="travel_ids" value="{{ travel.id }}"
+                     style="width:16px;height:16px;accent-color:var(--role-color);flex-shrink:0;margin-top:2px"
+                     {% if travel.id|stringformat:'s' in preselected_ids %}checked{% endif %}
+                     onchange="updateSelectedCount()"/>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:500;color:var(--text-primary)">
+                  {{ travel.destination }}
+                </div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">
+                  {{ travel.start_date|date:"M j, Y" }}{% if travel.end_date %} – {{ travel.end_date|date:"M j, Y" }}{% endif %}
+                  &nbsp;·&nbsp; {{ travel.participant_count }} traveler{{ travel.participant_count|pluralize }}
+                  &nbsp;·&nbsp; by {{ travel.created_by.get_full_name }}
+                  {% if travel.event_group %}
+                    &nbsp;·&nbsp;
+                    <span style="color:#c2410c">Already in: {{ travel.event_group.name }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                {% if travel.is_budget_tagged %}
+                  <span style="font-size:11px;color:#166534;font-weight:600">
+                    ₱{{ travel.amount_deducted|floatformat:0 }}
+                  </span>
+                {% else %}
+                  <span style="font-size:11px;color:var(--text-muted)">Untagged</span>
+                {% endif %}
+              </div>
+            </label>
+            {% empty %}
+            <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">
+              No travels available.
+            </div>
+            {% endfor %}
+          </div>
+
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
+        <i class="bi bi-diagram-3"></i> Create Event Group
+      </button>
+    </form>
+  </div>
+
+  <!-- Sidebar info -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-info-circle"></i> What is an Event Group?</div>
+      </div>
+      <div class="card-body-custom" style="font-size:13px;color:var(--text-secondary)">
+        <p style="margin-bottom:12px">
+          An Event Group links multiple travel records that are for the <strong>same event</strong>
+          but were created separately by different employees.
+        </p>
+        <p style="margin-bottom:12px">
+          For example, if 3 employees from different colleges all traveled to the same
+          conference but created their own travel records, you can group them here so
+          the system knows they're part of the same trip.
+        </p>
+        <p style="color:var(--text-muted);font-size:12px">
+          <i class="bi bi-lightbulb"></i>
+          Grouping prevents double-counting in statistics and shows the true total cost of an event.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateSelectedCount() {
+  const checked = document.querySelectorAll('input[name="travel_ids"]:checked').length;
+  document.getElementById('selectedCountBadge').textContent = checked + ' selected';
+
+  document.querySelectorAll('.travel-checkbox-row').forEach(row => {
+    const cb = row.querySelector('input[type="checkbox"]');
+    if (cb.checked) {
+      row.classList.add('selected');
+    } else {
+      row.classList.remove('selected');
+    }
+  });
+}
+
+function filterTravels(query) {
+  document.querySelectorAll('.travel-checkbox-row').forEach(row => {
+    row.style.display = row.dataset.dest.includes(query.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// Init count on load
+document.addEventListener('DOMContentLoaded', updateSelectedCount);
+</script>
+{% endblock %}
