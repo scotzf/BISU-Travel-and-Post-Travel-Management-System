@@ -67,10 +67,6 @@ def _detect_duplicates(travels_qs):
             if a.end_date != b.end_date:
                 continue
  
-            # Same number of participants
-            if a.participant_count != b.participant_count:
-                continue
- 
             key = tuple(sorted([a.id, b.id]))
             if key not in seen:
                 seen.add(key)
@@ -1424,7 +1420,6 @@ from django.db.models import Count, Sum, Avg, Q
 from django.db.models.functions import TruncMonth, TruncYear
 from datetime import date, timedelta
 import json as json_module
-
 def stats_view(request):
     user = get_authenticated_user(request)
     if not user:
@@ -1436,8 +1431,7 @@ def stats_view(request):
     this_year  = today.year
     this_month = today.month
 
-    # ── Scope filter ─────────────────────────────────────────────────
-    # Base queryset scoped per role
+    # ── Scope filter ──────────────────────────────────────────────────
     if user.role == 'ADMIN':
         travels = TravelRecord.objects.all()
     elif user.role == 'CAMPUS_SEC':
@@ -1449,17 +1443,10 @@ def stats_view(request):
             participants__college_snapshot=user.college.name
         ).distinct()
 
-    # ── Year filter from GET param (default current year) ────────────
+    # ── Year filter ───────────────────────────────────────────────────
     selected_year = int(request.GET.get('year', this_year))
     travels_year  = travels.filter(start_date__year=selected_year)
 
-    # Available years for dropdown
-    all_years = (
-        travels
-        .dates('start_date', 'year')
-        .values_list('start_date__year', flat=True)
-    )
-    # Use a simpler approach for year list
     year_list = sorted(set(
         TravelRecord.objects.filter(
             id__in=travels.values_list('id', flat=True)
@@ -1468,13 +1455,36 @@ def stats_view(request):
     if not year_list:
         year_list = [this_year]
 
+    # ── Event group deduplication ─────────────────────────────────────
+    # For counting purposes, travels in the same event group count as ONE.
+    # We keep one representative per group (the earliest created_at),
+    # plus all ungrouped travels.
+    #
+    # deduplicated_travels_year = the queryset used for counts/charts
+    # so stats don't double-count grouped travels.
+
+    grouped_travel_ids = set()   # IDs to exclude (non-representative duplicates)
+    seen_groups        = set()
+
+    for travel in travels_year.select_related('event_group').order_by('created_at'):
+        if travel.event_group_id:
+            if travel.event_group_id in seen_groups:
+                # Already have a representative for this group — exclude this one
+                grouped_travel_ids.add(travel.id)
+            else:
+                seen_groups.add(travel.event_group_id)
+                # This is the representative — keep it
+
+    # Deduplicated queryset: ungrouped + one representative per group
+    deduped = travels_year.exclude(id__in=grouped_travel_ids)
+
     # ══════════════════════════════════════════════════════════════════
     # SECTION 1 — TRAVEL VOLUME
     # ══════════════════════════════════════════════════════════════════
 
-    # Travels per month for selected year (Jan–Dec)
+    # Travels per month (deduplicated)
     monthly_raw = (
-        travels_year
+        deduped
         .annotate(month=TruncMonth('start_date'))
         .values('month')
         .annotate(count=Count('id'))
@@ -1487,15 +1497,15 @@ def stats_view(request):
                       'Jul','Aug','Sep','Oct','Nov','Dec']
     monthly_data   = [monthly_counts[i] for i in range(1, 13)]
 
-    # Travels by scope
+    # Travels by scope (deduplicated)
     scope_data = {
-        'COLLEGE': travels_year.filter(scope='COLLEGE').count(),
-        'CAMPUS':  travels_year.filter(scope='CAMPUS').count(),
+        'COLLEGE': deduped.filter(scope='COLLEGE').count(),
+        'CAMPUS':  deduped.filter(scope='CAMPUS').count(),
     }
 
-    # Travels per college (top 8)
+    # Travels per college (deduplicated)
     college_volume = (
-        travels_year
+        deduped
         .values('participants__college_snapshot')
         .annotate(count=Count('id', distinct=True))
         .exclude(participants__college_snapshot='')
@@ -1504,9 +1514,20 @@ def stats_view(request):
     college_vol_labels = [r['participants__college_snapshot'] or 'Unknown' for r in college_volume]
     college_vol_data   = [r['count'] for r in college_volume]
 
-    # Yearly totals (all years)
+    # Yearly totals (deduplicated, all years)
+    # Build deduped set for all years too
+    all_grouped_ids = set()
+    all_seen_groups = set()
+    for travel in travels.select_related('event_group').order_by('created_at'):
+        if travel.event_group_id:
+            if travel.event_group_id in all_seen_groups:
+                all_grouped_ids.add(travel.id)
+            else:
+                all_seen_groups.add(travel.event_group_id)
+
+    all_deduped = travels.exclude(id__in=all_grouped_ids)
     yearly_raw = (
-        travels
+        all_deduped
         .annotate(yr=TruncYear('start_date'))
         .values('yr')
         .annotate(count=Count('id'))
@@ -1520,16 +1541,17 @@ def stats_view(request):
     # ══════════════════════════════════════════════════════════════════
 
     if user.role == 'ADMIN':
-        budget_usages   = BudgetUsage.objects.filter(year=selected_year).select_related('budget_source', 'college')
-        campus_usages   = CampusBudgetUsage.objects.filter(year=selected_year).select_related('budget_source', 'campus')
+        budget_usages = BudgetUsage.objects.filter(year=selected_year).select_related('budget_source', 'college')
+        campus_usages = CampusBudgetUsage.objects.filter(year=selected_year).select_related('budget_source', 'campus')
     elif user.role == 'CAMPUS_SEC':
-        budget_usages   = BudgetUsage.objects.none()
-        campus_usages   = CampusBudgetUsage.objects.filter(year=selected_year, campus=user.campus).select_related('budget_source')
+        budget_usages = BudgetUsage.objects.none()
+        campus_usages = CampusBudgetUsage.objects.filter(year=selected_year, campus=user.campus).select_related('budget_source')
     else:  # DEPT_SEC
-        budget_usages   = BudgetUsage.objects.filter(year=selected_year, college=user.college).select_related('budget_source')
-        campus_usages   = CampusBudgetUsage.objects.none()
+        budget_usages = BudgetUsage.objects.filter(year=selected_year, college=user.college).select_related('budget_source')
+        campus_usages = CampusBudgetUsage.objects.none()
 
-    # Monthly spend (amount_deducted per month for selected year)
+    # Monthly spend — use ALL travels (not deduped) since each travel
+    # has its own real budget deduction even if grouped
     monthly_spend_raw = (
         travels_year
         .filter(budget_source__isnull=False)
@@ -1543,7 +1565,6 @@ def stats_view(request):
         monthly_spend[row['month'].month] = float(row['total'] or 0)
     monthly_spend_data = [monthly_spend[i] for i in range(1, 13)]
 
-    # Total budget stats
     total_allocated = sum(u.allocated_amount for u in budget_usages) + \
                       sum(u.allocated_amount for u in campus_usages)
     total_used      = sum(u.used_amount for u in budget_usages) + \
@@ -1556,7 +1577,7 @@ def stats_view(request):
 
     from .models import TravelParticipant
 
-    # Top 8 most frequent travelers
+    # Top 8 most frequent travelers — use ALL travels (real participants)
     top_travelers = (
         TravelParticipant.objects
         .filter(travel_record__in=travels_year)
@@ -1565,17 +1586,18 @@ def stats_view(request):
         .order_by('-count')[:8]
     )
 
-    # Average participants per travel
-    avg_participants = travels_year.annotate(
+    # Average participants per event (deduplicated)
+    # For grouped events, sum participants across all travels in the group
+    avg_participants = deduped.annotate(
         pcount=Count('participants')
     ).aggregate(avg=Avg('pcount'))['avg'] or 0
 
-    # Total participant-days
+    # Total participant-days (all travels — each person's days count)
     total_participant_days = 0
     for t in travels_year.annotate(pcount=Count('participants')):
         total_participant_days += t.pcount * t.get_duration_days()
 
-    # Travels per college (participant perspective)
+    # Travels per college (participant perspective — all travels)
     college_participation = (
         TravelParticipant.objects
         .filter(travel_record__in=travels_year)
@@ -1595,12 +1617,12 @@ def stats_view(request):
     no_docs = travels_year.annotate(doc_count=Count('documents')).filter(doc_count=0)
     if no_docs.exists():
         anomalies.append({
-            'type':     'warning',
-            'icon':     'bi-folder-x',
-            'title':    f'{no_docs.count()} travel(s) with no documents uploaded',
-            'detail':   ', '.join([str(t.destination) for t in no_docs[:3]]) +
-                        ('...' if no_docs.count() > 3 else ''),
-            'travels':  list(no_docs.values('id', 'destination', 'start_date')[:5]),
+            'type':    'warning',
+            'icon':    'bi-folder-x',
+            'title':   f'{no_docs.count()} travel(s) with no documents uploaded',
+            'detail':  ', '.join([str(t.destination) for t in no_docs[:3]]) +
+                       ('...' if no_docs.count() > 3 else ''),
+            'travels': list(no_docs.values('id', 'destination', 'start_date')[:5]),
         })
 
     # 2. Budget sources at ≥80% usage
@@ -1609,10 +1631,10 @@ def stats_view(request):
     for u in critical_budgets:
         label = u.college.name if hasattr(u, 'college') else u.campus.name
         anomalies.append({
-            'type':   'critical' if u.usage_percentage >= 100 else 'warning',
-            'icon':   'bi-exclamation-triangle-fill',
-            'title':  f'{u.budget_source.name} — {label} at {u.usage_percentage}%',
-            'detail': f'₱{u.used_amount:,.0f} used of ₱{u.allocated_amount:,.0f}',
+            'type':    'critical' if u.usage_percentage >= 100 else 'warning',
+            'icon':    'bi-exclamation-triangle-fill',
+            'title':   f'{u.budget_source.name} — {label} at {u.usage_percentage}%',
+            'detail':  f'₱{u.used_amount:,.0f} used of ₱{u.allocated_amount:,.0f}',
             'travels': [],
         })
 
@@ -1628,36 +1650,25 @@ def stats_view(request):
             'travels': list(untagged.values('id', 'destination', 'start_date')[:5]),
         })
 
-    # 4. Possible duplicate travels (same destination, dates within 3 days)
-    duplicates = []
-    travel_list = list(travels_year.values('id', 'destination', 'start_date'))
-    seen = []
-    for t in travel_list:
-        for s in seen:
-            if (t['destination'].lower() == s['destination'].lower() and
-                    abs((t['start_date'] - s['start_date']).days) <= 3 and
-                    t['id'] != s['id']):
-                pair = tuple(sorted([t['id'], s['id']]))
-                if pair not in duplicates:
-                    duplicates.append(pair)
-        seen.append(t)
-
-    if duplicates:
+    # 4. Unlinked duplicates (same destination + dates, not yet grouped)
+    ungrouped_this_year = travels_year.filter(event_group__isnull=True)
+    duplicate_pairs     = _detect_duplicates(ungrouped_this_year)
+    if duplicate_pairs:
         anomalies.append({
             'type':    'info',
             'icon':    'bi-copy',
-            'title':   f'{len(duplicates)} possible duplicate travel(s) detected',
-            'detail':  'Same destination within 3 days of each other',
+            'title':   f'{len(duplicate_pairs)} possible duplicate travel(s) detected',
+            'detail':  'Same destination and dates — consider linking as event group',
             'travels': [],
         })
 
     # ── Summary cards ─────────────────────────────────────────────────
-    total_travels    = travels_year.count()
-    total_this_month = travels_year.filter(start_date__month=this_month).count()
-    out_of_province  = travels_year.filter(is_out_of_province=True).count()
+    total_travels    = deduped.count()  # deduplicated event count
+    total_this_month = deduped.filter(start_date__month=this_month).count()
+    out_of_province  = deduped.filter(is_out_of_province=True).count()
 
     context = {
-        'user': user,
+        'user':          user,
         'is_admin':      user.role == 'ADMIN',
         'is_secretary':  user.role in ['CAMPUS_SEC', 'DEPT_SEC'],
 
@@ -1667,39 +1678,38 @@ def stats_view(request):
         'this_year':     this_year,
 
         # Summary
-        'total_travels':       total_travels,
-        'total_this_month':    total_this_month,
-        'out_of_province':     out_of_province,
-        'avg_participants':    round(avg_participants, 1),
+        'total_travels':          total_travels,
+        'total_this_month':       total_this_month,
+        'out_of_province':        out_of_province,
+        'avg_participants':       round(avg_participants, 1),
         'total_participant_days': total_participant_days,
-        'total_allocated':     total_allocated,
-        'total_used':          total_used,
-        'total_remaining':     total_remaining,
+        'total_allocated':        total_allocated,
+        'total_used':             total_used,
+        'total_remaining':        total_remaining,
 
-        # Charts — serialized as JSON for Chart.js
-        'monthly_labels':      json_module.dumps(monthly_labels),
-        'monthly_data':        json_module.dumps(monthly_data),
-        'yearly_labels':       json_module.dumps(yearly_labels),
-        'yearly_data':         json_module.dumps(yearly_data),
-        'scope_data':          json_module.dumps(scope_data),
-        'college_vol_labels':  json_module.dumps(college_vol_labels),
-        'college_vol_data':    json_module.dumps(college_vol_data),
-        'monthly_spend_data':  json_module.dumps(monthly_spend_data),
-        'monthly_labels_spend':json_module.dumps(monthly_labels),
+        # Charts
+        'monthly_labels':       json_module.dumps(monthly_labels),
+        'monthly_data':         json_module.dumps(monthly_data),
+        'yearly_labels':        json_module.dumps(yearly_labels),
+        'yearly_data':          json_module.dumps(yearly_data),
+        'scope_data':           json_module.dumps(scope_data),
+        'college_vol_labels':   json_module.dumps(college_vol_labels),
+        'college_vol_data':     json_module.dumps(college_vol_data),
+        'monthly_spend_data':   json_module.dumps(monthly_spend_data),
+        'monthly_labels_spend': json_module.dumps(monthly_labels),
 
         # Tables
-        'budget_usages':       budget_usages,
-        'campus_usages':       campus_usages,
-        'top_travelers':       top_travelers,
+        'budget_usages':         budget_usages,
+        'campus_usages':         campus_usages,
+        'top_travelers':         top_travelers,
         'college_participation': college_participation,
 
         # Anomalies
-        'anomalies':           anomalies,
-        'anomaly_count':       len(anomalies),
+        'anomalies':     anomalies,
+        'anomaly_count': len(anomalies),
     }
 
     return render(request, 'travel_app/shared/stats.html', context)
-
 # ══════════════════════════════════════════════════════════════════════
 # EXTRACT TRAVEL ORDER (AJAX)
 # Called when user uploads a Travel Order on the create travel page.
