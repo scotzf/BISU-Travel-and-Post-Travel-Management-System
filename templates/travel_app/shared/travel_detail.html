@@ -30,13 +30,13 @@
 .doc-slot-icon.done   { background:#1a5c38; color:white; }
 .doc-slot-icon.empty  { background:var(--surface-3); color:var(--text-muted); }
 .doc-slot-name { font-size:13px; font-weight:500; color:var(--text-primary); flex:1; }
-.doc-slot-status { font-size:11px; }
 .doc-files { padding:0 16px 12px; background:var(--surface-2); }
 .doc-file-row {
   display:flex; align-items:center; gap:10px;
   padding:8px 0;
   border-bottom:1px solid var(--border);
   font-size:12.5px;
+  flex-wrap:wrap;
 }
 .doc-file-row:last-child { border-bottom:none; }
 .upload-area {
@@ -54,6 +54,25 @@
   background:var(--role-faint);
 }
 .upload-area input[type=file] { display:none; }
+.form-select {
+  font-size:13px; border:1px solid var(--border); border-radius:var(--radius);
+  padding:7px 10px; color:var(--text-primary); background:var(--surface);
+}
+.amount-inline-form {
+  display:flex; align-items:center; gap:6px;
+  margin-top:6px; width:100%;
+}
+.amount-inline-form input[type=number] {
+  font-size:13px; border:1px solid var(--border); border-radius:6px;
+  padding:5px 8px 5px 22px; width:130px; background:var(--surface);
+  color:var(--text-primary);
+}
+.amount-peso-wrap { position:relative; display:inline-block; }
+.amount-peso-wrap::before {
+  content:'₱'; position:absolute; left:7px; top:50%;
+  transform:translateY(-50%); font-size:12px; color:var(--text-muted);
+  pointer-events:none;
+}
 {% endblock %}
 
 {% block content %}
@@ -81,6 +100,7 @@
       {% endif %}
       <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}">
         {{ travel.scope|title }} scope
+        {% if travel.scope_overridden %}<i class="bi bi-pencil-fill" style="font-size:9px;margin-left:3px"></i>{% endif %}
       </span>
     </div>
   </div>
@@ -90,9 +110,7 @@
 <div class="card mb-3">
   <div class="card-body-custom" style="padding:14px 20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:13px;font-weight:500;color:var(--text-primary)">
-        Document completeness
-      </span>
+      <span style="font-size:13px;font-weight:500;color:var(--text-primary)">Document completeness</span>
       <span style="font-size:13px;font-weight:600;color:var(--role-color)">
         {{ travel.completeness_percentage }}%
         ({{ travel.document_types_uploaded|length }}/{{ travel.documents.model.DOC_TYPE_CHOICES|length }})
@@ -162,11 +180,75 @@
                 <span style="color:var(--text-muted);flex-shrink:0">
                   {{ doc.uploaded_at|date:"M j, Y" }}
                 </span>
+
+                {# ── Amount badge for BURS / ITINERARY ── #}
+                {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+                  {% if doc.extracted_amount %}
+                    <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+                                 border-radius:6px;background:#dcfce7;color:#166534;
+                                 font-size:11px;font-weight:600;flex-shrink:0">
+                      ₱{{ doc.extracted_amount|floatformat:2 }}
+                    </span>
+                  {% endif %}
+                {% endif %}
+
                 <a href="{{ doc.file.url }}" target="_blank" class="btn-secondary-custom"
                    style="padding:4px 10px;font-size:11px;flex-shrink:0">
                   <i class="bi bi-download"></i> Download
                 </a>
+
+                {% if doc.doc_type != 'TRAVEL_ORDER' %}
+                {% if is_creator or is_secretary or is_admin %}
+                <form method="post"
+                      action="{% url 'travel_app:replace_document' doc.id %}"
+                      enctype="multipart/form-data"
+                      id="replaceForm_{{ doc.id }}"
+                      style="display:inline;flex-shrink:0">
+                  {% csrf_token %}
+                  <input type="file" id="replaceFile_{{ doc.id }}" name="file" style="display:none"
+                         onchange="document.getElementById('replaceForm_{{ doc.id }}').submit()"/>
+                  <button type="button"
+                          onclick="document.getElementById('replaceFile_{{ doc.id }}').click()"
+                          style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+                                 border-radius:6px;border:1px solid var(--border);background:var(--surface);
+                                 color:var(--text-muted);font-size:11px;cursor:pointer;">
+                    <i class="bi bi-arrow-repeat"></i> Replace
+                  </button>
+                </form>
+                {% endif %}
+                {% endif %}
               </div>
+
+              {# ── Amount entry row for BURS / ITINERARY ── #}
+              {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+              {% if is_creator or is_secretary or is_admin %}
+              <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+                <form method="post" action="{% url 'travel_app:set_document_amount' doc.id %}"
+                      style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  {% csrf_token %}
+                  <span style="font-size:12px;color:var(--text-muted)">
+                    {% if doc.extracted_amount %}Edit amount:{% else %}Enter amount:{% endif %}
+                  </span>
+                  <div class="amount-peso-wrap">
+                    <input type="number" name="amount" step="0.01" min="0"
+                           value="{% if doc.extracted_amount %}{{ doc.extracted_amount }}{% endif %}"
+                           placeholder="0.00"
+                           style="font-size:13px;border:1px solid var(--border);border-radius:6px;
+                                  padding:5px 8px 5px 22px;width:130px;background:var(--surface);
+                                  color:var(--text-primary);"
+                           required/>
+                  </div>
+                  <button type="submit"
+                          style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;
+                                 border-radius:6px;border:none;background:var(--role-color);
+                                 color:white;font-size:12px;font-weight:600;cursor:pointer;">
+                    <i class="bi bi-check2"></i> Save
+                  </button>
+                </form>
+              </div>
+              {% endif %}
+              {% endif %}
+
               {% endfor %}
 
               <!-- Upload new file -->
@@ -209,28 +291,108 @@
       </div>
       <div class="card-body-custom" style="padding:16px 20px">
         <div style="display:flex;flex-direction:column;gap:10px">
+
           <div style="display:flex;justify-content:space-between;font-size:13px">
             <span style="color:var(--text-muted)">Destination</span>
             <span style="font-weight:500">{{ travel.destination }}</span>
           </div>
+
           <div style="display:flex;justify-content:space-between;font-size:13px">
             <span style="color:var(--text-muted)">Dates</span>
             <span style="font-weight:500">{{ travel.start_date|date:"M j" }}{% if travel.end_date %} – {{ travel.end_date|date:"M j, Y" }}{% endif %}</span>
           </div>
+
           <div style="display:flex;justify-content:space-between;font-size:13px">
             <span style="color:var(--text-muted)">Out of province</span>
             <span>{% if travel.is_out_of_province %}Yes{% else %}No{% endif %}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:13px">
-            <span style="color:var(--text-muted)">Scope</span>
-            <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}" style="font-size:10px">
-              {{ travel.scope|title }}
-            </span>
+
+          <!-- Amount row -->
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <span style="color:var(--text-muted)">Amount</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              {% if travel.amount_deducted %}
+                <span style="font-weight:600;color:var(--text-primary)">
+                  ₱{{ travel.amount_deducted|floatformat:2 }}
+                </span>
+              {% else %}
+                <span style="color:var(--text-muted);font-size:12px;font-style:italic">
+                  Not set
+                </span>
+              {% endif %}
+            </div>
           </div>
+
+          <!-- Scope row with change option -->
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <span style="color:var(--text-muted)">Scope</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}" style="font-size:10px">
+                {{ travel.scope|title }}
+                {% if travel.scope_overridden %}
+                  <i class="bi bi-pencil-fill" style="font-size:9px;margin-left:2px" title="Manually set"></i>
+                {% endif %}
+              </span>
+              {% if is_secretary or is_creator %}
+              <button type="button" onclick="toggleScopeForm()"
+                      style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+                             border-radius:6px;border:1px solid var(--border);background:var(--surface);
+                             color:var(--text-muted);font-size:11px;cursor:pointer;">
+                <i class="bi bi-arrow-left-right"></i> Change
+              </button>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Inline scope change form -->
+          {% if is_secretary or is_creator %}
+          <div id="scopeChangeForm" style="display:none;padding:10px;background:var(--surface-2);
+                                           border-radius:8px;border:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
+              <i class="bi bi-info-circle"></i>
+              Once changed manually, scope won't be auto-detected again.
+            </div>
+            <form method="post" action="{% url 'travel_app:change_scope' travel.pk %}"
+                  style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              {% csrf_token %}
+              <select name="scope" class="form-select" style="flex:1">
+                <option value="COLLEGE" {% if travel.scope == 'COLLEGE' %}selected{% endif %}>College-Level</option>
+                <option value="CAMPUS"  {% if travel.scope == 'CAMPUS'  %}selected{% endif %}>Campus-Level</option>
+              </select>
+              <button type="submit"
+                      style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;
+                             border-radius:8px;border:none;background:#1a5c38;color:white;
+                             font-size:12px;font-weight:600;cursor:pointer;">
+                <i class="bi bi-check2"></i> Save
+              </button>
+              <button type="button" onclick="toggleScopeForm()"
+                      style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;
+                             border-radius:8px;border:1px solid var(--border);background:var(--surface);
+                             color:var(--text-secondary);font-size:12px;cursor:pointer;">
+                Cancel
+              </button>
+            </form>
+          </div>
+          {% endif %}
+
           <div style="padding-top:10px;border-top:1px solid var(--border)">
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Purpose</div>
             <div style="font-size:13px;color:var(--text-secondary)">{{ travel.purpose }}</div>
           </div>
+
+          {% if travel.event_group %}
+          <div style="padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Event Group</div>
+            <a href="{% url 'travel_app:event_group_detail' travel.event_group.id %}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
+                      border-radius:20px;background:var(--role-faint);color:var(--role-color);
+                      font-size:12px;font-weight:500;text-decoration:none">
+              <i class="bi bi-diagram-3" style="font-size:11px"></i>
+              {{ travel.event_group.name }}
+            </a>
+          </div>
+          {% endif %}
+
         </div>
       </div>
     </div>
@@ -238,8 +400,9 @@
     <!-- Participants -->
     <div class="card mb-3">
       <div class="card-header-custom">
-        <div class="card-title">Participants ({{ travel.participant_count }})</div>
+        <div class="card-title">Participants ({{ travel.total_participant_count }})</div>
       </div>
+
       {% for p in travel.participants.all %}
       <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
                   border-bottom:1px solid var(--border)">
@@ -254,9 +417,25 @@
         </div>
       </div>
       {% endfor %}
+
+      {% for name in travel.unregistered_travelers %}
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
+                  border-bottom:1px solid var(--border)">
+        <div style="width:30px;height:30px;border-radius:50%;background:#fff7ed;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:11px;font-weight:600;color:#c2410c;flex-shrink:0">
+          {{ name|slice:":1" }}
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ name }}</div>
+          <div style="font-size:11px;color:#c2410c">Not in system</div>
+        </div>
+      </div>
+      {% endfor %}
+
     </div>
 
-   {% if can_tag_budget or can_route or travel.funding_college or travel.is_budget_tagged %}
+    {% if can_tag_budget or can_route or travel.funding_college or travel.is_budget_tagged %}
     <div class="card">
       <div class="card-header-custom">
         <div class="card-title"><i class="bi bi-tag"></i> Budget Source</div>
@@ -323,6 +502,20 @@
                 </option>
                 {% endfor %}
               </select>
+
+              <!-- Amount field for secretary -->
+              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                             margin-bottom:5px;display:block">Amount (₱)</label>
+              <div class="amount-peso-wrap" style="width:100%;margin-bottom:10px">
+                <input type="number" name="amount" step="0.01" min="0"
+                       value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% endif %}"
+                       placeholder="0.00"
+                       style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
+                              padding:8px 10px 8px 24px;width:100%;background:var(--surface);
+                              color:var(--text-primary);"
+                       required/>
+              </div>
+
               <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
                 <i class="bi bi-tag"></i> Tag Campus Budget
               </button>
@@ -374,6 +567,20 @@
               </option>
               {% endfor %}
             </select>
+
+            <!-- Amount field for secretary -->
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
+                           margin-bottom:5px;display:block">Amount (₱)</label>
+            <div class="amount-peso-wrap" style="width:100%;margin-bottom:10px">
+              <input type="number" name="amount" step="0.01" min="0"
+                     value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% endif %}"
+                     placeholder="0.00"
+                     style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
+                            padding:8px 10px 8px 24px;width:100%;background:var(--surface);
+                            color:var(--text-primary);"
+                     required/>
+            </div>
+
             <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
               <i class="bi bi-tag"></i>
               {% if travel.is_budget_tagged %}Update Budget{% else %}Tag Budget{% endif %}
@@ -402,7 +609,7 @@
           </div>
           <div style="display:flex;justify-content:space-between">
             <span style="color:var(--text-muted)">Amount deducted</span>
-            <span style="font-weight:500">₱{{ travel.amount_deducted|floatformat:0 }}</span>
+            <span style="font-weight:500">₱{{ travel.amount_deducted|floatformat:2 }}</span>
           </div>
           <div style="display:flex;justify-content:space-between">
             <span style="color:var(--text-muted)">Tagged by</span>
@@ -452,8 +659,13 @@ function handleDrop(event, docType) {
 function showPanel(name) {
   document.getElementById('panel_campus').style.display  = name === 'campus'  ? '' : 'none';
   document.getElementById('panel_college').style.display = name === 'college' ? '' : 'none';
-  document.getElementById('btn_campus').className  = name === 'campus'  ? 'btn-primary-custom'   : 'btn-secondary-custom';
-  document.getElementById('btn_college').className = name === 'college' ? 'btn-primary-custom'   : 'btn-secondary-custom';
+  document.getElementById('btn_campus').className  = name === 'campus'  ? 'btn-primary-custom' : 'btn-secondary-custom';
+  document.getElementById('btn_college').className = name === 'college' ? 'btn-primary-custom' : 'btn-secondary-custom';
+}
+
+function toggleScopeForm() {
+  const form = document.getElementById('scopeChangeForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 </script>
 {% endblock %}
