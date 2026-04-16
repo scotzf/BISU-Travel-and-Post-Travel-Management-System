@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% block title %}Liquidation Calculator — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'CAMPUS_SEC' %}#6b21a8{% elif user.role == 'DEPT_SEC' %}#0f766e{% elif user.role == 'ADMIN' %}#92400e{% else %}#1a5c38{% endif %};
+  --role-faint: {% if user.role == 'CAMPUS_SEC' %}#f3e8ff{% elif user.role == 'DEPT_SEC' %}#f0fdfa{% elif user.role == 'ADMIN' %}#fef3c7{% else %}#eaf4ee{% endif %};
+}
+.form-label { font-size:12px; font-weight:500; color:var(--text-secondary); margin-bottom:5px; display:block; }
+.form-control, .form-select {
+  font-size:13.5px; border:1px solid var(--border); border-radius:var(--radius);
+  padding:9px 12px; color:var(--text-primary); background:var(--surface);
+  width:100%; transition:border-color .15s;
+}
+.form-control:focus, .form-select:focus {
+  outline:none; border-color:var(--role-color);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--role-color) 12%, transparent);
+}
+.result-card {
+  border-radius:12px;
+  padding:24px;
+  margin-top:20px;
+  animation: fadeUp .3s ease;
+}
+.result-card.reimbursement {
+  background:#eff6ff;
+  border:1px solid #bfdbfe;
+}
+.result-card.refund {
+  background:#fff7ed;
+  border:1px solid #fdba74;
+}
+.result-card.settled {
+  background:#f0fdf4;
+  border:1px solid #86efac;
+}
+.amount-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 0; border-bottom:1px solid var(--border);
+  font-size:13px;
+}
+.amount-row:last-child { border-bottom:none; }
+.peso-wrap { position:relative; }
+.peso-wrap::before {
+  content:'₱'; position:absolute; left:12px; top:50%;
+  transform:translateY(-50%); color:var(--text-muted);
+  font-size:14px; pointer-events:none;
+}
+.peso-wrap input {
+  padding-left:28px;
+}
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Liquidation Calculator</div>
+      <div class="page-subtitle">Compare actual spending against tagged budget to determine refund or reimbursement</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-calculator"></i> Calculate Liquidation</div>
+      </div>
+      <div class="card-body-custom">
+
+        <form method="post" id="calcForm">
+          {% csrf_token %}
+
+          <!-- Step 1: Select travel -->
+          <div style="margin-bottom:20px">
+            <label class="form-label">Select Travel *</label>
+            <select name="travel_id" id="travelSelect" class="form-select"
+                    onchange="onTravelChange(this)">
+              <option value="">— Choose a travel —</option>
+              {% for t in travels %}
+              <option value="{{ t.id }}"
+                      data-amount="{{ t.amount_deducted|default:0 }}"
+                      data-dest="{{ t.destination }}"
+                      data-date="{{ t.start_date|date:'M j, Y' }}"
+                      data-source="{{ t.budget_source.name|default:'—' }}"
+                      {% if selected_id == t.id|stringformat:'s' %}selected{% endif %}>
+                {{ t.destination }} — {{ t.start_date|date:"M j, Y" }}
+                (₱{{ t.amount_deducted|floatformat:2 }})
+              </option>
+              {% empty %}
+              <option disabled>No budget-tagged travels available</option>
+              {% endfor %}
+            </select>
+            {% if not travels %}
+            <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
+              <i class="bi bi-info-circle"></i>
+              Only travels with a tagged budget source appear here.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Travel info preview -->
+          <div id="travelPreview" style="display:{% if selected_travel %}block{% else %}none{% endif %};
+               margin-bottom:20px;padding:14px;border-radius:10px;
+               background:var(--surface-2);border:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                        text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+              Travel Details
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Destination</span>
+              <span id="previewDest" style="font-weight:500">
+                {% if selected_travel %}{{ selected_travel.destination }}{% endif %}
+              </span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Date</span>
+              <span id="previewDate">
+                {% if selected_travel %}{{ selected_travel.start_date|date:"M j, Y" }}{% endif %}
+              </span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Budget Source</span>
+              <span id="previewSource">
+                {% if selected_travel %}{{ selected_travel.budget_source.name }}{% endif %}
+              </span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Tagged Budget</span>
+              <span id="previewAmount" style="font-weight:600;color:var(--role-color)">
+                {% if selected_travel %}₱{{ selected_travel.amount_deducted|floatformat:2 }}{% endif %}
+              </span>
+            </div>
+          </div>
+
+          <!-- Step 2: Enter actual amount -->
+          <div style="margin-bottom:20px">
+            <label class="form-label">Actual Amount Spent (₱) *</label>
+            <div class="peso-wrap">
+              <input type="number" name="actual_amount" id="actualAmount"
+                     class="form-control"
+                     step="0.01" min="0"
+                     value="{{ actual_amount|default:'' }}"
+                     placeholder="0.00"
+                     oninput="calculateLive()"
+                     required/>
+            </div>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:5px">
+              Enter the total amount actually spent during the travel.
+            </div>
+          </div>
+
+          <!-- Live result preview -->
+          <div id="liveResult" style="display:none;margin-bottom:20px;padding:14px;
+               border-radius:10px;border:1px solid var(--border);background:var(--surface-2)">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                        text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+              Preview
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Tagged budget</span>
+              <span id="liveTagged" style="font-weight:500">—</span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Actual spent</span>
+              <span id="liveActual" style="font-weight:500">—</span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Difference</span>
+              <span id="liveDiff" style="font-weight:700;font-size:15px">—</span>
+            </div>
+            <div style="margin-top:10px;text-align:center">
+              <span id="liveVerdict" style="display:inline-flex;align-items:center;gap:6px;
+                    padding:6px 16px;border-radius:20px;font-size:13px;font-weight:600"></span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary-custom"
+                  style="width:100%;justify-content:center">
+            <i class="bi bi-calculator"></i> Calculate
+          </button>
+        </form>
+
+        <!-- Server-side result (shown after form submit) -->
+        {% if result %}
+        <div class="result-card {{ result.type }}">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;
+                        justify-content:center;font-size:20px;flex-shrink:0;
+                        {% if result.type == 'reimbursement' %}background:#dbeafe;color:#1d4ed8;
+                        {% elif result.type == 'refund' %}background:#ffedd5;color:#c2410c;
+                        {% else %}background:#dcfce7;color:#166534;{% endif %}">
+              <i class="bi bi-{% if result.type == 'reimbursement' %}arrow-up-circle-fill{% elif result.type == 'refund' %}arrow-down-circle-fill{% else %}check-circle-fill{% endif %}"></i>
+            </div>
+            <div>
+              <div style="font-size:18px;font-weight:700;
+                          {% if result.type == 'reimbursement' %}color:#1d4ed8;
+                          {% elif result.type == 'refund' %}color:#c2410c;
+                          {% else %}color:#166534;{% endif %}">
+                {{ result.label }}
+                {% if result.diff > 0 %} — ₱{{ result.diff|floatformat:2 }}{% endif %}
+              </div>
+              <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">
+                {{ result.message }}
+              </div>
+            </div>
+          </div>
+
+          <div style="background:white;border-radius:8px;padding:14px">
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Travel</span>
+              <span style="font-weight:500">{{ selected_travel.destination }}</span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Budget source</span>
+              <span>{{ selected_travel.budget_source.name }}</span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Tagged budget</span>
+              <span style="font-weight:500">₱{{ result.tagged|floatformat:2 }}</span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">Actual spent</span>
+              <span style="font-weight:500">₱{{ result.actual|floatformat:2 }}</span>
+            </div>
+            <div class="amount-row">
+              <span style="color:var(--text-muted)">
+                {% if result.type == 'reimbursement' %}Amount to reimburse
+                {% elif result.type == 'refund' %}Amount to refund
+                {% else %}Difference{% endif %}
+              </span>
+              <span style="font-weight:700;font-size:16px;
+                           {% if result.type == 'reimbursement' %}color:#1d4ed8;
+                           {% elif result.type == 'refund' %}color:#c2410c;
+                           {% else %}color:#166534;{% endif %}">
+                ₱{{ result.diff|floatformat:2 }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Info sidebar -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-info-circle"></i> How it works</div>
+      </div>
+      <div class="card-body-custom" style="padding:16px 20px">
+        <div style="display:flex;flex-direction:column;gap:14px;font-size:13px">
+
+          <div style="display:flex;gap:10px">
+            <div style="width:28px;height:28px;border-radius:50%;background:#dcfce7;
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:12px;font-weight:700;color:#166534;flex-shrink:0">1</div>
+            <div>
+              <div style="font-weight:500;color:var(--text-primary)">Select a travel</div>
+              <div style="color:var(--text-muted);font-size:12px;margin-top:2px">
+                Only travels with a tagged budget appear in the list.
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px">
+            <div style="width:28px;height:28px;border-radius:50%;background:#dcfce7;
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:12px;font-weight:700;color:#166534;flex-shrink:0">2</div>
+            <div>
+              <div style="font-weight:500;color:var(--text-primary)">Enter actual amount spent</div>
+              <div style="color:var(--text-muted);font-size:12px;margin-top:2px">
+                Total of all receipts and expenses during the travel.
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px">
+            <div style="width:28px;height:28px;border-radius:50%;background:#dcfce7;
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:12px;font-weight:700;color:#166534;flex-shrink:0">3</div>
+            <div>
+              <div style="font-weight:500;color:var(--text-primary)">Get the result</div>
+              <div style="color:var(--text-muted);font-size:12px;margin-top:2px">
+                The calculator tells you whether to refund or request reimbursement.
+              </div>
+            </div>
+          </div>
+
+          <div style="padding-top:14px;border-top:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
+                           border-radius:20px;background:#eff6ff;color:#1d4ed8;
+                           font-size:11px;font-weight:600;">
+                <i class="bi bi-arrow-up-circle-fill"></i> Reimbursement
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+              Actual spending was <strong>more</strong> than the budget. The employee may request reimbursement for the difference.
+            </div>
+
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
+                           border-radius:20px;background:#fff7ed;color:#c2410c;
+                           font-size:11px;font-weight:600;">
+                <i class="bi bi-arrow-down-circle-fill"></i> Refund Due
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+              Actual spending was <strong>less</strong> than the budget. The employee must return the unused amount to the school.
+            </div>
+
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
+                           border-radius:20px;background:#f0fdf4;color:#166534;
+                           font-size:11px;font-weight:600;">
+                <i class="bi bi-check-circle-fill"></i> Settled
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              Actual spending matches the budget exactly. Nothing to do.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let taggedAmount = {{ selected_travel.amount_deducted|default:0 }};
+
+function onTravelChange(select) {
+  const opt = select.options[select.selectedIndex];
+  if (!opt.value) {
+    document.getElementById('travelPreview').style.display = 'none';
+    document.getElementById('liveResult').style.display   = 'none';
+    taggedAmount = 0;
+    return;
+  }
+
+  taggedAmount = parseFloat(opt.dataset.amount) || 0;
+  document.getElementById('previewDest').textContent   = opt.dataset.dest;
+  document.getElementById('previewDate').textContent   = opt.dataset.date;
+  document.getElementById('previewSource').textContent = opt.dataset.source;
+  document.getElementById('previewAmount').textContent = '₱' + taggedAmount.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('travelPreview').style.display = 'block';
+
+  calculateLive();
+}
+
+function calculateLive() {
+  const actualEl = document.getElementById('actualAmount');
+  const actual   = parseFloat(actualEl.value) || 0;
+  if (!actual || !taggedAmount) {
+    document.getElementById('liveResult').style.display = 'none';
+    return;
+  }
+
+  const diff    = actual - taggedAmount;
+  const liveDiv = document.getElementById('liveResult');
+  liveDiv.style.display = 'block';
+
+  document.getElementById('liveTagged').textContent = '₱' + taggedAmount.toLocaleString('en-PH', {minimumFractionDigits:2});
+  document.getElementById('liveActual').textContent = '₱' + actual.toLocaleString('en-PH', {minimumFractionDigits:2});
+
+  const diffEl   = document.getElementById('liveDiff');
+  const verdict  = document.getElementById('liveVerdict');
+
+  if (diff > 0) {
+    diffEl.textContent  = '+₱' + diff.toLocaleString('en-PH', {minimumFractionDigits:2});
+    diffEl.style.color  = '#1d4ed8';
+    verdict.textContent = '↑ Reimbursement';
+    verdict.style.background = '#dbeafe';
+    verdict.style.color      = '#1d4ed8';
+  } else if (diff < 0) {
+    diffEl.textContent  = '-₱' + Math.abs(diff).toLocaleString('en-PH', {minimumFractionDigits:2});
+    diffEl.style.color  = '#c2410c';
+    verdict.textContent = '↓ Refund Due';
+    verdict.style.background = '#ffedd5';
+    verdict.style.color      = '#c2410c';
+  } else {
+    diffEl.textContent  = '₱0.00';
+    diffEl.style.color  = '#166534';
+    verdict.textContent = '✓ Settled';
+    verdict.style.background = '#dcfce7';
+    verdict.style.color      = '#166534';
+  }
+}
+
+// Init on page load if travel already selected
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('travelSelect');
+  if (sel.value) onTravelChange(sel);
+});
+</script>
+{% endblock %}

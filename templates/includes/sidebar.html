@@ -21,6 +21,9 @@
   <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
     <i class="bi bi-pie-chart"></i> Utilization
   </a>
+  <a href="{% url 'travel_app:liquidation_calculator' %}" class="nav-item-link {% if request.resolver_match.url_name == 'liquidation_calculator' %}active{% endif %}">
+    <i class="bi bi-calculator"></i> Liquidation
+  </a>
 
   <span class="sidebar-section-label">Users</span>
   <a href="{% url 'accounts:pending_approvals' %}" class="nav-item-link {% if request.resolver_match.url_name == 'pending_approvals' %}active{% endif %}">
@@ -51,6 +54,9 @@
     {% if secretary_queue_count > 0 %}
       <span class="nav-pill">{{ secretary_queue_count }}</span>
     {% endif %}
+  </a>
+  <a href="{% url 'travel_app:liquidation_calculator' %}" class="nav-item-link {% if request.resolver_match.url_name == 'liquidation_calculator' %}active{% endif %}">
+    <i class="bi bi-calculator"></i> Liquidation
   </a>
 
   <span class="sidebar-section-label">Events</span>
@@ -83,6 +89,9 @@
       <span class="nav-pill">{{ secretary_queue_count }}</span>
     {% endif %}
   </a>
+  <a href="{% url 'travel_app:liquidation_calculator' %}" class="nav-item-link {% if request.resolver_match.url_name == 'liquidation_calculator' %}active{% endif %}">
+    <i class="bi bi-calculator"></i> Liquidation
+  </a>
 
   <span class="sidebar-section-label">Events</span>
   <a href="{% url 'travel_app:event_groups' %}" class="nav-item-link {% if request.resolver_match.url_name == 'event_groups' %}active{% endif %}">
@@ -103,7 +112,17 @@
   <a href="{% url 'travel_app:create_travel' %}" class="nav-item-link {% if request.resolver_match.url_name == 'create_travel' %}active{% endif %}">
     <i class="bi bi-plus-circle"></i> New Travel
   </a>
+  <a href="{% url 'travel_app:liquidation_calculator' %}" class="nav-item-link {% if request.resolver_match.url_name == 'liquidation_calculator' %}active{% endif %}">
+    <i class="bi bi-calculator"></i> Liquidation
+  </a>
 
+{% endif %}
+
+{% if request.session.role == 'ADMIN' or request.session.role == 'CAMPUS_SEC' or request.session.role == 'DEPT_SEC' %}
+  <span class="sidebar-section-label">Reports</span>
+  <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i> Statistics
+  </a>
 {% endif %}
 
 {# Common bottom links for all roles #}
