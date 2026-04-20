@@ -471,14 +471,14 @@ def extract_from_document(travel_document):
 
     # ── Skip types with no extraction ────────────────────────────────
     if doc_type in SKIP_EXTRACTION_TYPES:
-        doc.extraction_status = 'skipped'
-        doc.save(update_fields=['extraction_status'])
+        doc.extraction_attempted = False
+        doc.save(update_fields=['extraction_attempted'])
         logger.info(f"Doc {doc.id} ({doc_type}) — skipped, no extraction needed")
         return
 
-    # ── Mark as processing ────────────────────────────────────────────
-    doc.extraction_status = 'processing'
-    doc.save(update_fields=['extraction_status'])
+    # ── Mark as attempted ─────────────────────────────────────────────
+    doc.extraction_attempted = True
+    doc.save(update_fields=['extraction_attempted'])
 
     # ── Extract raw text ──────────────────────────────────────────────
     try:
@@ -513,11 +513,10 @@ def _save_travel_order_result(doc, result):
         _mark_failed(doc, 'Travel Order extraction returned no result')
         return
 
-    update_fields = ['extraction_status', 'extraction_successful', 'extraction_confidence']
+    update_fields = ['extraction_successful', 'extraction_raw']
 
-    doc.extraction_status     = 'done'
     doc.extraction_successful = True
-    doc.extraction_confidence = result.get('confidence', 'low')
+    doc.extraction_raw        = json.dumps(result)
 
     if result.get('destination'):
         doc.extracted_destination = str(result['destination'])[:200]
@@ -526,10 +525,6 @@ def _save_travel_order_result(doc, result):
     if result.get('purpose'):
         doc.extracted_purpose = str(result['purpose'])[:500]
         update_fields.append('extracted_purpose')
-
-    if result.get('traveler_names') and isinstance(result['traveler_names'], list):
-        doc.extracted_traveler_names = result['traveler_names']
-        update_fields.append('extracted_traveler_names')
 
     for field, model_field in [
         ('start_date', 'extracted_start_date'),
@@ -547,8 +542,7 @@ def _save_travel_order_result(doc, result):
     logger.info(
         f"Doc {doc.id} (TRAVEL_ORDER) — saved. "
         f"Destination: {doc.extracted_destination}, "
-        f"Travelers: {doc.extracted_traveler_names}, "
-        f"Confidence: {doc.extraction_confidence}"
+        f"Confidence: {result.get('confidence', 'low')}"
     )
 
 
@@ -560,11 +554,10 @@ def _save_amount_result(doc, result):
         _mark_failed(doc, 'Amount extraction returned no result')
         return
 
-    update_fields = ['extraction_status', 'extraction_successful', 'extraction_confidence']
+    update_fields = ['extraction_successful', 'extraction_raw']
 
-    doc.extraction_status     = 'done'
     doc.extraction_successful = True
-    doc.extraction_confidence = result.get('confidence', 'low')
+    doc.extraction_raw        = json.dumps(result)
 
     if result.get('amount') is not None:
         try:
@@ -576,13 +569,10 @@ def _save_amount_result(doc, result):
     doc.save(update_fields=update_fields)
     logger.info(
         f"Doc {doc.id} ({doc.doc_type}) — saved. "
-        f"Amount: {doc.extracted_amount}, "
-        f"Confidence: {doc.extraction_confidence}"
+        f"Amount: {doc.extracted_amount}"
     )
 
-
 def _mark_failed(doc, reason):
-    doc.extraction_status     = 'failed'
     doc.extraction_successful = False
-    doc.save(update_fields=['extraction_status', 'extraction_successful'])
+    doc.save(update_fields=['extraction_successful'])
     logger.error(f"Doc {doc.id} extraction failed: {reason}")

@@ -10,7 +10,7 @@ import os
 import logging
 logger = logging.getLogger(__name__)
 from .models import (
-    TravelRecord, TravelDocument, TravelParticipant,
+    TravelRecord, ParticipantDocument, TravelParticipant,
     BudgetSource, BudgetUsage, CampusBudgetUsage, EventGroup, Notification
 )
 from .budget_service import get_sources_for_secretary
@@ -124,7 +124,6 @@ def employee_dashboard(request, user=None):
         'user':           user,
         'today':          timezone.now().date(),
         'recent_travels': my_travels[:6],
-        'doc_types':      TravelDocument.DOC_TYPE_CHOICES,
         **stats,
     }
     return render(request, 'travel_app/employee/dashboard.html', context)
@@ -226,7 +225,7 @@ def admin_dashboard(request, user=None):
             total_used      = sum(u.used_amount for u in usages)
         else:
             usages          = CampusBudgetUsage.objects.filter(budget_source=source, year=year)
-            total_allocated = source.budget_amoun
+            total_allocated = source.budget_amount
             total_used      = sum(u.used_amount for u in usages)
         pct    = round((total_used / total_allocated * 100), 1) if total_allocated > 0 else 0
         status = 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy'
@@ -345,9 +344,7 @@ def create_travel(request):
                 scope_override = request.POST.get('scope_override', '').strip()
                 if scope_override in ['COLLEGE', 'CAMPUS']:
                     travel.scope = scope_override
-                    travel.scope_overridden = True
-                    travel.save(update_fields=['scope', 'scope_overridden'])
-
+                    travel.save(update_fields=['scope'])
                 # Add creator as participant
                 if user.role == 'EMPLOYEE':
                     TravelParticipant.objects.create(travel_record=travel, user=user)
@@ -375,58 +372,49 @@ def create_travel(request):
                         except User.DoesNotExist:
                             pass
 
-                # Save unregistered traveler names (not in system, can't be participants)
-                if unregistered_names:
-                    travel.unregistered_travelers = unregistered_names
-                    travel.save(update_fields=['unregistered_travelers'])
+                
 
                 travel.refresh_scope()
 
                 # ── Link the temp Travel Order file if extraction was done ──
-                temp_path       = request.session.pop('temp_travel_order_path', None)
-                extracted_names = request.session.pop('temp_travel_order_names', [])
+                # ── Copy Travel Order to each participant's document hub ──
+                temp_path = request.session.pop('temp_travel_order_path', None)
+                request.session.pop('temp_travel_order_names', [])
 
                 if temp_path:
                     try:
                         from django.core.files.storage import default_storage
                         from django.core.files import File
+                        from datetime import datetime
 
                         full_path = default_storage.path(temp_path)
+                        file_name = os.path.basename(temp_path)
 
-                        # Merge extracted names + manually added names
-                        all_traveler_names = extracted_names + extra_traveler_names
+                        for participant in travel.participants.all():
+                            with open(full_path, 'rb') as f:
+                                doc = ParticipantDocument(
+                                    participant=participant,
+                                    doc_type='TRAVEL_ORDER',
+                                    uploaded_by=user,
+                                    extracted_destination=destination,
+                                    extracted_purpose=purpose,
+                                    extraction_attempted=True,
+                                    extraction_successful=True,
+                                )
+                                if start_date:
+                                    doc.extracted_start_date = datetime.strptime(
+                                        start_date, '%Y-%m-%d'
+                                    ).date()
+                                if end_date:
+                                    doc.extracted_end_date = datetime.strptime(
+                                        end_date, '%Y-%m-%d'
+                                    ).date()
+                                doc.file.save(file_name, File(f), save=True)
 
-                        with open(full_path, 'rb') as f:
-                            travel_doc = TravelDocument(
-                                travel_record=travel,
-                                doc_type='TRAVEL_ORDER',
-                                uploaded_by=user,
-                                extracted_destination=destination,
-                                extracted_purpose=purpose,
-                                extracted_traveler_names=all_traveler_names,
-                                extraction_status='done',
-                                extraction_successful=True,
-                            )
-                            if start_date:
-                                from datetime import datetime
-                                travel_doc.extracted_start_date = datetime.strptime(
-                                    start_date, '%Y-%m-%d'
-                                ).date()
-                            if end_date:
-                                from datetime import datetime
-                                travel_doc.extracted_end_date = datetime.strptime(
-                                    end_date, '%Y-%m-%d'
-                                ).date()
-
-                            import os
-                            file_name = os.path.basename(temp_path)
-                            travel_doc.file.save(file_name, File(f), save=True)
-
-                        # Delete temp file
                         default_storage.delete(temp_path)
 
                     except Exception as e:
-                        logger.error(f"Failed to link temp travel order: {e}")
+                        logger.error(f"Failed to copy travel order to participants: {e}")
 
                 _notify_if_duplicate(travel, user)
 
@@ -459,7 +447,7 @@ def travel_detail(request, pk):
         TravelRecord.objects.select_related(
             'created_by', 'budget_source', 'event_group',
             'funding_college', 'budget_tagged_by'
-        ).prefetch_related('participants__user', 'documents'),
+        ).prefetch_related('participants__user', 'participants__documents'),
         pk=pk
     )
 
@@ -473,13 +461,43 @@ def travel_detail(request, pk):
         messages.error(request, 'You do not have access to this travel record.')
         return redirect('accounts:dashboard')
 
-    docs_by_type = {}
-    for doc_type, doc_label in TravelDocument.DOC_TYPE_CHOICES:
-        docs_by_type[doc_type] = {
-            'label':     doc_label,
-            'documents': travel.documents.filter(doc_type=doc_type).order_by('-uploaded_at'),
-            'uploaded':  travel.documents.filter(doc_type=doc_type).exists(),
-        }
+    # Build per-participant document hubs
+    all_participants = travel.participants.select_related('user').all()
+
+    # Secretary/admin sees all participants' hubs
+    # Employee sees only their own
+    if user.role in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
+        participant_hubs = []
+        for p in all_participants:
+            docs_by_type = {}
+            for doc_type, doc_label in ParticipantDocument.DOC_TYPE_CHOICES:
+                docs = p.documents.filter(doc_type=doc_type).order_by('-uploaded_at')
+                docs_by_type[doc_type] = {
+                    'label':     doc_label,
+                    'documents': docs,
+                    'uploaded':  docs.exists(),
+                }
+            participant_hubs.append({
+                'participant': p,
+                'docs_by_type': docs_by_type,
+            })
+    else:
+        # Employee — only their own hub
+        participant_hubs = []
+        my_participant = travel.participants.filter(user=user).first()
+        if my_participant:
+            docs_by_type = {}
+            for doc_type, doc_label in ParticipantDocument.DOC_TYPE_CHOICES:
+                docs = my_participant.documents.filter(doc_type=doc_type).order_by('-uploaded_at')
+                docs_by_type[doc_type] = {
+                    'label':     doc_label,
+                    'documents': docs,
+                    'uploaded':  docs.exists(),
+                }
+            participant_hubs.append({
+                'participant': my_participant,
+                'docs_by_type': docs_by_type,
+            })
 
     can_tag_budget = False
     can_route      = False
@@ -520,19 +538,18 @@ def travel_detail(request, pk):
                     can_tag_budget = False
 
     context = {
-        'user':           user,
-        'travel':         travel,
-        'docs_by_type':   docs_by_type,
-        'doc_types':      TravelDocument.DOC_TYPE_CHOICES,
-        'budget_sources': budget_sources,
-        'can_tag_budget': can_tag_budget,
-        'can_route':      can_route,
-        'route_colleges': route_colleges,
-        'is_secretary':   is_secretary,
-        'is_admin':       is_admin,
-        'is_creator':     is_creator or is_participant,
-        'today':          timezone.now().date(),
-        'missing_docs':   travel.missing_documents,
+        'user':             user,
+        'travel':           travel,
+        'participant_hubs': participant_hubs,
+        'doc_types':        ParticipantDocument.DOC_TYPE_CHOICES,
+        'budget_sources':   budget_sources,
+        'can_tag_budget':   can_tag_budget,
+        'can_route':        can_route,
+        'route_colleges':   route_colleges,
+        'is_secretary':     is_secretary,
+        'is_admin':         is_admin,
+        'is_creator':       is_creator or is_participant,
+        'today':            timezone.now().date(),
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
@@ -552,33 +569,36 @@ def upload_document(request, pk):
 
     travel = get_object_or_404(TravelRecord, pk=pk)
 
-    is_participant = travel.participants.filter(user=user).exists()
-    is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
-    is_admin       = user.role == 'ADMIN'
-
-    if not (is_participant or is_secretary or is_admin):
-        from django.contrib import messages
-        messages.error(request, 'You cannot upload documents to this travel.')
-        return redirect('travel_app:travel_detail', pk=pk)
-
     if request.method == 'POST':
-        doc_type = request.POST.get('doc_type')
-        file     = request.FILES.get('file')
-        notes    = request.POST.get('notes', '').strip()
+        doc_type       = request.POST.get('doc_type')
+        file           = request.FILES.get('file')
+        notes          = request.POST.get('notes', '').strip()
+        participant_id = request.POST.get('participant_id')
 
         if not doc_type or not file:
             from django.contrib import messages
             messages.error(request, 'Document type and file are required.')
             return redirect('travel_app:travel_detail', pk=pk)
 
-        valid_types = [t for t, _ in TravelDocument.DOC_TYPE_CHOICES]
+        valid_types = [t for t, _ in ParticipantDocument.DOC_TYPE_CHOICES]
         if doc_type not in valid_types:
             from django.contrib import messages
             messages.error(request, 'Invalid document type.')
             return redirect('travel_app:travel_detail', pk=pk)
 
-        doc = TravelDocument.objects.create(
-            travel_record=travel,
+        # Secretary/admin can upload to any participant
+        # Employee can only upload to themselves
+        if user.role in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
+            participant = get_object_or_404(TravelParticipant, id=participant_id, travel_record=travel)
+        else:
+            participant = travel.participants.filter(user=user).first()
+            if not participant:
+                from django.contrib import messages
+                messages.error(request, 'You are not a participant in this travel.')
+                return redirect('travel_app:travel_detail', pk=pk)
+
+        doc = ParticipantDocument.objects.create(
+            participant=participant,
             doc_type=doc_type,
             file=file,
             uploaded_by=user,
@@ -1255,7 +1275,6 @@ def secretary_queue(request):
 def download_zip(request, pk):
     import zipfile
     import io
-    import os
     from django.http import HttpResponse
 
     user = get_authenticated_user(request)
@@ -1273,7 +1292,17 @@ def download_zip(request, pk):
         messages.error(request, 'You do not have access to this travel.')
         return redirect('accounts:dashboard')
 
-    documents = travel.documents.all()
+    # Secretary/admin gets all docs, employee gets only their own
+    if is_secretary or is_admin:
+        documents = ParticipantDocument.objects.filter(
+            participant__travel_record=travel
+        ).select_related('participant__user')
+    else:
+        my_participant = travel.participants.filter(user=user).first()
+        documents = ParticipantDocument.objects.filter(
+            participant=my_participant
+        ) if my_participant else ParticipantDocument.objects.none()
+
     if not documents.exists():
         from django.contrib import messages
         messages.error(request, 'No documents to download.')
@@ -1284,7 +1313,8 @@ def download_zip(request, pk):
         for doc in documents:
             try:
                 file_path = doc.file.path
-                file_name = f"{doc.get_doc_type_display()} - {os.path.basename(file_path)}"
+                owner     = doc.participant.user.get_full_name()
+                file_name = f"{owner}/{doc.get_doc_type_display()} - {os.path.basename(file_path)}"
                 zf.write(file_path, arcname=file_name)
             except Exception:
                 pass
@@ -1300,10 +1330,6 @@ def download_zip(request, pk):
 @csrf_protect
 @never_cache
 def confirm_extraction(request, doc_id):
-    """
-    Secretary confirms the AI-extracted data is correct.
-    This applies the extracted amount to the budget deduction.
-    """
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
@@ -1312,61 +1338,18 @@ def confirm_extraction(request, doc_id):
         messages.error(request, 'Access denied.')
         return redirect('accounts:dashboard')
 
-    from .models import TravelDocument
     from django.utils import timezone as tz
-    from decimal import Decimal
-
-    doc = get_object_or_404(TravelDocument, id=doc_id)
-    travel = doc.travel_record
+    doc    = get_object_or_404(ParticipantDocument, id=doc_id)
+    travel = doc.participant.travel_record
 
     if request.method == 'POST':
-        # Mark document as confirmed
-        doc.is_confirmed  = True
-        doc.confirmed_by  = user
-        doc.confirmed_at  = tz.now()
+        doc.is_confirmed = True
+        doc.confirmed_by = user
+        doc.confirmed_at = tz.now()
         doc.save(update_fields=['is_confirmed', 'confirmed_by', 'confirmed_at'])
 
-        # If this doc has an extracted amount and travel has a budget source,
-        # update the travel's amount_deducted and adjust the usage record
-        if doc.extracted_amount and travel.budget_source:
-            old_amount = travel.amount_deducted or Decimal('0')
-            new_amount = doc.extracted_amount
-
-            # Only update if new amount is different
-            if new_amount != old_amount:
-                source = travel.budget_source
-
-                # Get usage record
-                if source.scope == 'COLLEGE' and user.college:
-                    try:
-                        usage = BudgetUsage.objects.get(
-                            college=user.college,
-                            budget_source=source,
-                            year=source.year
-                        )
-                        # Restore old amount then deduct new amount
-                        usage.restore(old_amount)
-                        usage.deduct(new_amount)
-                    except BudgetUsage.DoesNotExist:
-                        pass
-                elif source.scope == 'CAMPUS' and user.campus:
-                    try:
-                        usage = CampusBudgetUsage.objects.get(
-                            campus=user.campus,
-                            budget_source=source,
-                            year=source.year
-                        )
-                        usage.restore(old_amount)
-                        usage.deduct(new_amount)
-                    except CampusBudgetUsage.DoesNotExist:
-                        pass
-
-                # Update travel's deducted amount
-                travel.amount_deducted = new_amount
-                travel.save(update_fields=['amount_deducted'])
-
         from django.contrib import messages
-        messages.success(request, 'Extraction confirmed and budget updated.')
+        messages.success(request, 'Document confirmed.')
 
     return redirect('travel_app:travel_detail', pk=travel.id)
 
@@ -1385,30 +1368,26 @@ def reject_extraction(request, doc_id):
         from django.contrib import messages
         messages.error(request, 'Access denied.')
         return redirect('accounts:dashboard')
- 
-    doc    = get_object_or_404(TravelDocument, id=doc_id)
-    travel = doc.travel_record
- 
+
+    doc    = get_object_or_404(ParticipantDocument, id=doc_id)
+    travel = doc.participant.travel_record
+
     if request.method == 'POST':
-        doc.extracted_destination    = ''
-        doc.extracted_start_date     = None
-        doc.extracted_end_date       = None
-        doc.extracted_amount         = None
-        doc.extracted_purpose        = ''
-        doc.extracted_traveler_names = []
-        doc.extraction_successful    = False
-        doc.extraction_status        = 'failed'
+        doc.extracted_destination = ''
+        doc.extracted_start_date  = None
+        doc.extracted_end_date    = None
+        doc.extracted_amount      = None
+        doc.extracted_purpose     = ''
+        doc.extraction_successful = False
         doc.save(update_fields=[
             'extracted_destination', 'extracted_start_date', 'extracted_end_date',
-            'extracted_amount', 'extracted_purpose', 'extracted_traveler_names',
-            'extraction_successful', 'extraction_status',
+            'extracted_amount', 'extracted_purpose', 'extraction_successful',
         ])
- 
+
         from django.contrib import messages
         messages.warning(request, 'Extraction rejected. Please re-upload the correct document.')
- 
+
     return redirect('travel_app:travel_detail', pk=travel.id)
- 
 
     # ══════════════════════════════════════════════════════════════════════
 # STATS VIEW
@@ -1842,10 +1821,8 @@ def change_scope(request, pk):
     if request.method == 'POST':
         new_scope = request.POST.get('scope')
         if new_scope in ['COLLEGE', 'CAMPUS']:
-            travel.scope            = new_scope
-            travel.scope_overridden = True
-            travel.save(update_fields=['scope', 'scope_overridden'])
-
+            travel.scope = new_scope
+            travel.save(update_fields=['scope'])
             from django.contrib import messages
             messages.success(request, f'Travel scope changed to {travel.get_scope_display()}.')
         else:
@@ -1895,24 +1872,24 @@ def set_document_amount(request, doc_id):
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
- 
-    doc    = get_object_or_404(TravelDocument, id=doc_id)
-    travel = doc.travel_record
- 
+
+    doc    = get_object_or_404(ParticipantDocument, id=doc_id)
+    travel = doc.participant.travel_record
+
     is_participant = travel.participants.filter(user=user).exists()
     is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
     is_admin       = user.role == 'ADMIN'
- 
+
     if not (is_participant or is_secretary or is_admin):
         from django.contrib import messages
         messages.error(request, 'You do not have permission to set this amount.')
         return redirect('travel_app:travel_detail', pk=travel.id)
- 
+
     if doc.doc_type not in ('BURS', 'ITINERARY'):
         from django.contrib import messages
         messages.error(request, 'Amount can only be set on BURS or Itinerary documents.')
         return redirect('travel_app:travel_detail', pk=travel.id)
- 
+
     if request.method == 'POST':
         from decimal import Decimal, InvalidOperation
         raw = request.POST.get('amount', '').strip().replace(',', '')
@@ -1922,15 +1899,15 @@ def set_document_amount(request, doc_id):
                 raise ValueError
         except (InvalidOperation, ValueError):
             from django.contrib import messages
-            messages.error(request, 'Invalid amount. Please enter a valid number.')
+            messages.error(request, 'Invalid amount.')
             return redirect('travel_app:travel_detail', pk=travel.id)
- 
+
         doc.extracted_amount = amount
         doc.save(update_fields=['extracted_amount'])
- 
+
         from django.contrib import messages
-        messages.success(request, f'Amount of ₱{amount:,.2f} saved successfully.')
- 
+        messages.success(request, f'Amount of ₱{amount:,.2f} saved.')
+
     return redirect('travel_app:travel_detail', pk=travel.id)
 
 @csrf_protect
@@ -1940,8 +1917,8 @@ def replace_document(request, doc_id):
     if not user:
         return redirect('accounts:login')
 
-    doc    = get_object_or_404(TravelDocument, id=doc_id)
-    travel = doc.travel_record
+    doc    = get_object_or_404(ParticipantDocument, id=doc_id)
+    travel = doc.participant.travel_record
 
     is_participant = travel.participants.filter(user=user).exists()
     is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']

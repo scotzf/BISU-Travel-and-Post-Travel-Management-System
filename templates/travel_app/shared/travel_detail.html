@@ -58,20 +58,24 @@
   font-size:13px; border:1px solid var(--border); border-radius:var(--radius);
   padding:7px 10px; color:var(--text-primary); background:var(--surface);
 }
-.amount-inline-form {
-  display:flex; align-items:center; gap:6px;
-  margin-top:6px; width:100%;
+.participant-tab {
+  padding:8px 16px;
+  border-bottom:2px solid transparent;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:500;
+  color:var(--text-muted);
+  white-space:nowrap;
 }
-.amount-inline-form input[type=number] {
-  font-size:13px; border:1px solid var(--border); border-radius:6px;
-  padding:5px 8px 5px 22px; width:130px; background:var(--surface);
-  color:var(--text-primary);
+.participant-tab.active {
+  border-bottom-color:var(--role-color);
+  color:var(--role-color);
 }
-.amount-peso-wrap { position:relative; display:inline-block; }
-.amount-peso-wrap::before {
-  content:'₱'; position:absolute; left:7px; top:50%;
-  transform:translateY(-50%); font-size:12px; color:var(--text-muted);
-  pointer-events:none;
+.participant-tabs {
+  display:flex;
+  overflow-x:auto;
+  border-bottom:1px solid var(--border);
+  margin-bottom:16px;
 }
 {% endblock %}
 
@@ -100,7 +104,6 @@
       {% endif %}
       <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}">
         {{ travel.scope|title }} scope
-        {% if travel.scope_overridden %}<i class="bi bi-pencil-fill" style="font-size:9px;margin-left:3px"></i>{% endif %}
       </span>
     </div>
   </div>
@@ -113,18 +116,12 @@
       <span style="font-size:13px;font-weight:500;color:var(--text-primary)">Document completeness</span>
       <span style="font-size:13px;font-weight:600;color:var(--role-color)">
         {{ travel.completeness_percentage }}%
-        ({{ travel.document_types_uploaded|length }}/{{ travel.documents.model.DOC_TYPE_CHOICES|length }})
       </span>
     </div>
     <div class="budget-bar-track" style="height:8px">
       <div class="budget-bar-fill fill-{% if travel.completeness_percentage == 100 %}healthy{% elif travel.completeness_percentage >= 50 %}warning{% else %}critical{% endif %}"
            style="width:{{ travel.completeness_percentage }}%"></div>
     </div>
-    {% if missing_docs %}
-    <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
-      Missing: {% for d in missing_docs %}{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}
-    </div>
-    {% endif %}
   </div>
 </div>
 
@@ -136,7 +133,7 @@
       <div class="card-header-custom">
         <div>
           <div class="card-title"><i class="bi bi-folder2-open"></i> Document Folder</div>
-          <div class="card-subtitle">Upload and manage all travel documents here</div>
+          <div class="card-subtitle">Per-participant document hubs</div>
         </div>
         {% if travel.document_count > 0 %}
         <a href="{% url 'travel_app:download_zip' travel.id %}"
@@ -147,135 +144,163 @@
       </div>
       <div class="card-body-custom">
 
-        {% for doc_type, doc_label in doc_types %}
-        {% with slot=docs_by_type|get_item:doc_type %}
-        <div class="doc-slot">
-          <div class="doc-slot-header {% if slot.uploaded %}uploaded{% endif %}"
-               onclick="toggleSlot('slot_{{ doc_type }}')">
-            <div class="doc-slot-icon {% if slot.uploaded %}done{% else %}empty{% endif %}">
-              <i class="bi {% if slot.uploaded %}bi-check-lg{% else %}bi-file-earmark{% endif %}"></i>
+        {% if participant_hubs %}
+
+          <!-- Participant tabs -->
+          <div class="participant-tabs">
+            {% for hub in participant_hubs %}
+            <div class="participant-tab {% if forloop.first %}active{% endif %}"
+                 onclick="switchParticipant('hub_{{ hub.participant.id }}', this)">
+              {{ hub.participant.user.get_full_name }}
             </div>
-            <span class="doc-slot-name">{{ doc_label }}</span>
-            {% if slot.uploaded %}
-              <span class="badge-status badge-tagged" style="font-size:10px">
-                {{ slot.documents.count }} file{{ slot.documents.count|pluralize }}
-              </span>
-            {% else %}
-              <span class="badge-status badge-untagged" style="font-size:10px">Not uploaded</span>
-            {% endif %}
-            <i class="bi bi-chevron-down" style="font-size:12px;color:var(--text-muted);
-               transition:transform .2s" id="chevron_{{ doc_type }}"></i>
+            {% endfor %}
           </div>
 
-          <div id="slot_{{ doc_type }}" style="display:{% if slot.uploaded %}block{% else %}none{% endif %}">
-            <div class="doc-files">
+          <!-- Per-participant document hubs -->
+          {% for hub in participant_hubs %}
+          <div id="hub_{{ hub.participant.id }}"
+               style="{% if not forloop.first %}display:none{% endif %}">
 
-              <!-- Existing files -->
-              {% for doc in slot.documents %}
-              <div class="doc-file-row">
-                <i class="bi bi-file-earmark-text" style="color:var(--primary);font-size:14px;flex-shrink:0"></i>
-                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                  {{ doc.file.name|slice:"20:" }}
-                </span>
-                <span style="color:var(--text-muted);flex-shrink:0">
-                  {{ doc.uploaded_at|date:"M j, Y" }}
-                </span>
-
-                {# ── Amount badge for BURS / ITINERARY ── #}
-                {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
-                  {% if doc.extracted_amount %}
-                    <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
-                                 border-radius:6px;background:#dcfce7;color:#166534;
-                                 font-size:11px;font-weight:600;flex-shrink:0">
-                      ₱{{ doc.extracted_amount|floatformat:2 }}
-                    </span>
-                  {% endif %}
-                {% endif %}
-
-                <a href="{{ doc.file.url }}" target="_blank" class="btn-secondary-custom"
-                   style="padding:4px 10px;font-size:11px;flex-shrink:0">
-                  <i class="bi bi-download"></i> Download
-                </a>
-
-                {% if doc.doc_type != 'TRAVEL_ORDER' %}
-                {% if is_creator or is_secretary or is_admin %}
-                <form method="post"
-                      action="{% url 'travel_app:replace_document' doc.id %}"
-                      enctype="multipart/form-data"
-                      id="replaceForm_{{ doc.id }}"
-                      style="display:inline;flex-shrink:0">
-                  {% csrf_token %}
-                  <input type="file" id="replaceFile_{{ doc.id }}" name="file" style="display:none"
-                         onchange="document.getElementById('replaceForm_{{ doc.id }}').submit()"/>
-                  <button type="button"
-                          onclick="document.getElementById('replaceFile_{{ doc.id }}').click()"
-                          style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
-                                 border-radius:6px;border:1px solid var(--border);background:var(--surface);
-                                 color:var(--text-muted);font-size:11px;cursor:pointer;">
-                    <i class="bi bi-arrow-repeat"></i> Replace
-                  </button>
-                </form>
-                {% endif %}
-                {% endif %}
-              </div>
-
-              {# ── Amount entry row for BURS / ITINERARY ── #}
-              {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
-              {% if is_creator or is_secretary or is_admin %}
-              <div style="padding:8px 0;border-bottom:1px solid var(--border)">
-                <form method="post" action="{% url 'travel_app:set_document_amount' doc.id %}"
-                      style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  {% csrf_token %}
-                  <span style="font-size:12px;color:var(--text-muted)">
-                    {% if doc.extracted_amount %}Edit amount:{% else %}Enter amount:{% endif %}
-                  </span>
-                  <div class="amount-peso-wrap">
-                    <input type="number" name="amount" step="0.01" min="0"
-                           value="{% if doc.extracted_amount %}{{ doc.extracted_amount }}{% endif %}"
-                           placeholder="0.00"
-                           style="font-size:13px;border:1px solid var(--border);border-radius:6px;
-                                  padding:5px 8px 5px 22px;width:130px;background:var(--surface);
-                                  color:var(--text-primary);"
-                           required/>
-                  </div>
-                  <button type="submit"
-                          style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;
-                                 border-radius:6px;border:none;background:var(--role-color);
-                                 color:white;font-size:12px;font-weight:600;cursor:pointer;">
-                    <i class="bi bi-check2"></i> Save
-                  </button>
-                </form>
-              </div>
-              {% endif %}
-              {% endif %}
-
-              {% endfor %}
-
-              <!-- Upload new file -->
-              {% if is_creator or is_secretary or is_admin %}
-              <form method="post" action="{% url 'travel_app:upload_document' travel.id %}"
-                    enctype="multipart/form-data" id="form_{{ doc_type }}">
-                {% csrf_token %}
-                <input type="hidden" name="doc_type" value="{{ doc_type }}"/>
-                <div class="upload-area" onclick="document.getElementById('file_{{ doc_type }}').click()"
-                     ondragover="event.preventDefault();this.classList.add('dragover')"
-                     ondragleave="this.classList.remove('dragover')"
-                     ondrop="handleDrop(event,'{{ doc_type }}')">
-                  <input type="file" id="file_{{ doc_type }}" name="file"
-                         onchange="autoSubmit('form_{{ doc_type }}')"/>
-                  <i class="bi bi-cloud-upload" style="font-size:20px;color:var(--text-muted);display:block;margin-bottom:6px"></i>
-                  <div style="font-size:12.5px;color:var(--text-muted)">
-                    Click or drag to upload {{ doc_label }}
-                  </div>
+            {% for doc_type, doc_label in doc_types %}
+            {% with slot=hub.docs_by_type|get_item:doc_type %}
+            <div class="doc-slot">
+              <div class="doc-slot-header {% if slot.uploaded %}uploaded{% endif %}"
+                   onclick="toggleSlot('slot_{{ hub.participant.id }}_{{ doc_type }}')">
+                <div class="doc-slot-icon {% if slot.uploaded %}done{% else %}empty{% endif %}">
+                  <i class="bi {% if slot.uploaded %}bi-check-lg{% else %}bi-file-earmark{% endif %}"></i>
                 </div>
-              </form>
-              {% endif %}
+                <span class="doc-slot-name">{{ doc_label }}</span>
+                {% if slot.uploaded %}
+                  <span class="badge-status badge-tagged" style="font-size:10px">
+                    {{ slot.documents.count }} file{{ slot.documents.count|pluralize }}
+                  </span>
+                {% else %}
+                  <span class="badge-status badge-untagged" style="font-size:10px">Not uploaded</span>
+                {% endif %}
+                <i class="bi bi-chevron-down" style="font-size:12px;color:var(--text-muted);
+                   transition:transform .2s" id="chevron_{{ hub.participant.id }}_{{ doc_type }}"></i>
+              </div>
 
+              <div id="slot_{{ hub.participant.id }}_{{ doc_type }}"
+                   style="display:{% if slot.uploaded %}block{% else %}none{% endif %}">
+                <div class="doc-files">
+
+                  {% for doc in slot.documents %}
+                  <div class="doc-file-row">
+                    <i class="bi bi-file-earmark-text" style="color:var(--primary);font-size:14px;flex-shrink:0"></i>
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                      {{ doc.file.name|slice:"20:" }}
+                    </span>
+                    <span style="color:var(--text-muted);flex-shrink:0">
+                      {{ doc.uploaded_at|date:"M j, Y" }}
+                    </span>
+
+                    {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+                      {% if doc.extracted_amount %}
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+                                     border-radius:6px;background:#dcfce7;color:#166534;
+                                     font-size:11px;font-weight:600;flex-shrink:0">
+                          ₱{{ doc.extracted_amount|floatformat:2 }}
+                        </span>
+                      {% endif %}
+                    {% endif %}
+
+                    <a href="{{ doc.file.url }}" target="_blank" class="btn-secondary-custom"
+                       style="padding:4px 10px;font-size:11px;flex-shrink:0">
+                      <i class="bi bi-download"></i> Download
+                    </a>
+
+                    {% if doc.doc_type != 'TRAVEL_ORDER' %}
+                    {% if is_creator or is_secretary or is_admin %}
+                    <form method="post"
+                          action="{% url 'travel_app:replace_document' doc.id %}"
+                          enctype="multipart/form-data"
+                          id="replaceForm_{{ doc.id }}"
+                          style="display:inline;flex-shrink:0">
+                      {% csrf_token %}
+                      <input type="file" id="replaceFile_{{ doc.id }}" name="file" style="display:none"
+                             onchange="document.getElementById('replaceForm_{{ doc.id }}').submit()"/>
+                      <button type="button"
+                              onclick="document.getElementById('replaceFile_{{ doc.id }}').click()"
+                              style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+                                     border-radius:6px;border:1px solid var(--border);background:var(--surface);
+                                     color:var(--text-muted);font-size:11px;cursor:pointer;">
+                        <i class="bi bi-arrow-repeat"></i> Replace
+                      </button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                  </div>
+
+                  {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+                  {% if is_creator or is_secretary or is_admin %}
+                  <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+                    <form method="post" action="{% url 'travel_app:set_document_amount' doc.id %}"
+                          style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      {% csrf_token %}
+                      <span style="font-size:12px;color:var(--text-muted)">
+                        {% if doc.extracted_amount %}Edit amount:{% else %}Enter amount:{% endif %}
+                      </span>
+                      <input type="number" name="amount" step="0.01" min="0"
+                             value="{% if doc.extracted_amount %}{{ doc.extracted_amount }}{% endif %}"
+                             placeholder="0.00"
+                             style="font-size:13px;border:1px solid var(--border);border-radius:6px;
+                                    padding:5px 8px;width:130px;background:var(--surface);
+                                    color:var(--text-primary);"
+                             required/>
+                      <button type="submit"
+                              style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;
+                                     border-radius:6px;border:none;background:var(--role-color);
+                                     color:white;font-size:12px;font-weight:600;cursor:pointer;">
+                        <i class="bi bi-check2"></i> Save
+                      </button>
+                    </form>
+                  </div>
+                  {% endif %}
+                  {% endif %}
+
+                  {% endfor %}
+
+                  <!-- Upload new file -->
+                  {% if is_creator or is_secretary or is_admin %}
+                  <form method="post" action="{% url 'travel_app:upload_document' travel.id %}"
+                        enctype="multipart/form-data"
+                        id="form_{{ hub.participant.id }}_{{ doc_type }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="doc_type" value="{{ doc_type }}"/>
+                    <input type="hidden" name="participant_id" value="{{ hub.participant.id }}"/>
+                    <div class="upload-area"
+                         onclick="document.getElementById('file_{{ hub.participant.id }}_{{ doc_type }}').click()"
+                         ondragover="event.preventDefault();this.classList.add('dragover')"
+                         ondragleave="this.classList.remove('dragover')"
+                         ondrop="handleDrop(event,'{{ hub.participant.id }}','{{ doc_type }}')">
+                      <input type="file"
+                             id="file_{{ hub.participant.id }}_{{ doc_type }}"
+                             name="file"
+                             onchange="autoSubmit('form_{{ hub.participant.id }}_{{ doc_type }}')"/>
+                      <i class="bi bi-cloud-upload" style="font-size:20px;color:var(--text-muted);display:block;margin-bottom:6px"></i>
+                      <div style="font-size:12.5px;color:var(--text-muted)">
+                        Click or drag to upload {{ doc_label }}
+                      </div>
+                    </div>
+                  </form>
+                  {% endif %}
+
+                </div>
+              </div>
             </div>
+            {% endwith %}
+            {% endfor %}
+
           </div>
-        </div>
-        {% endwith %}
-        {% endfor %}
+          {% endfor %}
+
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-people"></i>
+            <p>No participants yet.</p>
+          </div>
+        {% endif %}
 
       </div>
     </div>
@@ -307,7 +332,6 @@
             <span>{% if travel.is_out_of_province %}Yes{% else %}No{% endif %}</span>
           </div>
 
-          <!-- Amount row -->
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span style="color:var(--text-muted)">Amount</span>
             <div style="display:flex;align-items:center;gap:6px">
@@ -316,22 +340,16 @@
                   ₱{{ travel.amount_deducted|floatformat:2 }}
                 </span>
               {% else %}
-                <span style="color:var(--text-muted);font-size:12px;font-style:italic">
-                  Not set
-                </span>
+                <span style="color:var(--text-muted);font-size:12px;font-style:italic">Not set</span>
               {% endif %}
             </div>
           </div>
 
-          <!-- Scope row with change option -->
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span style="color:var(--text-muted)">Scope</span>
             <div style="display:flex;align-items:center;gap:6px">
               <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}" style="font-size:10px">
                 {{ travel.scope|title }}
-                {% if travel.scope_overridden %}
-                  <i class="bi bi-pencil-fill" style="font-size:9px;margin-left:2px" title="Manually set"></i>
-                {% endif %}
               </span>
               {% if is_secretary or is_creator %}
               <button type="button" onclick="toggleScopeForm()"
@@ -344,14 +362,9 @@
             </div>
           </div>
 
-          <!-- Inline scope change form -->
           {% if is_secretary or is_creator %}
           <div id="scopeChangeForm" style="display:none;padding:10px;background:var(--surface-2);
                                            border-radius:8px;border:1px solid var(--border)">
-            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
-              <i class="bi bi-info-circle"></i>
-              Once changed manually, scope won't be auto-detected again.
-            </div>
             <form method="post" action="{% url 'travel_app:change_scope' travel.pk %}"
                   style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               {% csrf_token %}
@@ -380,6 +393,13 @@
             <div style="font-size:13px;color:var(--text-secondary)">{{ travel.purpose }}</div>
           </div>
 
+          {% if travel.notes %}
+          <div style="padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Notes</div>
+            <div style="font-size:13px;color:var(--text-secondary)">{{ travel.notes }}</div>
+          </div>
+          {% endif %}
+
           {% if travel.event_group %}
           <div style="padding-top:10px;border-top:1px solid var(--border)">
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Event Group</div>
@@ -400,7 +420,7 @@
     <!-- Participants -->
     <div class="card mb-3">
       <div class="card-header-custom">
-        <div class="card-title">Participants ({{ travel.total_participant_count }})</div>
+        <div class="card-title">Participants ({{ travel.participant_count }})</div>
       </div>
 
       {% for p in travel.participants.all %}
@@ -414,21 +434,6 @@
         <div>
           <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ p.user.get_full_name }}</div>
           <div style="font-size:11px;color:var(--text-muted)">{{ p.college_snapshot|default:"—" }}</div>
-        </div>
-      </div>
-      {% endfor %}
-
-      {% for name in travel.unregistered_travelers %}
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;
-                  border-bottom:1px solid var(--border)">
-        <div style="width:30px;height:30px;border-radius:50%;background:#fff7ed;
-                    display:flex;align-items:center;justify-content:center;
-                    font-size:11px;font-weight:600;color:#c2410c;flex-shrink:0">
-          {{ name|slice:":1" }}
-        </div>
-        <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ name }}</div>
-          <div style="font-size:11px;color:#c2410c">Not in system</div>
         </div>
       </div>
       {% endfor %}
@@ -468,10 +473,6 @@
         {% endif %}
 
         {% if can_route and not travel.is_budget_tagged and not travel.funding_college %}
-          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
-                       margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
-            How is this travel funded?
-          </div>
           <div style="display:flex;gap:8px;margin-bottom:14px">
             <button onclick="showPanel('campus')" id="btn_campus"
                     class="btn-primary-custom"
@@ -489,8 +490,6 @@
             <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
               {% csrf_token %}
               <input type="hidden" name="action" value="tag"/>
-              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
-                             margin-bottom:5px;display:block">Campus budget source</label>
               <select name="budget_source_id"
                       style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
                              border-radius:var(--radius);width:100%;margin-bottom:10px;
@@ -502,20 +501,10 @@
                 </option>
                 {% endfor %}
               </select>
-
-              <!-- Amount field for secretary -->
-              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
-                             margin-bottom:5px;display:block">Amount (₱)</label>
-              <div class="amount-peso-wrap" style="width:100%;margin-bottom:10px">
-                <input type="number" name="amount" step="0.01" min="0"
-                       value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% endif %}"
-                       placeholder="0.00"
-                       style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
-                              padding:8px 10px 8px 24px;width:100%;background:var(--surface);
-                              color:var(--text-primary);"
-                       required/>
-              </div>
-
+              <input type="number" name="amount" step="0.01" min="0" placeholder="Amount (₱)"
+                     style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
+                            padding:8px 10px;width:100%;margin-bottom:10px;background:var(--surface);
+                            color:var(--text-primary);" required/>
               <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
                 <i class="bi bi-tag"></i> Tag Campus Budget
               </button>
@@ -526,8 +515,6 @@
             <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
               {% csrf_token %}
               <input type="hidden" name="action" value="route"/>
-              <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
-                             margin-bottom:5px;display:block">Which college is funding this?</label>
               <select name="funding_college_id"
                       style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
                              border-radius:var(--radius);width:100%;margin-bottom:10px;
@@ -548,13 +535,6 @@
           <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
             {% csrf_token %}
             <input type="hidden" name="action" value="tag"/>
-            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
-                           margin-bottom:5px;display:block">
-              Assign budget source
-              {% if travel.funding_college %}
-                <span style="color:#0f766e">({{ travel.funding_college.name }})</span>
-              {% endif %}
-            </label>
             <select name="budget_source_id"
                     style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
                            border-radius:var(--radius);width:100%;margin-bottom:10px;
@@ -567,20 +547,11 @@
               </option>
               {% endfor %}
             </select>
-
-            <!-- Amount field for secretary -->
-            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);
-                           margin-bottom:5px;display:block">Amount (₱)</label>
-            <div class="amount-peso-wrap" style="width:100%;margin-bottom:10px">
-              <input type="number" name="amount" step="0.01" min="0"
-                     value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% endif %}"
-                     placeholder="0.00"
-                     style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
-                            padding:8px 10px 8px 24px;width:100%;background:var(--surface);
-                            color:var(--text-primary);"
-                     required/>
-            </div>
-
+            <input type="number" name="amount" step="0.01" min="0" placeholder="Amount (₱)"
+                   value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% endif %}"
+                   style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
+                          padding:8px 10px;width:100%;margin-bottom:10px;background:var(--surface);
+                          color:var(--text-primary);" required/>
             <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
               <i class="bi bi-tag"></i>
               {% if travel.is_budget_tagged %}Update Budget{% else %}Tag Budget{% endif %}
@@ -626,34 +597,46 @@
     </div>
     {% endif %}
 
-  </div>{# end col-lg-4 #}
-</div>{# end row #}
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+function switchParticipant(hubId, tabEl) {
+  // Hide all hubs
+  document.querySelectorAll('[id^="hub_"]').forEach(el => el.style.display = 'none');
+  // Deactivate all tabs
+  document.querySelectorAll('.participant-tab').forEach(el => el.classList.remove('active'));
+  // Show selected hub and activate tab
+  document.getElementById(hubId).style.display = 'block';
+  tabEl.classList.add('active');
+}
+
 function toggleSlot(id) {
   const el  = document.getElementById(id);
-  const key = id.replace('slot_', '');
-  const ch  = document.getElementById('chevron_' + key);
+  const parts = id.replace('slot_', '').split('_');
+  const key = parts[parts.length - 1];
+  const participantId = parts.slice(0, parts.length - 1).join('_');
+  const ch  = document.getElementById('chevron_' + participantId + '_' + key);
   const open = el.style.display === 'none';
   el.style.display   = open ? 'block' : 'none';
-  ch.style.transform = open ? 'rotate(180deg)' : '';
+  if (ch) ch.style.transform = open ? 'rotate(180deg)' : '';
 }
 
 function autoSubmit(formId) {
   document.getElementById(formId).submit();
 }
 
-function handleDrop(event, docType) {
+function handleDrop(event, participantId, docType) {
   event.preventDefault();
   event.currentTarget.classList.remove('dragover');
   const file  = event.dataTransfer.files[0];
-  const input = document.getElementById('file_' + docType);
+  const input = document.getElementById('file_' + participantId + '_' + docType);
   const dt    = new DataTransfer();
   dt.items.add(file);
   input.files = dt.files;
-  autoSubmit('form_' + docType);
+  autoSubmit('form_' + participantId + '_' + docType);
 }
 
 function showPanel(name) {
