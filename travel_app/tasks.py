@@ -11,14 +11,14 @@ def extract_document_task(self, document_id):
     Celery task — runs AI extraction in background.
     Retries up to 3 times on failure with 10s delay.
     """
-    from .models import TravelDocument
+    from .models import ParticipantDocument
     from .ai_service import extract_from_document
 
     try:
-        doc = TravelDocument.objects.get(id=document_id)
+        doc = ParticipantDocument.objects.get(id=document_id)
         extract_from_document(doc)
-    except TravelDocument.DoesNotExist:
-        logger.error(f"TravelDocument {document_id} not found")
+    except ParticipantDocument.DoesNotExist:
+        logger.error(f"ParticipantDocument {document_id} not found")
     except Exception as exc:
         logger.error(f"Task failed for doc {document_id}: {exc}")
         raise self.retry(exc=exc)

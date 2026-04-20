@@ -317,22 +317,21 @@ class TravelRecord(models.Model):
 
     @property
     def document_count(self):
-        return self.documents.count()
-
-    @property
-    def document_types_uploaded(self):
-        return set(self.documents.values_list('doc_type', flat=True))
-
-    @property
-    def missing_documents(self):
-        return [t for t, _ in TravelDocument.DOC_TYPE_CHOICES
-                if t not in self.document_types_uploaded]
+        from travel_app.models import ParticipantDocument
+        return ParticipantDocument.objects.filter(
+            participant__travel_record=self
+        ).count()
 
     @property
     def completeness_percentage(self):
-        total = len(TravelDocument.DOC_TYPE_CHOICES)
-        uploaded = len(self.document_types_uploaded)
-        return round((uploaded / total) * 100) if total else 0
+        participants = self.participants.count()
+        if not participants:
+            return 0
+        total_possible = participants * len(ParticipantDocument.DOC_TYPE_CHOICES)
+        uploaded = ParticipantDocument.objects.filter(
+            participant__travel_record=self
+        ).count()
+        return round((uploaded / total_possible) * 100) if total_possible else 0
 
     @property
     def is_budget_tagged(self):
@@ -396,76 +395,60 @@ class TravelParticipant(models.Model):
         verbose_name_plural = 'Travel Participants'
 
 
-# ══════════════════════════════════════════════════════════════════════
-# TRAVEL DOCUMENTS  (the document folder contents)
-# ══════════════════════════════════════════════════════════════════════
-
-class TravelDocument(models.Model):
-    """
-    A single uploaded file attached to a TravelRecord.
-
-    When a document is uploaded, the system passes it to Ollama for
-    extraction. Extracted fields are stored alongside the file.
-    Secretary reviews and confirms — setting is_confirmed=True locks
-    the extracted data into the stats engine.
-
-    One travel can have multiple documents of the same type
-    (e.g. updated versions of a DV). The latest confirmed version
-    of each type is used for stats.
-    """
+class ParticipantDocument(models.Model):
     DOC_TYPE_CHOICES = [
-        ('TRAVEL_ORDER',      'Travel Order'),
-        ('ITINERARY',         'Itinerary of Travel'),
-        ('DV',                'Disbursement Voucher'),
-        ('BURS',              'Budget Utilization Request and Status'),
-        ('RECEIPTS',          'Official Receipts'),
-        ('CERTIFICATE',       'Certificate of Appearance / Completion'),
-        ('POST_REPORT',       'Post-Activity Report'),
-        ('LETTER_REQUEST',    'Letter Request (Out-of-Province)'),
+        ('TRAVEL_ORDER',   'Travel Order'),
+        ('ITINERARY',      'Itinerary of Travel'),
+        ('DV',             'Disbursement Voucher'),
+        ('BURS',           'Budget Utilization Request and Status'),
+        ('RECEIPTS',       'Official Receipts'),
+        ('CERTIFICATE',    'Certificate of Appearance / Completion'),
+        ('POST_REPORT',    'Post-Activity Report'),
+        ('LETTER_REQUEST', 'Letter Request (Out-of-Province)'),
     ]
 
-    travel_record = models.ForeignKey(TravelRecord, on_delete=models.CASCADE, related_name='documents')
+    participant   = models.ForeignKey(
+        TravelParticipant, on_delete=models.CASCADE,
+        related_name='documents'
+    )
     doc_type      = models.CharField(max_length=30, choices=DOC_TYPE_CHOICES)
-    file          = models.FileField(upload_to='travel_documents/%Y/%m/')
+    file          = models.FileField(upload_to='participant_documents/%Y/%m/')
     uploaded_by   = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
-        null=True, related_name='uploaded_travel_docs'
+        null=True, related_name='uploaded_participant_docs'
     )
     uploaded_at   = models.DateTimeField(auto_now_add=True)
     notes         = models.TextField(blank=True, max_length=500)
 
-    # ── AI-extracted fields (populated by Ollama on upload) ───────────
+    # ── AI extracted fields ───────────────────────────────────────────
     extracted_destination = models.CharField(max_length=200, blank=True)
     extracted_start_date  = models.DateField(null=True, blank=True)
     extracted_end_date    = models.DateField(null=True, blank=True)
-    extracted_amount      = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     extracted_purpose     = models.TextField(blank=True, max_length=500)
-    extracted_num_travelers = models.IntegerField(null=True, blank=True)
-    extraction_raw        = models.TextField(
-        blank=True,
-        help_text='Raw JSON response from Ollama for debugging.'
+    extracted_amount      = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        null=True, blank=True,
+        help_text='Amount extracted from Itinerary. Used for per-person expense tracking.'
     )
     extraction_attempted  = models.BooleanField(default=False)
     extraction_successful = models.BooleanField(default=False)
+    extraction_raw        = models.TextField(blank=True)
 
     # ── Secretary review ──────────────────────────────────────────────
-    is_confirmed    = models.BooleanField(
-        default=False,
-        help_text='Secretary confirmed extracted data is correct. Used by stats engine.'
-    )
-    confirmed_by    = models.ForeignKey(
+    is_confirmed  = models.BooleanField(default=False)
+    confirmed_by  = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='confirmed_travel_docs'
+        null=True, blank=True, related_name='confirmed_participant_docs'
     )
-    confirmed_at    = models.DateTimeField(null=True, blank=True)
+    confirmed_at  = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.get_doc_type_display()} — {self.travel_record}"
+        return f"{self.get_doc_type_display()} — {self.participant}"
 
     class Meta:
         ordering = ['-uploaded_at']
-        verbose_name = 'Travel Document'
-        verbose_name_plural = 'Travel Documents'
+        verbose_name = 'Participant Document'
+        verbose_name_plural = 'Participant Documents'
 
 
 # ══════════════════════════════════════════════════════════════════════
