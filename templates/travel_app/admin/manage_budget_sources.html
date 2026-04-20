@@ -65,21 +65,12 @@
             </select>
           </div>
 
-          <div id="collegeAmountField" style="margin-bottom:14px">
-            <label class="form-label">Amount per College (₱)</label>
-            <input type="number" name="college_budget_amount" class="form-control"
+          <div style="margin-bottom:14px">
+            <label class="form-label" id="budgetAmountLabel">Amount per College (₱)</label>
+            <input type="number" name="budget_amount" class="form-control"
                    placeholder="e.g. 500000" min="0" step="1000"/>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="budgetAmountHint">
               This amount is given to each of the {{ college_count }} colleges independently.
-            </div>
-          </div>
-
-          <div id="campusAmountField" style="margin-bottom:14px;display:none">
-            <label class="form-label">Campus Pool Amount (₱)</label>
-            <input type="number" name="campus_budget_amount" class="form-control"
-                   placeholder="e.g. 1000000" min="0" step="1000"/>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
-              Single shared pool for all cross-college travel.
             </div>
           </div>
 
@@ -134,11 +125,11 @@
               {% endif %}
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
                 {% if item.source.scope == 'COLLEGE' %}
-                  ₱{{ item.source.college_budget_amount|floatformat:0 }} per college
+                  ₱{{ item.source.budget_amount|floatformat:0 }} per college
                   &nbsp;·&nbsp; {{ college_count }} college{{ college_count|pluralize }}
                   &nbsp;·&nbsp; ₱{{ item.allocated|floatformat:0 }} total
                 {% else %}
-                  ₱{{ item.source.campus_budget_amount|floatformat:0 }} campus pool
+                  ₱{{ item.source.budget_amount|floatformat:0 }} campus pool
                 {% endif %}
                 &nbsp;·&nbsp; {{ item.travel_count }} travel{{ item.travel_count|pluralize }}
               </div>
@@ -209,8 +200,15 @@
 {% block extra_js %}
 <script>
 function toggleAmountFields(scope) {
-  document.getElementById('collegeAmountField').style.display = scope === 'COLLEGE' ? '' : 'none';
-  document.getElementById('campusAmountField').style.display  = scope === 'CAMPUS'  ? '' : 'none';
+  const label = document.getElementById('budgetAmountLabel');
+  const hint  = document.getElementById('budgetAmountHint');
+  if (scope === 'COLLEGE') {
+    label.textContent = 'Amount per College (₱)';
+    hint.textContent  = 'This amount is given to each college independently.';
+  } else {
+    label.textContent = 'Campus Pool Amount (₱)';
+    hint.textContent  = 'Single shared pool for all cross-college travel.';
+  }
 }
 </script>
 {% endblock %}

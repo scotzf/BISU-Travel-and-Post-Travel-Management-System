@@ -186,9 +186,9 @@ def get_budget_status(budget_source, college=None, campus=None):
             )
         except BudgetUsage.DoesNotExist:
             return {
-                'allocated': budget_source.college_budget_amount,
+                'allocated': budget_source.budget_amount,
                 'used':      Decimal('0'),
-                'remaining': budget_source.college_budget_amount,
+                'remaining': budget_source.budget_amount,
                 'percentage': 0,
                 'status':    'unused',
             }
@@ -199,9 +199,9 @@ def get_budget_status(budget_source, college=None, campus=None):
             )
         except CampusBudgetUsage.DoesNotExist:
             return {
-                'allocated': budget_source.campus_budget_amount,
+                'allocated': budget_source.budget_amount,
                 'used':      Decimal('0'),
-                'remaining': budget_source.campus_budget_amount,
+                'remaining': budget_source.budget_amount,
                 'percentage': 0,
                 'status':    'unused',
             }

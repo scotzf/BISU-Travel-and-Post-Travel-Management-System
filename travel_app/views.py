@@ -222,11 +222,11 @@ def admin_dashboard(request, user=None):
     for source in sources:
         if source.scope == 'COLLEGE':
             usages          = BudgetUsage.objects.filter(budget_source=source, year=year)
-            total_allocated = source.college_budget_amount * usages.count() if usages.exists() else source.college_budget_amount
+            total_allocated = source.budget_amount * usages.count() if usages.exists() else source.budget_amount
             total_used      = sum(u.used_amount for u in usages)
         else:
             usages          = CampusBudgetUsage.objects.filter(budget_source=source, year=year)
-            total_allocated = source.campus_budget_amount
+            total_allocated = source.budget_amoun
             total_used      = sum(u.used_amount for u in usages)
         pct    = round((total_used / total_allocated * 100), 1) if total_allocated > 0 else 0
         status = 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy'
@@ -801,8 +801,7 @@ def manage_budget_sources(request):
         if action == 'create':
             name                  = request.POST.get('name', '').strip()
             scope                 = request.POST.get('scope', 'COLLEGE')
-            college_budget_amount = request.POST.get('college_budget_amount', 0) or 0
-            campus_budget_amount  = request.POST.get('campus_budget_amount', 0) or 0
+            budget_amount = request.POST.get('budget_amount', 0) or 0
             description           = request.POST.get('description', '').strip()
             source_year           = int(request.POST.get('year', today.year))
             if not name:
@@ -812,8 +811,7 @@ def manage_budget_sources(request):
                 try:
                     BudgetSource.objects.create(
                         name=name, scope=scope, year=source_year,
-                        college_budget_amount=college_budget_amount,
-                        campus_budget_amount=campus_budget_amount,
+                        budget_amount=budget_amount,
                         description=description,
                     )
                     from django.contrib import messages
@@ -857,11 +855,11 @@ def manage_budget_sources(request):
     for source in sources:
         if source.scope == 'COLLEGE':
             usages          = BudgetUsage.objects.filter(budget_source=source, year=year)
-            total_allocated = source.college_budget_amount * College.objects.count()
+            total_allocated = source.budget_amount * College.objects.count()
             total_used      = sum(u.used_amount for u in usages)
         else:
             usages          = CampusBudgetUsage.objects.filter(budget_source=source, year=year)
-            total_allocated = source.campus_budget_amount
+            total_allocated = source.budget_amount
             total_used      = sum(u.used_amount for u in usages)
 
         pct    = round((total_used / total_allocated * 100), 1) if total_allocated > 0 else 0
@@ -919,7 +917,7 @@ def budget_overview(request):
                     'percentage': u.usage_percentage,
                     'status':     u.status,
                 } for u in usages]
-                total_alloc  = source.college_budget_amount * College.objects.count()
+                total_alloc = source.budget_amount * College.objects.count() 
                 total_used   = sum(u.used_amount for u in usages)
                 tagged_count = source.travel_records.count()
             else:
@@ -934,7 +932,7 @@ def budget_overview(request):
                     'percentage': u.usage_percentage,
                     'status':     u.status,
                 } for u in usages]
-                total_alloc  = source.campus_budget_amount
+                total_alloc = source.budget_amount
                 total_used   = sum(u.used_amount for u in usages)
                 tagged_count = source.travel_records.count()
 

@@ -24,13 +24,9 @@ class BudgetSource(models.Model):
     name                  = models.CharField(max_length=100)
     scope                 = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='COLLEGE')
     year                  = models.IntegerField(help_text='Fiscal year, e.g. 2026')
-    college_budget_amount = models.DecimalField(
+    budget_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=0,
-        help_text='Amount allocated to EACH college for this source/year'
-    )
-    campus_budget_amount  = models.DecimalField(
-        max_digits=12, decimal_places=2, default=0,
-        help_text='Total campus-wide pool for this source/year'
+        help_text='Amount allocated per college (COLLEGE scope) or total campus pool (CAMPUS scope)'
     )
     description = models.TextField(blank=True, max_length=500)
     is_active   = models.BooleanField(default=True)
@@ -41,14 +37,14 @@ class BudgetSource(models.Model):
         return f"{self.name} ({self.year}) — {self.get_scope_display()}"
 
     def get_budget_amount(self):
-        return self.college_budget_amount if self.scope == 'COLLEGE' else self.campus_budget_amount
+        return self.budget_amount
 
     def get_or_create_college_usage(self, college):
         if self.scope != 'COLLEGE':
             raise ValueError("This source is CAMPUS-scoped. Use get_or_create_campus_usage().")
         return BudgetUsage.objects.get_or_create(
             college=college, budget_source=self, year=self.year,
-            defaults={'allocated_amount': self.college_budget_amount}
+            defaults={'allocated_amount': self.budget_amount}
         )
 
     def get_or_create_campus_usage(self, campus):
@@ -56,7 +52,7 @@ class BudgetSource(models.Model):
             raise ValueError("This source is COLLEGE-scoped. Use get_or_create_college_usage().")
         return CampusBudgetUsage.objects.get_or_create(
             campus=campus, budget_source=self, year=self.year,
-            defaults={'allocated_amount': self.campus_budget_amount}
+            defaults={'allocated_amount': self.budget_amount}
         )
 
     class Meta:
@@ -293,25 +289,11 @@ class TravelRecord(models.Model):
     related_name='funded_travels',
     help_text='Set by Campus Secretary when cross-college travel is funded by a specific college'
     )
-    scope_overridden = models.BooleanField(
-    default=False,
-    help_text='If True, scope was manually set and will not be auto-detected from participants.'
-    )
-    unregistered_travelers = models.JSONField(
-    default=list, blank=True,
-    help_text='Names of travelers not registered in the system at time of creation.'
-    )
-    
 
     # ── Notes ─────────────────────────────────────────────────────────
     notes = models.TextField(blank=True, max_length=1000)
 
     # ── Helpers ───────────────────────────────────────────────────────
-    def refresh_scope(self):
-        if self.scope_overridden:
-            return  # don't touch manually set scope
-        self.scope = self.detect_scope()
-        self.save(update_fields=['scope'])
     def get_duration_days(self):
         if self.end_date:
             return (self.end_date - self.start_date).days + 1
@@ -359,9 +341,6 @@ class TravelRecord(models.Model):
     @property
     def participant_count(self):
         return self.participants.count()
-    @property
-    def total_participant_count(self):
-        return self.participants.count() + len(self.unregistered_travelers)
 
     def __str__(self):
         return f"{self.destination} | {self.start_date} | {self.created_by.get_full_name()}"
@@ -425,100 +404,60 @@ class TravelDocument(models.Model):
     """
     A single uploaded file attached to a TravelRecord.
 
-    TRAVEL_ORDER → full extraction (destination, dates, purpose, traveler names)
-    BURS / ITINERARY → amount extraction only, triggers budget deduction on confirm
-    All others → file storage only, no extraction
+    When a document is uploaded, the system passes it to Ollama for
+    extraction. Extracted fields are stored alongside the file.
+    Secretary reviews and confirms — setting is_confirmed=True locks
+    the extracted data into the stats engine.
+
+    One travel can have multiple documents of the same type
+    (e.g. updated versions of a DV). The latest confirmed version
+    of each type is used for stats.
     """
     DOC_TYPE_CHOICES = [
-        ('TRAVEL_ORDER',   'Travel Order'),
-        ('ITINERARY',      'Itinerary of Travel'),
-        ('DV',             'Disbursement Voucher'),
-        ('BURS',           'Budget Utilization Request and Status'),
-        ('RECEIPTS',       'Official Receipts'),
-        ('CERTIFICATE',    'Certificate of Appearance / Completion'),
-        ('POST_REPORT',    'Post-Activity Report'),
-        ('LETTER_REQUEST', 'Letter Request (Out-of-Province)'),
+        ('TRAVEL_ORDER',      'Travel Order'),
+        ('ITINERARY',         'Itinerary of Travel'),
+        ('DV',                'Disbursement Voucher'),
+        ('BURS',              'Budget Utilization Request and Status'),
+        ('RECEIPTS',          'Official Receipts'),
+        ('CERTIFICATE',       'Certificate of Appearance / Completion'),
+        ('POST_REPORT',       'Post-Activity Report'),
+        ('LETTER_REQUEST',    'Letter Request (Out-of-Province)'),
     ]
 
-    EXTRACTION_STATUS_CHOICES = [
-        ('pending',    'Pending'),
-        ('processing', 'Processing'),
-        ('done',       'Done'),
-        ('failed',     'Failed'),
-        ('skipped',    'Skipped'),   # doc types with no extraction
-    ]
-
-    # ── Core ──────────────────────────────────────────────────────────
-    travel_record = models.ForeignKey(
-        TravelRecord, on_delete=models.CASCADE, related_name='documents'
-    )
-    doc_type    = models.CharField(max_length=30, choices=DOC_TYPE_CHOICES)
-    file        = models.FileField(upload_to='travel_documents/%Y/%m/')
-    uploaded_by = models.ForeignKey(
+    travel_record = models.ForeignKey(TravelRecord, on_delete=models.CASCADE, related_name='documents')
+    doc_type      = models.CharField(max_length=30, choices=DOC_TYPE_CHOICES)
+    file          = models.FileField(upload_to='travel_documents/%Y/%m/')
+    uploaded_by   = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
         null=True, related_name='uploaded_travel_docs'
     )
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    notes       = models.TextField(blank=True, max_length=500)
+    uploaded_at   = models.DateTimeField(auto_now_add=True)
+    notes         = models.TextField(blank=True, max_length=500)
 
-    # ── Extracted fields (TRAVEL_ORDER) ───────────────────────────────
-    extracted_destination   = models.CharField(max_length=200, blank=True)
-    extracted_start_date    = models.DateField(null=True, blank=True)
-    extracted_end_date      = models.DateField(null=True, blank=True)
-    extracted_purpose       = models.TextField(blank=True, max_length=500)
-    extracted_traveler_names = models.JSONField(
-        default=list, blank=True,
-        help_text='List of traveler names extracted from Travel Order'
+    # ── AI-extracted fields (populated by Ollama on upload) ───────────
+    extracted_destination = models.CharField(max_length=200, blank=True)
+    extracted_start_date  = models.DateField(null=True, blank=True)
+    extracted_end_date    = models.DateField(null=True, blank=True)
+    extracted_amount      = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    extracted_purpose     = models.TextField(blank=True, max_length=500)
+    extracted_num_travelers = models.IntegerField(null=True, blank=True)
+    extraction_raw        = models.TextField(
+        blank=True,
+        help_text='Raw JSON response from Ollama for debugging.'
     )
-
-    # ── Extracted fields (BURS / ITINERARY) ───────────────────────────
-    extracted_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True,
-        help_text='Extracted amount from BURS or Itinerary. Confirmed by user before deduction.'
-    )
-    amount_confirmed = models.BooleanField(
-        default=False,
-        help_text='User reviewed and confirmed the extracted amount. Triggers budget deduction.'
-    )
-    amount_confirmed_by = models.ForeignKey(
-        'accounts.User', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='amount_confirmed_docs'
-    )
-    amount_confirmed_at = models.DateTimeField(null=True, blank=True)
-
-    # ── Extraction status ─────────────────────────────────────────────
-    extraction_status     = models.CharField(
-        max_length=20, choices=EXTRACTION_STATUS_CHOICES, default='pending'
-    )
+    extraction_attempted  = models.BooleanField(default=False)
     extraction_successful = models.BooleanField(default=False)
-    extraction_confidence = models.CharField(
-        max_length=10, blank=True,
-        help_text='high / medium / low'
-    )
-    detected_doc_type = models.CharField(
-        max_length=30, blank=True,
-        help_text='Document type as detected by AI'
-    )
 
-    # ── Secretary review (general confirm) ────────────────────────────
-    is_confirmed = models.BooleanField(
+    # ── Secretary review ──────────────────────────────────────────────
+    is_confirmed    = models.BooleanField(
         default=False,
-        help_text='Secretary confirmed this document is valid.'
+        help_text='Secretary confirmed extracted data is correct. Used by stats engine.'
     )
-    confirmed_by = models.ForeignKey(
+    confirmed_by    = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='confirmed_travel_docs'
     )
-    confirmed_at = models.DateTimeField(null=True, blank=True)
-
-    # ── Helpers ───────────────────────────────────────────────────────
-    @property
-    def needs_extraction(self):
-        return self.doc_type in ('TRAVEL_ORDER', 'BURS', 'ITINERARY')
-
-    @property
-    def traveler_count(self):
-        return len(self.extracted_traveler_names)
+    confirmed_at    = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.get_doc_type_display()} — {self.travel_record}"
