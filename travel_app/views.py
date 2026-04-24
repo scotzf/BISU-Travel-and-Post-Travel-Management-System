@@ -207,7 +207,7 @@ def admin_dashboard(request, user=None):
         'created_by__college', 'budget_source'
     ).prefetch_related('participants').all()
 
-    sources     = BudgetSource.objects.filter(year=year, is_active=True)
+    sources     = BudgetSource.objects.filter(fiscal_year=year, is_active=True)
     budget_data = []
     for source in sources:
         usages          = BudgetUsage.objects.filter(budget_source=source, year=year)
@@ -626,9 +626,9 @@ def tag_budget(request, pk):
                 source = BudgetSource.objects.get(id=budget_source_id, is_active=True)
 
                 allowed = False
-                if user.role == 'DEPT_SEC' and source.scope == 'COLLEGE':
+                if user.role == 'DEPT_SEC' and source.budget_scope == 'COLLEGE':
                     allowed = True
-                elif user.role == 'CAMPUS_SEC' and source.scope == 'CAMPUS':
+                elif user.role == 'CAMPUS_SEC' and source.budget_scope == 'CAMPUS':
                     allowed = True
 
                 if not allowed:
@@ -655,7 +655,6 @@ def tag_budget(request, pk):
                         'budget_tagged_at', 'amount_deducted'
                     ])
 
-                    # Create usage row per participant and deduct
                     if amount_deducted > 0:
                         participants = travel.participants.select_related('user').all()
                         for tp in participants:
@@ -663,7 +662,7 @@ def tag_budget(request, pk):
                             usage.deduct(amount_deducted / participants.count())
 
                     from django.contrib import messages
-                    messages.success(request, f'Budget source "{source.name}" assigned with ₱{amount_deducted:,.2f} deducted.')
+                    messages.success(request, f'Budget source "{source.budget_name}" assigned with ₱{amount_deducted:,.2f} deducted.')
 
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
@@ -774,23 +773,25 @@ def manage_budget_sources(request):
         action = request.POST.get('action')
 
         if action == 'create':
-            name          = request.POST.get('name', '').strip()
-            scope         = request.POST.get('scope', 'COLLEGE')
+            budget_name   = request.POST.get('name', '').strip()
+            budget_scope  = request.POST.get('scope', 'COLLEGE')
             budget_amount = request.POST.get('budget_amount', 0) or 0
             description   = request.POST.get('description', '').strip()
-            source_year   = int(request.POST.get('year', today.year))
-            if not name:
+            fiscal_year   = int(request.POST.get('year', today.year))
+            if not budget_name:
                 from django.contrib import messages
                 messages.error(request, 'Budget source name is required.')
             else:
                 try:
                     BudgetSource.objects.create(
-                        name=name, scope=scope, year=source_year,
+                        budget_name=budget_name,
+                        budget_scope=budget_scope,
+                        fiscal_year=fiscal_year,
                         budget_amount=budget_amount,
                         description=description,
                     )
                     from django.contrib import messages
-                    messages.success(request, f'Budget source "{name}" created.')
+                    messages.success(request, f'Budget source "{budget_name}" created.')
                 except Exception as e:
                     from django.contrib import messages
                     messages.error(request, f'Error: {str(e)}')
@@ -802,7 +803,7 @@ def manage_budget_sources(request):
                 source.is_active = not source.is_active
                 source.save(update_fields=['is_active'])
                 from django.contrib import messages
-                messages.success(request, f'"{source.name}" {"activated" if source.is_active else "deactivated"}.')
+                messages.success(request, f'"{source.budget_name}" {"activated" if source.is_active else "deactivated"}.')
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'Budget source not found.')
@@ -813,9 +814,9 @@ def manage_budget_sources(request):
                 source = BudgetSource.objects.get(id=source_id)
                 if source.travel_records.exists():
                     from django.contrib import messages
-                    messages.error(request, f'Cannot delete "{source.name}" — travels are using it.')
+                    messages.error(request, f'Cannot delete "{source.budget_name}" — travels are using it.')
                 else:
-                    name = source.name
+                    name = source.budget_name
                     source.delete()
                     from django.contrib import messages
                     messages.success(request, f'"{name}" deleted.')
@@ -825,7 +826,7 @@ def manage_budget_sources(request):
 
         return redirect(f"{request.path}?year={year}")
 
-    sources     = BudgetSource.objects.filter(year=year).order_by('scope', 'name')
+    sources     = BudgetSource.objects.filter(fiscal_year=year).order_by('budget_scope', 'budget_name')
     source_data = []
     for source in sources:
         usages          = BudgetUsage.objects.filter(budget_source=source, year=year)
@@ -871,15 +872,14 @@ def budget_overview(request):
     year  = int(request.GET.get('year', today.year))
 
     if user.role == 'ADMIN':
-        sources  = BudgetSource.objects.filter(year=year, is_active=True).order_by('scope', 'name')
+        sources  = BudgetSource.objects.filter(fiscal_year=year, is_active=True).order_by('budget_scope', 'budget_name')
         overview = []
         for source in sources:
             usages = BudgetUsage.objects.filter(
                 budget_source=source, year=year
             ).select_related('user__college', 'user__campus').order_by('user__last_name')
 
-            # Group rows by college or campus depending on scope
-            if source.scope == 'COLLEGE':
+            if source.budget_scope == 'COLLEGE':
                 rows = [{
                     'label':      u.user.college.name if u.user.college else 'Unknown',
                     'user':       u.user.get_full_name(),
@@ -1375,7 +1375,6 @@ def stats_view(request):
     if not year_list:
         year_list = [this_year]
 
-    # ── Event group deduplication ─────────────────────────────────────
     grouped_travel_ids = set()
     seen_groups        = set()
     for travel in travels_year.select_related('event_group').order_by('created_at'):
@@ -1387,7 +1386,6 @@ def stats_view(request):
 
     deduped = travels_year.exclude(id__in=grouped_travel_ids)
 
-    # ── Section 1: Travel Volume ──────────────────────────────────────
     monthly_raw = (
         deduped
         .annotate(month=TruncMonth('start_date'))
@@ -1437,7 +1435,6 @@ def stats_view(request):
     yearly_labels = [str(r['yr'].year) for r in yearly_raw]
     yearly_data   = [r['count'] for r in yearly_raw]
 
-    # ── Section 2: Budget Usage ───────────────────────────────────────
     if user.role == 'ADMIN':
         budget_usages = BudgetUsage.objects.filter(
             year=selected_year
@@ -1470,7 +1467,6 @@ def stats_view(request):
     total_used      = sum(u.used_amount for u in budget_usages)
     total_remaining = total_allocated - total_used
 
-    # ── Section 3: Participant Stats ──────────────────────────────────
     from .models import TravelParticipant
 
     top_travelers = (
@@ -1498,10 +1494,8 @@ def stats_view(request):
         .order_by('-count')[:8]
     )
 
-    # ── Section 4: Anomaly Alerts ─────────────────────────────────────
     anomalies = []
 
-    # Travels with zero participant documents
     no_docs = travels_year.annotate(
         doc_count=Count('participants__documents')
     ).filter(doc_count=0)
@@ -1515,14 +1509,13 @@ def stats_view(request):
             'travels': list(no_docs.values('id', 'destination', 'start_date')[:5]),
         })
 
-    # Budget sources at ≥80% usage
     critical_budgets = [u for u in budget_usages if u.usage_percentage >= 80]
     for u in critical_budgets:
         label = u.user.college.name if u.user.college else u.user.campus.name if u.user.campus else 'Unknown'
         anomalies.append({
             'type':    'critical' if u.usage_percentage >= 100 else 'warning',
             'icon':    'bi-exclamation-triangle-fill',
-            'title':   f'{u.budget_source.name} — {u.user.get_full_name()} at {u.usage_percentage}%',
+            'title':   f'{u.budget_source.budget_name} — {u.user.get_full_name()} at {u.usage_percentage}%',
             'detail':  f'₱{u.used_amount:,.0f} used of ₱{u.allocated_amount:,.0f}',
             'travels': [],
         })

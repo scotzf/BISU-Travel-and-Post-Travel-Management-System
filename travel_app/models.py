@@ -13,9 +13,9 @@ class BudgetSource(models.Model):
         ('CAMPUS',  'Campus-Level'),
     ]
 
-    name          = models.CharField(max_length=100)
-    scope         = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='COLLEGE')
-    year          = models.IntegerField(help_text='Fiscal year, e.g. 2026')
+    budget_name   = models.CharField(max_length=100)
+    budget_scope  = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='COLLEGE')
+    fiscal_year   = models.IntegerField(help_text='Fiscal year, e.g. 2026')
     budget_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=0,
         help_text='Amount allocated per college (COLLEGE scope) or total campus pool (CAMPUS scope)'
@@ -26,24 +26,24 @@ class BudgetSource(models.Model):
     updated_at  = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} ({self.year}) — {self.get_scope_display()}"
+        return f"{self.budget_name} ({self.fiscal_year}) — {self.get_budget_scope_display()}"
 
     def get_or_create_usage(self, user):
         """
         Get or create a BudgetUsage row for this user and source.
-    
+
         Works for both COLLEGE and CAMPUS scoped sources.
         """
         return BudgetUsage.objects.get_or_create(
             user=user,
             budget_source=self,
-            year=self.year,
+            year=self.fiscal_year,
             defaults={'allocated_amount': self.budget_amount}
         )
 
     class Meta:
-        ordering = ['-year', 'name']
-        unique_together = [['name', 'year', 'scope']]
+        ordering = ['-fiscal_year', 'budget_name']
+        unique_together = [['budget_name', 'fiscal_year', 'budget_scope']]
         verbose_name = 'Budget Source'
         verbose_name_plural = 'Budget Sources'
 
@@ -58,7 +58,7 @@ class BudgetUsage(models.Model):
 
     - user.college  → tells us which college this belongs to
     - user.campus   → tells us which campus this belongs to
-    - budget_source.scope → tells us if it's COLLEGE or CAMPUS level
+    - budget_source.budget_scope → tells us if it's COLLEGE or CAMPUS level
 
     This replaces both the old BudgetUsage and CampusBudgetUsage models.
     Allows answering: "How much did employee X spend this year?"
@@ -106,7 +106,7 @@ class BudgetUsage(models.Model):
         self.save(update_fields=['used_amount'])
 
     def __str__(self):
-        return f"{self.user.get_full_name()} | {self.budget_source.name} ({self.year})"
+        return f"{self.user.get_full_name()} | {self.budget_source.budget_name} ({self.year})"
 
     class Meta:
         unique_together = [['user', 'budget_source', 'year']]
