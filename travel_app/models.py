@@ -8,22 +8,14 @@ from django.core.validators import MinValueValidator
 # ══════════════════════════════════════════════════════════════════════
 
 class BudgetSource(models.Model):
-    """
-    A named budget category for a given fiscal year.
-
-    COLLEGE scope → college_budget_amount is given to EVERY college.
-    CAMPUS scope  → campus_budget_amount is a single campus-wide pool.
-
-    Admin creates these. Secretaries pick from them when tagging a travel.
-    """
     SCOPE_CHOICES = [
         ('COLLEGE', 'College-Level'),
         ('CAMPUS',  'Campus-Level'),
     ]
 
-    name                  = models.CharField(max_length=100)
-    scope                 = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='COLLEGE')
-    year                  = models.IntegerField(help_text='Fiscal year, e.g. 2026')
+    name          = models.CharField(max_length=100)
+    scope         = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='COLLEGE')
+    year          = models.IntegerField(help_text='Fiscal year, e.g. 2026')
     budget_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=0,
         help_text='Amount allocated per college (COLLEGE scope) or total campus pool (CAMPUS scope)'
@@ -36,22 +28,16 @@ class BudgetSource(models.Model):
     def __str__(self):
         return f"{self.name} ({self.year}) — {self.get_scope_display()}"
 
-    def get_budget_amount(self):
-        return self.budget_amount
-
-    def get_or_create_college_usage(self, college):
-        if self.scope != 'COLLEGE':
-            raise ValueError("This source is CAMPUS-scoped. Use get_or_create_campus_usage().")
+    def get_or_create_usage(self, user):
+        """
+        Get or create a BudgetUsage row for this user and source.
+    
+        Works for both COLLEGE and CAMPUS scoped sources.
+        """
         return BudgetUsage.objects.get_or_create(
-            college=college, budget_source=self, year=self.year,
-            defaults={'allocated_amount': self.budget_amount}
-        )
-
-    def get_or_create_campus_usage(self, campus):
-        if self.scope != 'CAMPUS':
-            raise ValueError("This source is COLLEGE-scoped. Use get_or_create_college_usage().")
-        return CampusBudgetUsage.objects.get_or_create(
-            campus=campus, budget_source=self, year=self.year,
+            user=user,
+            budget_source=self,
+            year=self.year,
             defaults={'allocated_amount': self.budget_amount}
         )
 
@@ -62,13 +48,30 @@ class BudgetSource(models.Model):
         verbose_name_plural = 'Budget Sources'
 
 
+# ══════════════════════════════════════════════════════════════════════
+# BUDGET USAGE  (merged — replaces BudgetUsage + CampusBudgetUsage)
+# ══════════════════════════════════════════════════════════════════════
+
 class BudgetUsage(models.Model):
     """
-    Tracks spending per college per budget source per year.
-    One row auto-created the first time a college uses a source.
+    Tracks spending per user per budget source per year.
+
+    - user.college  → tells us which college this belongs to
+    - user.campus   → tells us which campus this belongs to
+    - budget_source.scope → tells us if it's COLLEGE or CAMPUS level
+
+    This replaces both the old BudgetUsage and CampusBudgetUsage models.
+    Allows answering: "How much did employee X spend this year?"
+    Secretaries can aggregate by user__college or user__campus.
     """
-    college          = models.ForeignKey('accounts.College', on_delete=models.CASCADE, related_name='budget_usage')
-    budget_source    = models.ForeignKey(BudgetSource, on_delete=models.CASCADE, related_name='college_usage')
+    user = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='budget_usage',
+        null=True,
+        blank=True,
+    )
+    budget_source    = models.ForeignKey(BudgetSource, on_delete=models.CASCADE, related_name='usage')
     year             = models.IntegerField()
     allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
     used_amount      = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -103,63 +106,13 @@ class BudgetUsage(models.Model):
         self.save(update_fields=['used_amount'])
 
     def __str__(self):
-        return f"{self.college.name} | {self.budget_source.name} ({self.year})"
+        return f"{self.user.get_full_name()} | {self.budget_source.name} ({self.year})"
 
     class Meta:
-        unique_together = [['college', 'budget_source', 'year']]
-        ordering = ['-year', 'college__name']
-        verbose_name = 'College Budget Usage'
-        verbose_name_plural = 'College Budget Usage Records'
-
-
-class CampusBudgetUsage(models.Model):
-    """
-    Tracks spending per campus per budget source per year.
-    Used for CAMPUS-scoped sources (cross-college travel).
-    """
-    campus           = models.ForeignKey('accounts.Campus', on_delete=models.CASCADE, related_name='budget_usage')
-    budget_source    = models.ForeignKey(BudgetSource, on_delete=models.CASCADE, related_name='campus_usage')
-    year             = models.IntegerField()
-    allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    used_amount      = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-
-    @property
-    def remaining_amount(self):
-        return self.allocated_amount - self.used_amount
-
-    @property
-    def usage_percentage(self):
-        if self.allocated_amount > 0:
-            return round((self.used_amount / self.allocated_amount) * 100, 1)
-        return 0
-
-    @property
-    def status(self):
-        pct = self.usage_percentage
-        if pct >= 100: return 'exhausted'
-        if pct >= 80:  return 'critical'
-        if pct >= 60:  return 'warning'
-        return 'healthy'
-
-    def deduct(self, amount):
-        from decimal import Decimal
-        self.used_amount += Decimal(str(amount))
-        self.save(update_fields=['used_amount'])
-        return self.used_amount <= self.allocated_amount
-
-    def restore(self, amount):
-        from decimal import Decimal
-        self.used_amount = max(Decimal('0'), self.used_amount - Decimal(str(amount)))
-        self.save(update_fields=['used_amount'])
-
-    def __str__(self):
-        return f"{self.campus.name} | {self.budget_source.name} ({self.year})"
-
-    class Meta:
-        unique_together = [['campus', 'budget_source', 'year']]
-        ordering = ['-year', 'campus__name']
-        verbose_name = 'Campus Budget Usage'
-        verbose_name_plural = 'Campus Budget Usage Records'
+        unique_together = [['user', 'budget_source', 'year']]
+        ordering = ['-year', 'user__last_name']
+        verbose_name = 'Budget Usage'
+        verbose_name_plural = 'Budget Usage Records'
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -167,16 +120,6 @@ class CampusBudgetUsage(models.Model):
 # ══════════════════════════════════════════════════════════════════════
 
 class EventGroup(models.Model):
-    """
-    Links multiple travel records that belong to the same event
-    (e.g. same conference attended by people from different colleges).
-
-    Created manually by a secretary when they spot a duplicate,
-    or suggested automatically by the duplicate detector.
-
-    Having this lets the stats engine answer:
-    "How much did the whole campus spend on this one event?"
-    """
     SCOPE_CHOICES = [
         ('COLLEGE', 'Single College'),
         ('CAMPUS',  'Cross-College / Campus-Wide'),
@@ -214,41 +157,26 @@ class EventGroup(models.Model):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# TRAVEL RECORD  (the central model — replaces OfficialTravel + TravelOrder)
+# TRAVEL RECORD
 # ══════════════════════════════════════════════════════════════════════
 
 class TravelRecord(models.Model):
-    """
-    One travel = one document folder.
-    No approval workflow — this is a permanent archive / budget tracker.
-
-    SCOPE is auto-detected from participants:
-      COLLEGE → all participants share the same college
-      CAMPUS  → participants come from multiple colleges
-
-    Scope determines which secretary queue this appears in:
-      COLLEGE → Dept Secretary of that college
-      CAMPUS  → Campus Secretary
-    """
     SCOPE_CHOICES = [
         ('COLLEGE', 'College-Level'),
         ('CAMPUS',  'Campus-Level'),
     ]
 
-    # ── Core travel info ──────────────────────────────────────────────
-    destination      = models.CharField(max_length=200)
-    start_date       = models.DateField()
-    end_date         = models.DateField(null=True, blank=True)
-    purpose          = models.TextField(max_length=2000)
+    destination        = models.CharField(max_length=200)
+    start_date         = models.DateField()
+    end_date           = models.DateField(null=True, blank=True)
+    purpose            = models.TextField(max_length=2000)
     is_out_of_province = models.BooleanField(default=False)
 
-    # ── Scope (auto-set on save, can be overridden) ───────────────────
     scope = models.CharField(
         max_length=10, choices=SCOPE_CHOICES, default='COLLEGE',
         help_text='Auto-detected from participants. COLLEGE = same college, CAMPUS = cross-college.'
     )
 
-    # ── Who created it ────────────────────────────────────────────────
     created_by = models.ForeignKey(
         'accounts.User', on_delete=models.CASCADE,
         related_name='created_travels'
@@ -256,58 +184,44 @@ class TravelRecord(models.Model):
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
-    # ── Budget ────────────────────────────────────────────────────────
     budget_source = models.ForeignKey(
         BudgetSource, on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='travel_records',
-        help_text='Assigned by Secretary after travel is created.'
     )
     amount_deducted = models.DecimalField(
         max_digits=12, decimal_places=2, default=0,
-        help_text='Snapshot of amount deducted from budget source. Preserved even if source changes.'
     )
     budget_tagged_by = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='budget_tagged_travels',
-        help_text='Secretary who assigned the budget source.'
     )
     budget_tagged_at = models.DateTimeField(null=True, blank=True)
 
-    # ── Event grouping (duplicate detection) ─────────────────────────
     event_group = models.ForeignKey(
         EventGroup, on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='travel_records',
-        help_text='Links this travel to others that are part of the same event.'
     )
     funding_college = models.ForeignKey(
-    'accounts.College',
-    on_delete=models.SET_NULL,
-    null=True, blank=True,
-    related_name='funded_travels',
-    help_text='Set by Campus Secretary when cross-college travel is funded by a specific college'
+        'accounts.College',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='funded_travels',
     )
 
-    # ── Notes ─────────────────────────────────────────────────────────
     notes = models.TextField(blank=True, max_length=1000)
 
-    # ── Helpers ───────────────────────────────────────────────────────
     def get_duration_days(self):
         if self.end_date:
             return (self.end_date - self.start_date).days + 1
         return 1
 
     def detect_scope(self):
-        """
-        Re-evaluate scope from current participants.
-        Call this after adding/removing participants.
-        Returns 'COLLEGE' or 'CAMPUS'.
-        """
         colleges = set(
-            self.participants.exclude(college_snapshot='')
-                             .values_list('college_snapshot', flat=True)
+            self.participants.exclude(college_name='')
+                             .values_list('college_name', flat=True)
         )
         return 'CAMPUS' if len(colleges) > 1 else 'COLLEGE'
 
@@ -317,7 +231,6 @@ class TravelRecord(models.Model):
 
     @property
     def document_count(self):
-        from travel_app.models import ParticipantDocument
         return ParticipantDocument.objects.filter(
             participant__travel_record=self
         ).count()
@@ -358,31 +271,26 @@ class TravelParticipant(models.Model):
     """
     One row per person per travel.
 
-    college_snapshot stores the participant's college name AT THE TIME
-    of travel creation. This preserves historical accuracy even if the
-    user's college assignment changes later.
-
-    This snapshot is also what scope detection reads — it counts distinct
-    college values to decide COLLEGE vs CAMPUS scope.
+    college_name and campus_name store the participant's college/campus
+    AT THE TIME of travel creation for historical accuracy.
     """
-    travel_record     = models.ForeignKey(TravelRecord, on_delete=models.CASCADE, related_name='participants')
-    user              = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='travel_participations')
-    college_snapshot  = models.CharField(
+    travel_record = models.ForeignKey(TravelRecord, on_delete=models.CASCADE, related_name='participants')
+    user          = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='travel_participations')
+    college_name  = models.CharField(
         max_length=100, blank=True,
         help_text='College name at time of travel. Used for scope detection and historical stats.'
     )
-    campus_snapshot   = models.CharField(
+    campus_name   = models.CharField(
         max_length=100, blank=True,
         help_text='Campus name at time of travel.'
     )
     added_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # Auto-snapshot college and campus on first save
-        if not self.college_snapshot and self.user.college:
-            self.college_snapshot = self.user.college.name
-        if not self.campus_snapshot and self.user.campus:
-            self.campus_snapshot = self.user.campus.name
+        if not self.college_name and self.user.college:
+            self.college_name = self.user.college.name
+        if not self.campus_name and self.user.campus:
+            self.campus_name = self.user.campus.name
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -394,6 +302,10 @@ class TravelParticipant(models.Model):
         verbose_name = 'Travel Participant'
         verbose_name_plural = 'Travel Participants'
 
+
+# ══════════════════════════════════════════════════════════════════════
+# PARTICIPANT DOCUMENT
+# ══════════════════════════════════════════════════════════════════════
 
 class ParticipantDocument(models.Model):
     DOC_TYPE_CHOICES = [
@@ -420,7 +332,6 @@ class ParticipantDocument(models.Model):
     uploaded_at   = models.DateTimeField(auto_now_add=True)
     notes         = models.TextField(blank=True, max_length=500)
 
-    # ── AI extracted fields ───────────────────────────────────────────
     extracted_destination = models.CharField(max_length=200, blank=True)
     extracted_start_date  = models.DateField(null=True, blank=True)
     extracted_end_date    = models.DateField(null=True, blank=True)
@@ -434,7 +345,6 @@ class ParticipantDocument(models.Model):
     extraction_successful = models.BooleanField(default=False)
     extraction_raw        = models.TextField(blank=True)
 
-    # ── Secretary review ──────────────────────────────────────────────
     is_confirmed  = models.BooleanField(default=False)
     confirmed_by  = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
