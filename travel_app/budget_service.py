@@ -14,7 +14,7 @@ def get_budget_status(budget_source, user=None):
     if user:
         try:
             usage = BudgetUsage.objects.get(
-                user=user, budget_source=budget_source, year=budget_source.year
+                user=user, budget_source=budget_source, year=budget_source.fiscal_year
             )
             pct = usage.usage_percentage
             return {
@@ -33,8 +33,7 @@ def get_budget_status(budget_source, user=None):
                 'status':     'unused',
             }
     else:
-        # Aggregate across all users for this source
-        usages      = BudgetUsage.objects.filter(budget_source=budget_source, year=budget_source.year)
+        usages      = BudgetUsage.objects.filter(budget_source=budget_source, year=budget_source.fiscal_year)
         total_used  = sum(u.used_amount for u in usages)
         total_alloc = sum(u.allocated_amount for u in usages) or budget_source.budget_amount
         pct         = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
@@ -67,10 +66,9 @@ def get_sources_for_secretary(user, year=None):
         year = timezone.now().year
 
     if user.role == 'DEPT_SEC':
-        sources = BudgetSource.objects.filter(scope='COLLEGE', year=year, is_active=True)
+        sources = BudgetSource.objects.filter(budget_scope='COLLEGE', fiscal_year=year, is_active=True)
         result  = []
         for s in sources:
-            # Aggregate usage for all users in this secretary's college
             usages      = BudgetUsage.objects.filter(
                 budget_source=s, year=year,
                 user__college=user.college
@@ -89,10 +87,9 @@ def get_sources_for_secretary(user, year=None):
         return result
 
     elif user.role == 'CAMPUS_SEC':
-        sources = BudgetSource.objects.filter(scope='CAMPUS', year=year, is_active=True)
+        sources = BudgetSource.objects.filter(budget_scope='CAMPUS', fiscal_year=year, is_active=True)
         result  = []
         for s in sources:
-            # Aggregate usage for all users in this secretary's campus
             usages      = BudgetUsage.objects.filter(
                 budget_source=s, year=year,
                 user__campus=user.campus
