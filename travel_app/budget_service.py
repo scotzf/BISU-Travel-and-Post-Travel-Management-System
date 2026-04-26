@@ -8,8 +8,6 @@ from .models import BudgetSource, BudgetUsage
 def get_budget_status(budget_source, user=None):
     """
     Return a summary dict for displaying in dashboards / dropdowns.
-    Uses the new per-user BudgetUsage model.
-    If user is None, returns totals aggregated across all users of that source.
     """
     if user:
         try:
@@ -18,9 +16,9 @@ def get_budget_status(budget_source, user=None):
             )
             pct = usage.usage_percentage
             return {
-                'allocated':  usage.allocated_amount,
+                'allocated':  budget_source.budget_amount,
                 'used':       usage.used_amount,
-                'remaining':  usage.remaining_amount,
+                'remaining':  budget_source.budget_amount - usage.used_amount,
                 'percentage': pct,
                 'status':     _status_label(pct),
             }
@@ -33,9 +31,10 @@ def get_budget_status(budget_source, user=None):
                 'status':     'unused',
             }
     else:
-        usages      = BudgetUsage.objects.filter(budget_source=budget_source, year=budget_source.fiscal_year)
-        total_used  = sum(u.used_amount for u in usages)
-        total_alloc = sum(u.allocated_amount for u in usages) or budget_source.budget_amount
+        usages     = BudgetUsage.objects.filter(budget_source=budget_source, year=budget_source.fiscal_year)
+        total_used = sum(u.used_amount for u in usages)
+        # Always use source.budget_amount as total — never sum usage rows
+        total_alloc = budget_source.budget_amount
         pct         = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
         return {
             'allocated':  total_alloc,
@@ -58,8 +57,8 @@ def get_sources_for_secretary(user, year=None):
     Return list of active BudgetSource objects available to the given
     secretary, along with aggregated budget status for each.
 
-    DEPT_SEC   → COLLEGE-scoped sources, aggregated across their college users
-    CAMPUS_SEC → CAMPUS-scoped sources, aggregated across their campus users
+    DEPT_SEC   → COLLEGE-scoped sources
+    CAMPUS_SEC → CAMPUS-scoped sources
     """
     from django.utils import timezone
     if year is None:
@@ -69,12 +68,10 @@ def get_sources_for_secretary(user, year=None):
         sources = BudgetSource.objects.filter(budget_scope='COLLEGE', fiscal_year=year, is_active=True)
         result  = []
         for s in sources:
-            usages      = BudgetUsage.objects.filter(
-                budget_source=s, year=year,
-                user__college=user.college
-            )
-            total_used  = sum(u.used_amount for u in usages)
-            total_alloc = sum(u.allocated_amount for u in usages) or s.budget_amount
+            usages     = BudgetUsage.objects.filter(budget_source=s, year=year, user__college=user.college)
+            total_used = sum(u.used_amount for u in usages)
+            # Always use source.budget_amount — never sum allocated_amount from rows
+            total_alloc = s.budget_amount
             pct         = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
             result.append({
                 'source':     s,
@@ -90,12 +87,10 @@ def get_sources_for_secretary(user, year=None):
         sources = BudgetSource.objects.filter(budget_scope='CAMPUS', fiscal_year=year, is_active=True)
         result  = []
         for s in sources:
-            usages      = BudgetUsage.objects.filter(
-                budget_source=s, year=year,
-                user__campus=user.campus
-            )
-            total_used  = sum(u.used_amount for u in usages)
-            total_alloc = sum(u.allocated_amount for u in usages) or s.budget_amount
+            usages     = BudgetUsage.objects.filter(budget_source=s, year=year, user__campus=user.campus)
+            total_used = sum(u.used_amount for u in usages)
+            # Always use source.budget_amount — never sum allocated_amount from rows
+            total_alloc = s.budget_amount
             pct         = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
             result.append({
                 'source':     s,

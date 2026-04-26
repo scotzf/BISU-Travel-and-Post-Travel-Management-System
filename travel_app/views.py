@@ -402,7 +402,6 @@ def create_travel(request):
 # ══════════════════════════════════════════════════════════════════════
 # TRAVEL DETAIL
 # ══════════════════════════════════════════════════════════════════════
-
 @never_cache
 def travel_detail(request, pk):
     user = get_authenticated_user(request)
@@ -499,6 +498,33 @@ def travel_detail(request, pk):
                 else:
                     can_tag_budget = False
 
+    # Build per-participant expense summary for the budget tagging panel
+    from decimal import Decimal
+    participant_expense_summary = []
+    total_submitted = Decimal('0')
+    all_submitted   = True
+
+    for p in travel.participants.select_related('user').all():
+        amount_doc = ParticipantDocument.objects.filter(
+            participant=p,
+            doc_type__in=['BURS', 'ITINERARY'],
+            extracted_amount__isnull=False
+        ).order_by('-uploaded_at').first()
+
+        submitted_amount = amount_doc.extracted_amount if amount_doc else None
+
+        if submitted_amount is not None:
+            total_submitted += submitted_amount
+        else:
+            all_submitted = False
+
+        participant_expense_summary.append({
+            'participant': p,
+            'amount':      submitted_amount,
+            'has_amount':  submitted_amount is not None,
+            'doc_type':    amount_doc.get_doc_type_display() if amount_doc else None,
+        })
+
     context = {
         'user':             user,
         'travel':           travel,
@@ -512,6 +538,9 @@ def travel_detail(request, pk):
         'is_admin':         is_admin,
         'is_creator':       is_creator or is_participant,
         'today':            timezone.now().date(),
+        'participant_expense_summary': participant_expense_summary,
+        'total_submitted':             total_submitted,
+        'all_submitted':               all_submitted,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
@@ -655,14 +684,36 @@ def tag_budget(request, pk):
                         'budget_tagged_at', 'amount_deducted'
                     ])
 
-                    if amount_deducted > 0:
-                        participants = travel.participants.select_related('user').all()
+                    # Deduct per participant based on their submitted BURS/Itinerary amount
+                    # Falls back to equal split only if no individual amounts are set
+                    participants = travel.participants.select_related('user').all()
+                    participant_count = participants.count()
+
+                    if participant_count > 0:
                         for tp in participants:
+                            # Get the participant's individual submitted amount from their docs
+                            individual_amount = ParticipantDocument.objects.filter(
+                                participant=tp,
+                                doc_type__in=['BURS', 'ITINERARY'],
+                                extracted_amount__isnull=False
+                            ).order_by('-uploaded_at').values_list(
+                                'extracted_amount', flat=True
+                            ).first()
+
+                            if individual_amount is not None:
+                                deduct_amount = Decimal(str(individual_amount))
+                            else:
+                                # Fallback: equal split if no individual amount submitted
+                                deduct_amount = amount_deducted / participant_count
+
                             usage, _ = source.get_or_create_usage(tp.user)
-                            usage.deduct(amount_deducted / participants.count())
+                            usage.deduct(deduct_amount)
 
                     from django.contrib import messages
-                    messages.success(request, f'Budget source "{source.budget_name}" assigned with ₱{amount_deducted:,.2f} deducted.')
+                    messages.success(
+                        request,
+                        f'Budget source "{source.budget_name}" assigned with ₱{amount_deducted:,.2f} deducted.'
+                    )
 
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
@@ -753,6 +804,7 @@ def my_stats(request, user=None):
 # ══════════════════════════════════════════════════════════════════════
 # MANAGE BUDGET SOURCES (Admin)
 # ══════════════════════════════════════════════════════════════════════
+# Replace your existing manage_budget_sources view with this
 
 @csrf_protect
 @never_cache
@@ -760,27 +812,34 @@ def manage_budget_sources(request):
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
-    if user.role != 'ADMIN':
+    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
         from django.contrib import messages
-        messages.error(request, 'Admin access required.')
+        messages.error(request, 'Access denied.')
         return redirect('accounts:dashboard')
 
     from accounts.models import College
     today = timezone.now().date()
     year  = int(request.GET.get('year', today.year))
 
-    if request.method == 'POST':
+    # Fiscal year choices: current year + next year only
+    fiscal_year_choices = [today.year, today.year + 1]
+
+    if request.method == 'POST' and user.role != 'ADMIN':
         action = request.POST.get('action')
 
         if action == 'create':
             budget_name   = request.POST.get('name', '').strip()
-            budget_scope  = request.POST.get('scope', 'COLLEGE')
+            budget_scope  = 'CAMPUS' if user.role == 'CAMPUS_SEC' else 'COLLEGE'
             budget_amount = request.POST.get('budget_amount', 0) or 0
             description   = request.POST.get('description', '').strip()
             fiscal_year   = int(request.POST.get('year', today.year))
+
             if not budget_name:
                 from django.contrib import messages
-                messages.error(request, 'Budget source name is required.')
+                messages.error(request, 'Budget name is required.')
+            elif fiscal_year not in fiscal_year_choices:
+                from django.contrib import messages
+                messages.error(request, 'Invalid fiscal year selected.')
             else:
                 try:
                     BudgetSource.objects.create(
@@ -791,7 +850,7 @@ def manage_budget_sources(request):
                         description=description,
                     )
                     from django.contrib import messages
-                    messages.success(request, f'Budget source "{budget_name}" created.')
+                    messages.success(request, f'Budget source "{budget_name}" created for FY {fiscal_year}.')
                 except Exception as e:
                     from django.contrib import messages
                     messages.error(request, f'Error: {str(e)}')
@@ -803,7 +862,8 @@ def manage_budget_sources(request):
                 source.is_active = not source.is_active
                 source.save(update_fields=['is_active'])
                 from django.contrib import messages
-                messages.success(request, f'"{source.budget_name}" {"activated" if source.is_active else "deactivated"}.')
+                status = 'activated' if source.is_active else 'deactivated'
+                messages.success(request, f'"{source.budget_name}" {status}.')
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'Budget source not found.')
@@ -826,31 +886,45 @@ def manage_budget_sources(request):
 
         return redirect(f"{request.path}?year={year}")
 
-    sources     = BudgetSource.objects.filter(fiscal_year=year).order_by('budget_scope', 'budget_name')
+    # Build source list depending on role
+    if user.role == 'ADMIN':
+        sources = BudgetSource.objects.filter(fiscal_year=year).order_by('budget_scope', 'budget_name')
+    elif user.role == 'DEPT_SEC':
+        sources = BudgetSource.objects.filter(
+            fiscal_year=year, budget_scope='COLLEGE'
+        ).order_by('budget_name')
+    else:  # CAMPUS_SEC
+        sources = BudgetSource.objects.filter(
+            fiscal_year=year, budget_scope='CAMPUS'
+        ).order_by('budget_name')
+
     source_data = []
     for source in sources:
-        usages          = BudgetUsage.objects.filter(budget_source=source, year=year)
-        total_allocated = source.budget_amount * College.objects.count()
-        total_used      = sum(u.used_amount for u in usages)
-        pct    = round((total_used / total_allocated * 100), 1) if total_allocated > 0 else 0
-        status = 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy'
+        usages     = BudgetUsage.objects.filter(budget_source=source, year=year)
+        total_used = sum(u.used_amount for u in usages)
+        # Amount is as-is — no multiplication
+        allocated  = source.budget_amount
+        remaining  = allocated - total_used
+        pct        = round((total_used / allocated * 100), 1) if allocated > 0 else 0
+        status     = 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy'
         source_data.append({
             'source':       source,
-            'allocated':    total_allocated,
+            'allocated':    allocated,
             'used':         total_used,
-            'remaining':    total_allocated - total_used,
+            'remaining':    remaining,
             'percentage':   pct,
             'status':       status,
             'travel_count': source.travel_records.count(),
         })
 
     context = {
-        'user':          user,
-        'today':         today,
-        'current_year':  year,
-        'year_range':    range(today.year - 1, today.year + 3),
-        'source_data':   source_data,
-        'college_count': College.objects.count(),
+        'user':                user,
+        'today':               today,
+        'current_year':        year,
+        'year_range':          range(today.year - 1, today.year + 3),
+        'fiscal_year_choices': fiscal_year_choices,
+        'source_data':         source_data,
+        'college_count':       College.objects.count(),
     }
     return render(request, 'travel_app/admin/manage_budget_sources.html', context)
 
@@ -900,7 +974,8 @@ def budget_overview(request):
                     'status':     u.status,
                 } for u in usages]
 
-            total_alloc  = sum(u.allocated_amount for u in usages) or source.budget_amount
+            # Always use source.budget_amount as the total — never sum usage rows
+            total_alloc  = source.budget_amount
             total_used   = sum(u.used_amount for u in usages)
             tagged_count = source.travel_records.count()
             pct = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
@@ -919,9 +994,9 @@ def budget_overview(request):
         overview = [{
             'source':          item['source'],
             'rows':            [],
-            'total_allocated': item.get('allocated', 0),
+            'total_allocated': item['source'].budget_amount,  # always use source amount
             'total_used':      item.get('used', 0),
-            'total_remaining': item.get('remaining', 0),
+            'total_remaining': item['source'].budget_amount - item.get('used', 0),
             'percentage':      item.get('percentage', 0),
             'tagged_count':    item['source'].travel_records.count(),
             'status':          item.get('status', 'healthy'),
@@ -1364,16 +1439,17 @@ def stats_view(request):
             participants__college_name=user.college.name
         ).distinct()
 
+    # FIX 1: Default to current year, not oldest year in list
     selected_year = int(request.GET.get('year', this_year))
     travels_year  = travels.filter(start_date__year=selected_year)
 
+    # Build year list — always include current year even if no travels yet
     year_list = sorted(set(
-        TravelRecord.objects.filter(
+        list(TravelRecord.objects.filter(
             id__in=travels.values_list('id', flat=True)
-        ).dates('start_date', 'year').values_list('start_date__year', flat=True)
+        ).dates('start_date', 'year').values_list('start_date__year', flat=True))
+        + [this_year]
     ), reverse=True)
-    if not year_list:
-        year_list = [this_year]
 
     grouped_travel_ids = set()
     seen_groups        = set()
@@ -1463,7 +1539,12 @@ def stats_view(request):
         monthly_spend[row['month'].month] = float(row['total'] or 0)
     monthly_spend_data = [monthly_spend[i] for i in range(1, 13)]
 
-    total_allocated = sum(u.allocated_amount for u in budget_usages)
+    # FIX 2: Use source.budget_amount not sum of allocated_amount from usage rows
+    budget_sources_for_year = BudgetSource.objects.filter(
+        fiscal_year=selected_year,
+        usage__in=budget_usages
+    ).distinct()
+    total_allocated = sum(s.budget_amount for s in budget_sources_for_year)
     total_used      = sum(u.used_amount for u in budget_usages)
     total_remaining = total_allocated - total_used
 
@@ -1583,7 +1664,6 @@ def stats_view(request):
     }
 
     return render(request, 'travel_app/shared/stats.html', context)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # EXTRACT TRAVEL ORDER (AJAX)

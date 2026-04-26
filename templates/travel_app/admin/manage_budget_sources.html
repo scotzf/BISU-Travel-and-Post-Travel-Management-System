@@ -2,7 +2,10 @@
 {% block title %}Budget Sources — BISU Travel Hub{% endblock %}
 
 {% block extra_css %}
-:root { --role-color:#92400e; --role-faint:#fef3c7; }
+:root {
+  --role-color: {% if user.role == 'ADMIN' %}#92400e{% elif user.role == 'CAMPUS_SEC' %}#6b21a8{% else %}#0f766e{% endif %};
+  --role-faint: {% if user.role == 'ADMIN' %}#fef3c7{% elif user.role == 'CAMPUS_SEC' %}#f3e8ff{% else %}#f0fdfa{% endif %};
+}
 .form-label { font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block; }
 .form-control,.form-select {
   font-size:13.5px;border:1px solid var(--border);border-radius:var(--radius);
@@ -19,9 +22,12 @@
   <div class="page-header-row">
     <div>
       <div class="page-title">Budget Sources</div>
-      <div class="page-subtitle">Configure budget categories for {{ current_year }}</div>
+      <div class="page-subtitle">
+        Fiscal Year {{ current_year }} budget configuration
+        {% if user.role == 'DEPT_SEC' %} — {{ user.college.name }}{% endif %}
+        {% if user.role == 'CAMPUS_SEC' %} — {{ user.campus.name }}{% endif %}
+      </div>
     </div>
-    <!-- Year selector -->
     <div style="display:flex;gap:8px;align-items:center">
       {% for y in year_range %}
       <a href="?year={{ y }}"
@@ -29,7 +35,7 @@
                 text-decoration:none;border:1px solid var(--border);
                 {% if y == current_year %}background:var(--role-color);color:white;border-color:var(--role-color)
                 {% else %}background:var(--surface);color:var(--text-secondary){% endif %}">
-        {{ y }}
+        FY {{ y }}
       </a>
       {% endfor %}
     </div>
@@ -38,7 +44,8 @@
 
 <div class="row g-3">
 
-  <!-- Create new source -->
+  {% if user.role != 'ADMIN' %}
+  <!-- Create new source — only for secretaries -->
   <div class="col-lg-4">
     <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
       <div class="card-header-custom">
@@ -48,29 +55,44 @@
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="action" value="create"/>
-          <input type="hidden" name="year" value="{{ current_year }}"/>
 
           <div style="margin-bottom:14px">
-            <label class="form-label">Name *</label>
+            <label class="form-label">Budget Name *</label>
             <input type="text" name="name" class="form-control"
-                   placeholder="e.g. Research Travel"/>
+                   placeholder="e.g. MOOE Research Travel"/>
           </div>
 
           <div style="margin-bottom:14px">
-            <label class="form-label">Scope *</label>
-            <select name="scope" class="form-select" id="scopeSelect"
-                    onchange="toggleAmountFields(this.value)">
-              <option value="COLLEGE">College-Level (each college gets this amount)</option>
-              <option value="CAMPUS">Campus-Level (one shared pool)</option>
+            <label class="form-label">Fiscal Year *</label>
+            <select name="year" class="form-select">
+              {% for y in fiscal_year_choices %}
+              <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>FY {{ y }}</option>
+              {% endfor %}
             </select>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              Philippine fiscal year runs January – December.
+            </div>
           </div>
 
+          <!-- Scope is fixed per role — no dropdown needed -->
+          <input type="hidden" name="scope" value="{% if user.role == 'CAMPUS_SEC' %}CAMPUS{% else %}COLLEGE{% endif %}"/>
+
           <div style="margin-bottom:14px">
-            <label class="form-label" id="budgetAmountLabel">Amount per College (₱)</label>
+            <label class="form-label">
+              {% if user.role == 'CAMPUS_SEC' %}
+                Campus Pool Amount (₱) *
+              {% else %}
+                Budget Amount for {{ user.college.name }} (₱) *
+              {% endif %}
+            </label>
             <input type="number" name="budget_amount" class="form-control"
-                   placeholder="e.g. 500000" min="0" step="1000"/>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="budgetAmountHint">
-              This amount is given to each of the {{ college_count }} colleges independently.
+                   placeholder="e.g. 90000" min="0" step="1000"/>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              {% if user.role == 'CAMPUS_SEC' %}
+                Total shared pool for campus-wide (multi-college) travel.
+              {% else %}
+                Total budget allocated to your college for this fiscal year.
+              {% endif %}
             </div>
           </div>
 
@@ -88,13 +110,14 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   <!-- Existing sources -->
-  <div class="col-lg-8">
+  <div class="{% if user.role != 'ADMIN' %}col-lg-8{% else %}col-lg-12{% endif %}">
     <div class="card">
       <div class="card-header-custom">
         <div>
-          <div class="card-title">Budget Sources — {{ current_year }}</div>
+          <div class="card-title">Budget Sources — FY {{ current_year }}</div>
           <div class="card-subtitle">{{ source_data|length }} source{{ source_data|length|pluralize }} configured</div>
         </div>
       </div>
@@ -106,11 +129,15 @@
             <div style="flex:1;min-width:0">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span style="font-size:14px;font-weight:600;color:var(--text-primary)">
-                  {{ item.source.name }}
+                  {{ item.source.budget_name }}
                 </span>
-                <span class="badge-status badge-{% if item.source.scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
+                <span style="font-size:10px;color:var(--text-muted);background:var(--surface-2);
+                             padding:2px 7px;border-radius:10px;border:1px solid var(--border)">
+                  FY {{ item.source.fiscal_year }}
+                </span>
+                <span class="badge-status badge-{% if item.source.budget_scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
                       style="font-size:10px">
-                  {{ item.source.scope|title }}
+                  {{ item.source.get_budget_scope_display }}
                 </span>
                 {% if not item.source.is_active %}
                 <span class="badge-status" style="background:var(--surface-3);color:var(--text-muted);font-size:10px">
@@ -124,18 +151,17 @@
               </div>
               {% endif %}
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
-                {% if item.source.scope == 'COLLEGE' %}
-                  ₱{{ item.source.budget_amount|floatformat:0 }} per college
-                  &nbsp;·&nbsp; {{ college_count }} college{{ college_count|pluralize }}
-                  &nbsp;·&nbsp; ₱{{ item.allocated|floatformat:0 }} total
+                {% if item.source.budget_scope == 'COLLEGE' %}
+                  ₱{{ item.source.budget_amount|floatformat:0 }} — college budget
                 {% else %}
-                  ₱{{ item.source.budget_amount|floatformat:0 }} campus pool
+                  ₱{{ item.source.budget_amount|floatformat:0 }} — campus pool
                 {% endif %}
-                &nbsp;·&nbsp; {{ item.travel_count }} travel{{ item.travel_count|pluralize }}
+                &nbsp;·&nbsp; {{ item.travel_count }} travel{{ item.travel_count|pluralize }} tagged
               </div>
             </div>
 
-            <!-- Actions -->
+            <!-- Actions — only creator role can manage -->
+            {% if user.role != 'ADMIN' %}
             <div style="display:flex;gap:6px;flex-shrink:0">
               <form method="post" style="display:inline">
                 {% csrf_token %}
@@ -153,7 +179,7 @@
 
               {% if item.travel_count == 0 %}
               <form method="post" style="display:inline"
-                    onsubmit="return confirm('Delete {{ item.source.name }}? This cannot be undone.')">
+                    onsubmit="return confirm('Delete {{ item.source.budget_name }}? This cannot be undone.')">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="delete"/>
                 <input type="hidden" name="source_id" value="{{ item.source.id }}"/>
@@ -164,6 +190,7 @@
               </form>
               {% endif %}
             </div>
+            {% endif %}
           </div>
 
           <!-- Usage bar -->
@@ -175,7 +202,7 @@
           </div>
           <div style="display:flex;justify-content:space-between;font-size:11px;
                       color:var(--text-muted);margin-top:4px">
-            <span>{{ item.percentage }}% used</span>
+            <span>{{ item.percentage }}% used &nbsp;·&nbsp; ₱{{ item.used|floatformat:0 }} of ₱{{ item.source.budget_amount|floatformat:0 }}</span>
             <span>₱{{ item.remaining|floatformat:0 }} remaining</span>
           </div>
           {% endif %}
@@ -185,30 +212,20 @@
       {% else %}
         <div class="empty-state">
           <i class="bi bi-wallet2"></i>
-          <p>No budget sources for {{ current_year }} yet.</p>
+          <p>No budget sources for FY {{ current_year }} yet.</p>
+          {% if user.role != 'ADMIN' %}
           <div style="font-size:12.5px;color:var(--text-muted)">
             Use the form on the left to create your first one.
           </div>
+          {% else %}
+          <div style="font-size:12.5px;color:var(--text-muted)">
+            Secretaries create and manage budget sources for their college or campus.
+          </div>
+          {% endif %}
         </div>
       {% endif %}
 
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-function toggleAmountFields(scope) {
-  const label = document.getElementById('budgetAmountLabel');
-  const hint  = document.getElementById('budgetAmountHint');
-  if (scope === 'COLLEGE') {
-    label.textContent = 'Amount per College (₱)';
-    hint.textContent  = 'This amount is given to each college independently.';
-  } else {
-    label.textContent = 'Campus Pool Amount (₱)';
-    hint.textContent  = 'Single shared pool for all cross-college travel.';
-  }
-}
-</script>
 {% endblock %}

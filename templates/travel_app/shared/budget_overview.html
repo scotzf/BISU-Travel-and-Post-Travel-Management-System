@@ -14,7 +14,7 @@
     <div>
       <div class="page-title">Budget Utilization</div>
       <div class="page-subtitle">
-        {{ current_year }} spending overview
+        Fiscal Year {{ current_year }} spending overview
         {% if user.role == 'DEPT_SEC' %} — {{ user.college.name }}{% endif %}
         {% if user.role == 'CAMPUS_SEC' %} — {{ user.campus.name }}{% endif %}
       </div>
@@ -26,7 +26,7 @@
                 text-decoration:none;border:1px solid var(--border);
                 {% if y == current_year %}background:var(--role-color);color:white;border-color:var(--role-color)
                 {% else %}background:var(--surface);color:var(--text-secondary){% endif %}">
-        {{ y }}
+        FY {{ y }}
       </a>
       {% endfor %}
     </div>
@@ -39,13 +39,23 @@
     <div class="card-header-custom">
       <div>
         <div class="card-title" style="font-size:15px">
-          {{ item.source.name }}
-          <span class="badge-status badge-{% if item.source.scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
-                style="font-size:10px;margin-left:6px">
-            {{ item.source.scope|title }}
+          {{ item.source.budget_name }}
+          <span style="font-size:10px;color:var(--text-muted);background:var(--surface-2);
+                       padding:2px 7px;border-radius:10px;border:1px solid var(--border);margin-left:4px">
+            FY {{ item.source.fiscal_year }}
+          </span>
+          <span class="badge-status badge-{% if item.source.budget_scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
+                style="font-size:10px;margin-left:4px">
+            {{ item.source.get_budget_scope_display }}
           </span>
         </div>
-        <div class="card-subtitle">{{ current_year }}</div>
+        <div class="card-subtitle">
+          {% if item.source.budget_scope == 'COLLEGE' %}
+            ₱{{ item.source.budget_amount|floatformat:0 }} allocated to this college
+          {% else %}
+            ₱{{ item.source.budget_amount|floatformat:0 }} campus pool
+          {% endif %}
+        </div>
       </div>
       <div style="text-align:right">
         <div style="font-family:var(--font-display);font-size:22px;font-weight:600;
@@ -98,12 +108,15 @@
       <div style="border-top:1px solid var(--border);padding-top:14px">
         <div style="font-size:11px;font-weight:600;color:var(--text-muted);
                     text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
-          Breakdown
+          Per-User Breakdown
         </div>
         {% for row in item.rows %}
         <div class="budget-bar-wrap" style="padding:8px 0">
           <div class="budget-bar-header">
-            <span class="budget-bar-name" style="font-size:12.5px">{{ row.label }}</span>
+            <div>
+              <span class="budget-bar-name" style="font-size:12.5px">{{ row.user }}</span>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:6px">{{ row.label }}</span>
+            </div>
             <span class="budget-bar-amounts">&#8369;{{ row.used|floatformat:0 }} / &#8369;{{ row.allocated|floatformat:0 }}</span>
           </div>
           <div class="budget-bar-track" style="height:5px">
@@ -122,8 +135,8 @@
   <div class="card">
     <div class="empty-state">
       <i class="bi bi-pie-chart"></i>
-      <p>No budget sources configured for {{ current_year }}.</p>
-      {% if user.role == 'ADMIN' %}
+      <p>No budget sources configured for FY {{ current_year }}.</p>
+      {% if user.role != 'ADMIN' %}
       <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom">
         <i class="bi bi-wallet2"></i> Set Up Budget Sources
       </a>
