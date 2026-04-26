@@ -346,6 +346,11 @@ def create_travel(request):
                             pass
 
                 travel.refresh_scope()
+                import json
+                unregistered_names = request.POST.getlist('unregistered_travelers')
+                if unregistered_names:
+                    travel.unregistered_travelers = json.dumps(unregistered_names)
+                    travel.save(update_fields=['unregistered_travelers'])
 
                 temp_path = request.session.pop('temp_travel_order_path', None)
                 request.session.pop('temp_travel_order_names', [])
@@ -355,9 +360,13 @@ def create_travel(request):
                         from django.core.files.storage import default_storage
                         from django.core.files import File
                         from datetime import datetime
+                        from .tasks import extract_document_task
 
                         full_path = default_storage.path(temp_path)
                         file_name = os.path.basename(temp_path)
+
+                        # Collect doc IDs to run extraction after transaction
+                        doc_ids = []
 
                         for participant in travel.participants.all():
                             with open(full_path, 'rb') as f:
@@ -368,15 +377,21 @@ def create_travel(request):
                                     extracted_destination=destination,
                                     extracted_purpose=purpose,
                                     extraction_attempted=True,
-                                    extraction_successful=True,
+                                    extraction_successful=False,
                                 )
                                 if start_date:
                                     doc.extracted_start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
                                 if end_date:
                                     doc.extracted_end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
                                 doc.file.save(file_name, File(f), save=True)
+                                doc_ids.append(doc.id)
 
                         default_storage.delete(temp_path)
+
+                        # Queue Celery tasks AFTER transaction completes
+                        # so the docs exist in DB when the task runs
+                        for doc_id in doc_ids:
+                            extract_document_task.delay(doc_id)
 
                     except Exception as e:
                         logger.error(f"Failed to copy travel order to participants: {e}")
@@ -524,6 +539,33 @@ def travel_detail(request, pk):
             'has_amount':  submitted_amount is not None,
             'doc_type':    amount_doc.get_doc_type_display() if amount_doc else None,
         })
+        # ── Add to travel_detail view in views.py ────────────────────────────
+    # Place this just before the context = { ... } block
+
+    # Build unregistered travelers list from AI-extracted names
+    # that don't match any registered participant
+    import json
+    from .models import TravelInvite
+
+    unregistered_travelers = []
+    if is_secretary:
+        if travel.unregistered_travelers:
+            try:
+                unregistered_travelers = json.loads(travel.unregistered_travelers)
+            except Exception:
+                unregistered_travelers = []
+
+        active_invite_names = set(
+            TravelInvite.objects.filter(
+                travel=travel, is_used=False
+            ).values_list('invited_name', flat=True)
+        )
+        unregistered_travelers = [
+            name for name in unregistered_travelers
+            if name not in active_invite_names
+        ]
+    # ── Add these to the context dict ────────────────────────────────────
+    # 'unregistered_travelers': unregistered_travelers,
 
     context = {
         'user':             user,
@@ -541,6 +583,7 @@ def travel_detail(request, pk):
         'participant_expense_summary': participant_expense_summary,
         'total_submitted':             total_submitted,
         'all_submitted':               all_submitted,
+        'unregistered_travelers': unregistered_travelers,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
@@ -2025,3 +2068,109 @@ def liquidation_calculator(request):
         'today':           timezone.now().date(),
     }
     return render(request, 'travel_app/shared/liquidation_calculator.html', context)
+
+# ══════════════════════════════════════════════════════════════════════
+# INVITE UNREGISTERED PARTICIPANT
+# Add these to travel_app/views.py
+# ══════════════════════════════════════════════════════════════════════
+
+@csrf_protect
+@never_cache
+def invite_participant(request, pk):
+    """Secretary sends an invite link for an unregistered participant."""
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+    if user.role not in ['DEPT_SEC', 'CAMPUS_SEC']:
+        from django.contrib import messages
+        messages.error(request, 'Only secretaries can invite participants.')
+        return redirect('travel_app:travel_detail', pk=pk)
+
+    travel = get_object_or_404(TravelRecord, pk=pk)
+
+    if request.method == 'POST':
+        from django.utils import timezone as tz
+        from datetime import timedelta
+        from .models import TravelInvite
+
+        invited_name = request.POST.get('invited_name', '').strip()
+        if not invited_name:
+            from django.contrib import messages
+            messages.error(request, 'Name is required.')
+            return redirect('travel_app:travel_detail', pk=pk)
+
+        # Check if invite already exists for this name + travel
+        existing = TravelInvite.objects.filter(
+            travel=travel,
+            invited_name__iexact=invited_name,
+            is_used=False
+        ).first()
+
+        if existing and existing.is_valid():
+            from django.contrib import messages
+            invite_url = request.build_absolute_uri(
+                f'/accounts/invite/{existing.token}/'
+            )
+            messages.info(
+                request,
+                f'An active invite already exists for {invited_name}. '
+                f'Share this link: {invite_url}'
+            )
+            return redirect('travel_app:travel_detail', pk=pk)
+
+        invite = TravelInvite.objects.create(
+            travel=travel,
+            invited_name=invited_name,
+            invited_by=user,
+            expires_at=tz.now() + timedelta(days=7),
+        )
+
+        invite_url = request.build_absolute_uri(
+            f'/accounts/invite/{invite.token}/'
+        )
+
+        from django.contrib import messages
+        messages.success(
+            request,
+            f'Invite created for {invited_name}. '
+            f'Share this link with them: {invite_url}'
+        )
+
+    return redirect('travel_app:travel_detail', pk=pk)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# AUTO-LINK AFTER APPROVAL
+# Add this function and call it from accounts approve_user view
+# ══════════════════════════════════════════════════════════════════════
+
+def link_invited_user_to_travels(accepted_user):
+    """
+    Called after an invited user is approved.
+    Links them to their travel records and transfers any pre-uploaded documents.
+    """
+    from .models import TravelInvite, TravelParticipant, ParticipantDocument
+
+    invites = TravelInvite.objects.filter(
+        accepted_by=accepted_user,
+        is_used=True
+    ).select_related('travel')
+
+    for invite in invites:
+        travel = invite.travel
+
+        # Create TravelParticipant if not already exists
+        participant, created = TravelParticipant.objects.get_or_create(
+            travel_record=travel,
+            user=accepted_user,
+        )
+
+        # Transfer any documents that were uploaded under this invite
+        # Documents uploaded before registration are stored with a temp note
+        ParticipantDocument.objects.filter(
+            notes__contains=f'[INVITE:{invite.token}]'
+        ).update(participant=participant)
+
+        # Refresh travel scope
+        travel.refresh_scope()
+        

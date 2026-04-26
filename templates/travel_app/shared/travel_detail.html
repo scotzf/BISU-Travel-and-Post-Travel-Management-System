@@ -316,26 +316,61 @@
       </div>
     </div>
 
-    <!-- Participants -->
-    <div class="card mb-3">
-      <div class="card-header-custom">
-        <div class="card-title">Participants ({{ travel.participant_count }})</div>
-      </div>
-      {% for p in travel.participants.all %}
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">
-        <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-faint);
+<!-- Participants -->
+<div class="card mb-3">
+  <div class="card-header-custom">
+    <div class="card-title">Participants ({{ travel.participant_count }})</div>
+  </div>
+  {% for p in travel.participants.all %}
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">
+    <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-faint);
+                display:flex;align-items:center;justify-content:center;
+                font-size:11px;font-weight:600;color:var(--primary);flex-shrink:0">
+      {{ p.user.first_name|slice:":1" }}{{ p.user.last_name|slice:":1" }}
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ p.user.get_full_name }}</div>
+      <div style="font-size:11px;color:var(--text-muted)">{{ p.college_name|default:"—" }}</div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if is_secretary and unregistered_travelers %}
+  <div style="padding:10px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
+    <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+      <i class="bi bi-person-x"></i> Unregistered Participants
+    </div>
+    {% for name in unregistered_travelers %}
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:8px 0;border-bottom:1px solid var(--border);gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:30px;height:30px;border-radius:50%;background:#fef2f2;
                     display:flex;align-items:center;justify-content:center;
-                    font-size:11px;font-weight:600;color:var(--primary);flex-shrink:0">
-          {{ p.user.first_name|slice:":1" }}{{ p.user.last_name|slice:":1" }}
+                    font-size:14px;color:#922b21;flex-shrink:0">
+          <i class="bi bi-person-x"></i>
         </div>
         <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ p.user.get_full_name }}</div>
-          <div style="font-size:11px;color:var(--text-muted)">{{ p.college_name|default:"—" }}</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ name }}</div>
+          <div style="font-size:11px;color:#922b21">Not registered in system</div>
         </div>
       </div>
-      {% endfor %}
+      <form method="post" action="{% url 'travel_app:invite_participant' travel.id %}"
+            style="display:inline">
+        {% csrf_token %}
+        <input type="hidden" name="invited_name" value="{{ name }}"/>
+        <button type="submit"
+                style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
+                       border-radius:6px;border:1px solid #0f766e;background:#f0fdfa;
+                       color:#0f766e;font-size:11px;font-weight:600;cursor:pointer;">
+          <i class="bi bi-envelope-plus"></i> Send Invite
+        </button>
+      </form>
     </div>
-
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
     <!-- Budget Source card -->
     {% if can_tag_budget or can_route or travel.funding_college or travel.is_budget_tagged %}
     <div class="card mb-3">
@@ -604,7 +639,7 @@ function toggleSlot(id) {
 }
 function autoSubmit(formId) { document.getElementById(formId).submit(); }
 function handleDrop(event, participantId, docType) {
-  event.preventDefault();
+  event.preventDefault()
   event.currentTarget.classList.remove('dragover');
   const file  = event.dataTransfer.files[0];
   const input = document.getElementById('file_' + participantId + '_' + docType);

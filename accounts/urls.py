@@ -20,4 +20,6 @@ urlpatterns = [
     path('approvals/approve/<int:user_id>/', views.approve_user, name='approve_user'),
     path('approvals/reject/<int:user_id>/', views.reject_user, name='reject_user'),
     path('approvals/user-details/<int:user_id>/', views.view_user_details, name='view_user_details'),
+
+    path('invite/<uuid:token>/', views.invite_register, name='invite_register'),
 ]
