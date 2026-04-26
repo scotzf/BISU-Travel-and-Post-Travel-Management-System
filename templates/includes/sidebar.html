@@ -46,6 +46,9 @@
   </a>
 
   <span class="sidebar-section-label">Budget</span>
+  <a href="{% url 'travel_app:manage_budget_sources' %}" class="nav-item-link {% if request.resolver_match.url_name == 'manage_budget_sources' %}active{% endif %}">
+    <i class="bi bi-wallet2"></i> Budget Sources
+  </a>
   <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
     <i class="bi bi-pie-chart"></i> Budget Overview
   </a>
@@ -80,6 +83,9 @@
   </a>
 
   <span class="sidebar-section-label">Budget</span>
+  <a href="{% url 'travel_app:manage_budget_sources' %}" class="nav-item-link {% if request.resolver_match.url_name == 'manage_budget_sources' %}active{% endif %}">
+    <i class="bi bi-wallet2"></i> Budget Sources
+  </a>
   <a href="{% url 'travel_app:budget_overview' %}" class="nav-item-link {% if request.resolver_match.url_name == 'budget_overview' %}active{% endif %}">
     <i class="bi bi-pie-chart"></i> Budget Overview
   </a>
@@ -125,7 +131,6 @@
   </a>
 {% endif %}
 
-{# Common bottom links for all roles #}
 <span class="sidebar-section-label">Account</span>
 <a href="{% url 'accounts:profile' %}" class="nav-item-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}">
   <i class="bi bi-person"></i> Profile
