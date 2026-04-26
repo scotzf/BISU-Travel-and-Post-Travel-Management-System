@@ -212,6 +212,11 @@ class TravelRecord(models.Model):
     )
 
     notes = models.TextField(blank=True, max_length=1000)
+    unregistered_travelers = models.TextField(
+        blank=True,
+        default='',
+        help_text='JSON list of unregistered traveler names extracted from travel order'
+    )
 
     def get_duration_days(self):
         if self.end_date:
@@ -393,3 +398,40 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        
+# Add this to travel_app/models.py at the bottom
+
+import uuid
+
+class TravelInvite(models.Model):
+    token        = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    travel       = models.ForeignKey(
+        TravelRecord, on_delete=models.CASCADE, related_name='invites'
+    )
+    invited_name = models.CharField(max_length=200, help_text='Name as extracted from travel order')
+    invited_by   = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True,
+        related_name='sent_invites'
+    )
+    created_at   = models.DateTimeField(auto_now_add=True)
+    expires_at   = models.DateTimeField()
+    is_used      = models.BooleanField(default=False)
+    accepted_by  = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='accepted_invites'
+    )
+
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+
+    def is_valid(self):
+        return not self.is_used and not self.is_expired()
+
+    def __str__(self):
+        return f"Invite for {self.invited_name} → {self.travel.destination}"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Travel Invite'
+        verbose_name_plural = 'Travel Invites'

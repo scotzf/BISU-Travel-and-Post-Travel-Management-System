@@ -442,6 +442,10 @@ def pending_approvals(request):
     return render(request, 'accounts/pending_approvals.html', context)
 
 
+# ══════════════════════════════════════════════════════════════════════
+# UPDATED approve_user — Replace in accounts/views.py
+# ══════════════════════════════════════════════════════════════════════
+
 @csrf_protect
 @never_cache
 def approve_user(request, user_id):
@@ -478,6 +482,10 @@ def approve_user(request, user_id):
                 user_to_approve.approved_at = timezone.now()
                 user_to_approve.save()
 
+                # Auto-link to travel if this was an invited user
+                from travel_app.views import link_invited_user_to_travels
+                link_invited_user_to_travels(user_to_approve)
+
                 role_display = dict(User.ROLE_CHOICES).get(assigned_role, assigned_role)
                 messages.success(
                     request,
@@ -487,7 +495,6 @@ def approve_user(request, user_id):
             messages.error(request, f'Error approving account: {str(e)}')
 
     return redirect('accounts:pending_approvals')
-
 
 @csrf_protect
 @never_cache
@@ -682,3 +689,111 @@ def update_profile(request):
         messages.error(request, 'Invalid form submission.')
 
     return redirect('accounts:profile')
+
+# ══════════════════════════════════════════════════════════════════════
+# INVITE REGISTRATION — Add to accounts/views.py
+# ══════════════════════════════════════════════════════════════════════
+
+@csrf_protect
+@never_cache
+def invite_register(request, token):
+    """Registration page accessed via invite link."""
+    from travel_app.models import TravelInvite
+
+    # Validate token
+    try:
+        invite = TravelInvite.objects.select_related(
+            'travel', 'invited_by'
+        ).get(token=token)
+    except TravelInvite.DoesNotExist:
+        messages.error(request, 'Invalid invite link.')
+        return redirect('accounts:login')
+
+    if not invite.is_valid():
+        if invite.is_used:
+            messages.error(request, 'This invite link has already been used.')
+        else:
+            messages.error(request, 'This invite link has expired. Please ask the secretary for a new one.')
+        return redirect('accounts:login')
+
+    if request.session.get('user_id'):
+        messages.info(request, 'You are already logged in.')
+        return redirect('accounts:dashboard')
+
+    # Parse pre-filled name from invite
+    name_parts  = invite.invited_name.strip().split()
+    first_name  = name_parts[0] if name_parts else ''
+    last_name   = name_parts[-1] if len(name_parts) > 1 else ''
+    middle_name = ' '.join(name_parts[1:-1]) if len(name_parts) > 2 else ''
+
+    if request.method == 'POST':
+        form = RegisterForm(request.POST)
+        # Override name fields with invite data (can't be changed)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    email        = form.cleaned_data['email']
+                    phone_number = form.cleaned_data['phone_number']
+                    employee_id  = form.cleaned_data['employee_id']
+                    password     = form.cleaned_data['password']
+                    role         = form.cleaned_data['role']
+                    campus       = form.cleaned_data['campus']
+                    college      = form.cleaned_data['college']
+
+                    # Always use the name from the invite — not from form
+                    base_username = email.split('@')[0].lower()
+                    username = base_username
+                    counter  = 1
+                    while User.objects.filter(username=username).exists():
+                        username = f"{base_username}{counter}"
+                        counter += 1
+
+                    new_user = User.objects.create(
+                        username=username,
+                        email=email,
+                        employee_id=employee_id,
+                        first_name=first_name.title(),
+                        middle_name=middle_name.title() if middle_name else 'N/A',
+                        last_name=last_name.title(),
+                        password=make_password(password),
+                        role=role,
+                        college=college,
+                        campus=campus,
+                        preference='NO_PREPAYMENT',
+                        phone_number=phone_number,
+                        on_travel=False,
+                        is_approved=False,
+                        is_active=True,
+                    )
+
+                    # Mark invite as used and link to new user
+                    invite.is_used    = True
+                    invite.accepted_by = new_user
+                    invite.save(update_fields=['is_used', 'accepted_by'])
+
+                    messages.warning(
+                        request,
+                        f'Account created! Your account is pending administrator approval. '
+                        f'Once approved, you will be automatically linked to the travel to '
+                        f'{invite.travel.destination}.'
+                    )
+                    return redirect('accounts:login')
+
+            except Exception as e:
+                messages.error(request, f'An error occurred: {str(e)}')
+    else:
+        # Pre-fill form with name from invite
+        form = RegisterForm(initial={
+            'first_name':  first_name.title(),
+            'middle_name': middle_name.title() if middle_name else '',
+            'last_name':   last_name.title(),
+        })
+
+    return render(request, 'accounts/invite_register.html', {
+        'form':        form,
+        'invite':      invite,
+        'first_name':  first_name.title(),
+        'middle_name': middle_name.title() if middle_name else '',
+        'last_name':   last_name.title(),
+        'title':       'Accept Invite — BISU Travel Hub',
+    })

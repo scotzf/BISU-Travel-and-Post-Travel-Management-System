@@ -52,4 +52,7 @@ urlpatterns = [
 
     # ── Reports ───────────────────────────────────────────────────────
     path('stats/',                  views.stats_view,                 name='stats'),
+
+
+    path('travels/<int:pk>/invite/', views.invite_participant, name='invite_participant'),
 ]
