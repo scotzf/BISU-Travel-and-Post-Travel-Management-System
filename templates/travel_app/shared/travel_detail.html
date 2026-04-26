@@ -99,6 +99,7 @@
           {% for hub in participant_hubs %}
           <div id="hub_{{ hub.participant.id }}" style="{% if not forloop.first %}display:none{% endif %}">
             {% for doc_type, doc_label in doc_types %}
+            {% if doc_type != 'LETTER_REQUEST' or travel.is_out_of_province %}
             {% with slot=hub.docs_by_type|get_item:doc_type %}
             <div class="doc-slot">
               <div class="doc-slot-header {% if slot.uploaded %}uploaded{% endif %}"
@@ -208,6 +209,7 @@
               </div>
             </div>
             {% endwith %}
+            {% endif %}
             {% endfor %}
           </div>
           {% endfor %}
