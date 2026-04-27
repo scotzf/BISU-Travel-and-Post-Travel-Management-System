@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Notifications — BISU Travel Hub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Notifications</div>
+      <div class="page-subtitle">{{ notifications.count }} total notification{{ notifications.count|pluralize }}</div>
+    </div>
+    {% if notifications %}
+    <form method="post" action="{% url 'travel_app:mark_all_notifications_read' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-secondary-custom" style="font-size:13px;padding:7px 14px">
+        <i class="bi bi-check2-all"></i> Mark all read
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  {% if notifications %}
+    {% for notif in notifications %}
+    <a href="{% url 'travel_app:mark_notification_read' notif.id %}"
+       style="display:flex;align-items:flex-start;gap:12px;padding:14px 20px;
+              border-bottom:1px solid var(--border);text-decoration:none;color:inherit;
+              transition:background .12s;
+              {% if not notif.is_read %}background:var(--primary-faint);{% endif %}">
+
+      <!-- Unread dot -->
+      <div style="width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0;
+                  background:{% if not notif.is_read %}var(--primary){% else %}transparent{% endif %}">
+      </div>
+
+      <!-- Icon -->
+      <div style="width:36px;height:36px;border-radius:9px;flex-shrink:0;
+                  display:flex;align-items:center;justify-content:center;font-size:15px;
+                  {% if notif.notification_type == 'TRAVEL_CREATED' %}background:#e6f4ea;color:#1a5c38;
+                  {% elif notif.notification_type == 'BUDGET_TAGGED' %}background:#fef8e7;color:#8a6400;
+                  {% elif notif.notification_type == 'BUDGET_LOW' or notif.notification_type == 'BUDGET_EXHAUSTED' or notif.notification_type == 'OVER_BUDGET' %}background:#fde8e8;color:#922b21;
+                  {% elif notif.notification_type == 'DOCUMENT_UPLOADED' or notif.notification_type == 'EXTRACTION_DONE' %}background:#e8f0fe;color:#1a4491;
+                  {% elif notif.notification_type == 'DUPLICATE_DETECTED' %}background:#fef8e7;color:#8a6400;
+                  {% else %}background:var(--surface-3);color:var(--text-muted);{% endif %}">
+        <i class="bi
+          {% if notif.notification_type == 'TRAVEL_CREATED' %}bi-airplane
+          {% elif notif.notification_type == 'BUDGET_TAGGED' %}bi-tag-fill
+          {% elif notif.notification_type == 'BUDGET_LOW' %}bi-exclamation-triangle-fill
+          {% elif notif.notification_type == 'BUDGET_EXHAUSTED' or notif.notification_type == 'OVER_BUDGET' %}bi-x-circle-fill
+          {% elif notif.notification_type == 'DOCUMENT_UPLOADED' %}bi-file-earmark-arrow-up
+          {% elif notif.notification_type == 'EXTRACTION_DONE' %}bi-robot
+          {% elif notif.notification_type == 'DUPLICATE_DETECTED' %}bi-copy
+          {% else %}bi-info-circle{% endif %}">
+        </i>
+      </div>
+
+      <!-- Body -->
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span style="font-size:13.5px;font-weight:{% if not notif.is_read %}600{% else %}500{% endif %};
+                       color:var(--text-primary)">
+            {{ notif.title }}
+          </span>
+          <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">
+            {{ notif.created_at|timesince }} ago
+          </span>
+        </div>
+        <div style="font-size:12.5px;color:var(--text-secondary);margin-top:3px;line-height:1.5">
+          {{ notif.message }}
+        </div>
+        {% if notif.travel_record %}
+        <div style="margin-top:5px;font-size:11.5px;color:var(--primary);display:flex;align-items:center;gap:4px">
+          <i class="bi bi-arrow-right-circle" style="font-size:11px"></i>
+          {{ notif.travel_record.destination }} · {{ notif.travel_record.start_date|date:"M j, Y" }}
+        </div>
+        {% endif %}
+      </div>
+
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <i class="bi bi-bell-slash"></i>
+      <p>No notifications yet.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

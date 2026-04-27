@@ -81,6 +81,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'travel_app.context_processors.secretary_queue_count',
+                'travel_app.context_processors.unread_notifications', 
             ],
         },
     },

@@ -55,4 +55,9 @@ urlpatterns = [
 
 
     path('travels/<int:pk>/invite/', views.invite_participant, name='invite_participant'),
+    # Notifications
+    path('notifications/',                    views.notifications_list,          name='notifications_list'),
+    path('notifications/<int:notif_id>/read/', views.mark_notification_read,      name='mark_notification_read'),
+    path('notifications/mark-all-read/',       views.mark_all_notifications_read, name='mark_all_notifications_read'),
+ 
 ]
