@@ -566,6 +566,47 @@ def travel_detail(request, pk):
         ]
     # ── Add these to the context dict ────────────────────────────────────
     # 'unregistered_travelers': unregistered_travelers,
+    # Calculate completeness based on role
+    doc_types_count = len(ParticipantDocument.DOC_TYPE_CHOICES)
+
+    if user.role == 'EMPLOYEE':
+        # Only their own documents
+        my_participant = travel.participants.filter(user=user).first()
+        if my_participant:
+            uploaded = my_participant.documents.count()
+            total_possible = doc_types_count
+            # exclude letter request if not out of province
+            if not travel.is_out_of_province:
+                total_possible -= 1
+            completeness_percentage = round((uploaded / total_possible) * 100) if total_possible else 0
+        else:
+            completeness_percentage = 0
+
+    elif user.role in ['DEPT_SEC', 'CAMPUS_SEC']:
+        # Only their college/campus participants
+        if user.role == 'DEPT_SEC' and user.college:
+            relevant_participants = travel.participants.filter(
+                college_name=user.college.name
+            )
+        else:
+            relevant_participants = travel.participants.filter(
+                campus_name=user.campus.name if user.campus else ''
+            )
+        count = relevant_participants.count()
+        if count:
+            total_possible = count * doc_types_count
+            if not travel.is_out_of_province:
+                total_possible -= count  # subtract letter request for each
+            uploaded = ParticipantDocument.objects.filter(
+                participant__in=relevant_participants
+            ).count()
+            completeness_percentage = round((uploaded / total_possible) * 100) if total_possible else 0
+        else:
+            completeness_percentage = 0
+
+    else:
+        # Admin sees all
+        completeness_percentage = travel.completeness_percentage
 
     context = {
         'user':             user,
@@ -584,6 +625,7 @@ def travel_detail(request, pk):
         'total_submitted':             total_submitted,
         'all_submitted':               all_submitted,
         'unregistered_travelers': unregistered_travelers,
+        'completeness_percentage': completeness_percentage,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
