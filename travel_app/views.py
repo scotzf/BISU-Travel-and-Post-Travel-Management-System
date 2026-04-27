@@ -2215,4 +2215,61 @@ def link_invited_user_to_travels(accepted_user):
 
         # Refresh travel scope
         travel.refresh_scope()
+
+# ══════════════════════════════════════════════════════════════════════
+# NOTIFICATIONS
+# Add these views to the bottom of travel_app/views.py
+# ══════════════════════════════════════════════════════════════════════
+
+@never_cache
+def notifications_list(request):
+    """Full notifications page — all notifications for the user."""
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    notifications = Notification.objects.filter(
+        user=user
+    ).select_related('travel_record').order_by('-created_at')
+
+    # Mark all as read when the page is visited
+    Notification.objects.filter(user=user, is_read=False).update(is_read=True)
+
+    context = {
+        'user':          user,
+        'notifications': notifications,
+        'today':         timezone.now().date(),
+    }
+    return render(request, 'travel_app/shared/notifications.html', context)
+
+
+@csrf_protect
+@never_cache
+def mark_notification_read(request, notif_id):
+    """Mark a single notification as read and redirect to its travel."""
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    notif = get_object_or_404(Notification, id=notif_id, user=user)
+    notif.is_read = True
+    notif.save(update_fields=['is_read'])
+
+    if notif.travel_record:
+        return redirect('travel_app:travel_detail', pk=notif.travel_record.id)
+    return redirect('travel_app:notifications_list')
+
+
+@csrf_protect
+@never_cache
+def mark_all_notifications_read(request):
+    """Mark all notifications as read for the current user."""
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    if request.method == 'POST':
+        Notification.objects.filter(user=user, is_read=False).update(is_read=True)
+
+    return redirect('travel_app:notifications_list')
         
