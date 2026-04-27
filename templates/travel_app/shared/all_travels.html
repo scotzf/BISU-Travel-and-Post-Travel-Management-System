@@ -17,6 +17,23 @@
   background:var(--role-faint); border-color:var(--role-color);
   color:var(--role-color);
 }
+.page-link-btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:8px; font-size:13px;
+  border:1px solid var(--border); background:var(--surface);
+  color:var(--text-secondary); text-decoration:none; transition:all .15s;
+}
+.page-link-btn:hover {
+  background:var(--role-faint); border-color:var(--role-color);
+  color:var(--role-color);
+}
+.page-link-btn.active {
+  background:var(--role-color); border-color:var(--role-color);
+  color:white; font-weight:600;
+}
+.page-link-btn.disabled {
+  opacity:.4; pointer-events:none;
+}
 {% endblock %}
 
 {% block content %}
@@ -24,7 +41,12 @@
   <div class="page-header-row">
     <div>
       <div class="page-title">All Travels</div>
-      <div class="page-subtitle">{{ total }} record{{ total|pluralize }} found</div>
+      <div class="page-subtitle">
+        {{ total }} record{{ total|pluralize }} found
+        {% if paginator.num_pages > 1 %}
+          &nbsp;·&nbsp; page {{ page_obj.number }} of {{ paginator.num_pages }}
+        {% endif %}
+      </div>
     </div>
     {% if user.role in 'EMPLOYEE,DEPT_SEC,CAMPUS_SEC' %}
     <a href="{% url 'travel_app:create_travel' %}" class="btn-primary-custom">
@@ -62,7 +84,7 @@
         </a>
       </div>
 
-      <!-- Scope filter (secretary/admin only) -->
+      <!-- Scope filter -->
       {% if user.role != 'EMPLOYEE' %}
       <div style="display:flex;gap:6px">
         <a href="?{% if search %}q={{ search }}&{% endif %}scope=COLLEGE{% if filter_tagged %}&tagged={{ filter_tagged }}{% endif %}"
@@ -152,5 +174,51 @@
       {% endif %}
     </div>
   {% endif %}
+
+  <!-- Pagination -->
+  {% if paginator.num_pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:14px 20px;border-top:1px solid var(--border);flex-wrap:wrap;gap:10px">
+    <span style="font-size:12px;color:var(--text-muted)">
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ total }}
+    </span>
+    <div style="display:flex;gap:4px;align-items:center">
+
+      <!-- Previous -->
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if filter_tagged %}&tagged={{ filter_tagged }}{% endif %}{% if filter_scope %}&scope={{ filter_scope }}{% endif %}{% if filter_year %}&year={{ filter_year }}{% endif %}"
+         class="page-link-btn" title="Previous">
+        <i class="bi bi-chevron-left" style="font-size:11px"></i>
+      </a>
+      {% else %}
+      <span class="page-link-btn disabled"><i class="bi bi-chevron-left" style="font-size:11px"></i></span>
+      {% endif %}
+
+      <!-- Page numbers -->
+      {% for num in paginator.page_range %}
+        {% if num == page_obj.number %}
+          <span class="page-link-btn active">{{ num }}</span>
+        {% elif num == 1 or num == paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+          <a href="?page={{ num }}{% if search %}&q={{ search }}{% endif %}{% if filter_tagged %}&tagged={{ filter_tagged }}{% endif %}{% if filter_scope %}&scope={{ filter_scope }}{% endif %}{% if filter_year %}&year={{ filter_year }}{% endif %}"
+             class="page-link-btn">{{ num }}</a>
+        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+          <span style="font-size:12px;color:var(--text-muted);padding:0 2px">…</span>
+        {% endif %}
+      {% endfor %}
+
+      <!-- Next -->
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if filter_tagged %}&tagged={{ filter_tagged }}{% endif %}{% if filter_scope %}&scope={{ filter_scope }}{% endif %}{% if filter_year %}&year={{ filter_year }}{% endif %}"
+         class="page-link-btn" title="Next">
+        <i class="bi bi-chevron-right" style="font-size:11px"></i>
+      </a>
+      {% else %}
+      <span class="page-link-btn disabled"><i class="bi bi-chevron-right" style="font-size:11px"></i></span>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}
