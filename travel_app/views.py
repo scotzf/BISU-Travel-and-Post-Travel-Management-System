@@ -513,13 +513,29 @@ def travel_detail(request, pk):
                 else:
                     can_tag_budget = False
 
-    # Build per-participant expense summary for the budget tagging panel
+    # ── Per-participant expense summary — filtered by role ──────────────
+    # DEPT_SEC   → only their college's participants
+    # CAMPUS_SEC → all participants (campus-wide view)
+    # EMPLOYEE   → only themselves
+    # ADMIN      → all participants
     from decimal import Decimal
+
+    if user.role == 'DEPT_SEC' and user.college:
+        expense_participants = travel.participants.select_related('user').filter(
+            college_name=user.college.name
+        )
+    elif user.role == 'EMPLOYEE':
+        my_p = travel.participants.filter(user=user).first()
+        expense_participants = travel.participants.filter(id=my_p.id) if my_p else travel.participants.none()
+    else:
+        # CAMPUS_SEC and ADMIN see all
+        expense_participants = travel.participants.select_related('user').all()
+
     participant_expense_summary = []
     total_submitted = Decimal('0')
     all_submitted   = True
 
-    for p in travel.participants.select_related('user').all():
+    for p in expense_participants:
         amount_doc = ParticipantDocument.objects.filter(
             participant=p,
             doc_type__in=['BURS', 'ITINERARY'],
@@ -539,11 +555,8 @@ def travel_detail(request, pk):
             'has_amount':  submitted_amount is not None,
             'doc_type':    amount_doc.get_doc_type_display() if amount_doc else None,
         })
-        # ── Add to travel_detail view in views.py ────────────────────────────
-    # Place this just before the context = { ... } block
 
-    # Build unregistered travelers list from AI-extracted names
-    # that don't match any registered participant
+    # ── Unregistered travelers ──────────────────────────────────────────
     import json
     from .models import TravelInvite
 
@@ -564,30 +577,22 @@ def travel_detail(request, pk):
             name for name in unregistered_travelers
             if name not in active_invite_names
         ]
-    # ── Add these to the context dict ────────────────────────────────────
-    # 'unregistered_travelers': unregistered_travelers,
-    # Calculate completeness based on role
+
+    # ── Completeness percentage — filtered by role ──────────────────────
     doc_types_count = len(ParticipantDocument.DOC_TYPE_CHOICES)
 
     if user.role == 'EMPLOYEE':
-        # Only their own documents
         my_participant = travel.participants.filter(user=user).first()
         if my_participant:
-            uploaded = my_participant.documents.count()
-            total_possible = doc_types_count
-            # exclude letter request if not out of province
-            if not travel.is_out_of_province:
-                total_possible -= 1
+            uploaded       = my_participant.documents.count()
+            total_possible = doc_types_count - (0 if travel.is_out_of_province else 1)
             completeness_percentage = round((uploaded / total_possible) * 100) if total_possible else 0
         else:
             completeness_percentage = 0
 
     elif user.role in ['DEPT_SEC', 'CAMPUS_SEC']:
-        # Only their college/campus participants
         if user.role == 'DEPT_SEC' and user.college:
-            relevant_participants = travel.participants.filter(
-                college_name=user.college.name
-            )
+            relevant_participants = travel.participants.filter(college_name=user.college.name)
         else:
             relevant_participants = travel.participants.filter(
                 campus_name=user.campus.name if user.campus else ''
@@ -596,7 +601,7 @@ def travel_detail(request, pk):
         if count:
             total_possible = count * doc_types_count
             if not travel.is_out_of_province:
-                total_possible -= count  # subtract letter request for each
+                total_possible -= count
             uploaded = ParticipantDocument.objects.filter(
                 participant__in=relevant_participants
             ).count()
@@ -605,7 +610,6 @@ def travel_detail(request, pk):
             completeness_percentage = 0
 
     else:
-        # Admin sees all
         completeness_percentage = travel.completeness_percentage
 
     context = {
@@ -624,11 +628,10 @@ def travel_detail(request, pk):
         'participant_expense_summary': participant_expense_summary,
         'total_submitted':             total_submitted,
         'all_submitted':               all_submitted,
-        'unregistered_travelers': unregistered_travelers,
-        'completeness_percentage': completeness_percentage,
+        'unregistered_travelers':      unregistered_travelers,
+        'completeness_percentage':     completeness_percentage,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # UPLOAD DOCUMENT
@@ -813,7 +816,6 @@ def tag_budget(request, pk):
 # ══════════════════════════════════════════════════════════════════════
 # ALL TRAVELS
 # ══════════════════════════════════════════════════════════════════════
-
 @never_cache
 def all_travels(request):
     user = get_authenticated_user(request)
@@ -856,19 +858,33 @@ def all_travels(request):
     if search:
         travels = travels.filter(destination__icontains=search)
 
+    total = travels.count()
+
+    # Pagination — 20 per page
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+    paginator = Paginator(travels, 20)
+    page_num  = request.GET.get('page', 1)
+    try:
+        travels_page = paginator.page(page_num)
+    except PageNotAnInteger:
+        travels_page = paginator.page(1)
+    except EmptyPage:
+        travels_page = paginator.page(paginator.num_pages)
+
     context = {
         'user':          user,
-        'travels':       travels,
+        'travels':       travels_page,
         'today':         today,
-        'total':         travels.count(),
+        'total':         total,
         'filter_tagged': filter_tagged,
         'filter_scope':  filter_scope,
         'filter_year':   filter_year,
         'search':        search,
         'current_year':  today.year,
+        'paginator':     paginator,
+        'page_obj':      travels_page,
     }
     return render(request, 'travel_app/shared/all_travels.html', context)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # MY TRAVELS + STATS

@@ -55,7 +55,7 @@
   </div>
 </div>
 
-<!-- Completeness bar — FIX #3: use completeness_percentage from context, not travel.completeness_percentage -->
+<!-- Completeness bar — uses role-aware completeness_percentage from context -->
 <div class="card mb-3">
   <div class="card-body-custom" style="padding:14px 20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -318,11 +318,13 @@
       </div>
     </div>
 
-    <!-- Participants -->
+    <!-- ══ Participants card ══ -->
     <div class="card mb-3">
       <div class="card-header-custom">
         <div class="card-title">Participants ({{ travel.participant_count }})</div>
       </div>
+
+      <!-- Registered participants list -->
       {% for p in travel.participants.all %}
       <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">
         <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-faint);
@@ -330,13 +332,68 @@
                     font-size:11px;font-weight:600;color:var(--primary);flex-shrink:0">
           {{ p.user.first_name|slice:":1" }}{{ p.user.last_name|slice:":1" }}
         </div>
-        <div>
+        <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ p.user.get_full_name }}</div>
           <div style="font-size:11px;color:var(--text-muted)">{{ p.college_name|default:"—" }}</div>
         </div>
       </div>
       {% endfor %}
 
+      <!-- ══ Per-participant expense summary — visible to secretary/admin ══
+           FIX #4: shown directly in Participants card, filtered by role in view.
+           DEPT_SEC sees only their college's participants.
+           CAMPUS_SEC and ADMIN see all.
+           EMPLOYEE sees only themselves.
+      -->
+      {% if participant_expense_summary and is_secretary or participant_expense_summary and is_admin %}
+      <div style="padding:12px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);
+                    text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+          <i class="bi bi-receipt"></i>
+          {% if user.role == 'DEPT_SEC' %}
+            {{ user.college.name }} Expenses
+          {% else %}
+            Submitted Expenses
+          {% endif %}
+        </div>
+        {% for item in participant_expense_summary %}
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+          <div>
+            <div style="font-weight:500;color:var(--text-primary)">{{ item.participant.user.get_full_name }}</div>
+            {% if item.doc_type %}
+              <div style="font-size:10.5px;color:var(--text-muted)">via {{ item.doc_type }}</div>
+            {% endif %}
+          </div>
+          {% if item.has_amount %}
+            <span style="color:#166534;font-weight:600;background:#dcfce7;
+                         padding:2px 8px;border-radius:6px;font-size:12px">
+              ₱{{ item.amount|floatformat:2 }}
+            </span>
+          {% else %}
+            <span style="color:#922b21;font-size:11px;display:flex;align-items:center;gap:3px">
+              <i class="bi bi-exclamation-triangle"></i> Not submitted
+            </span>
+          {% endif %}
+        </div>
+        {% endfor %}
+        <!-- Total row -->
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding-top:8px;font-size:13px;font-weight:700">
+          <span style="color:var(--text-primary)">Total</span>
+          <span style="color:var(--role-color)">₱{{ total_submitted|floatformat:2 }}</span>
+        </div>
+        {% if not all_submitted %}
+        <div style="margin-top:6px;font-size:11px;color:#8a6400;background:#fef9c3;
+                    padding:5px 8px;border-radius:6px;display:flex;align-items:center;gap:4px">
+          <i class="bi bi-exclamation-triangle"></i>
+          Some participants haven't submitted their expense amount yet.
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Unregistered participants — secretary only -->
       {% if is_secretary and unregistered_travelers %}
       <div style="padding:10px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
         <div style="font-size:11px;font-weight:600;color:var(--text-muted);
@@ -394,7 +451,7 @@
             </div>
           </div>
 
-          <!-- Per-participant expense breakdown (after tagging) -->
+          <!-- Per-participant breakdown after tagging (budget panel — condensed) -->
           {% if participant_expense_summary %}
           <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">
             <div style="font-size:11px;font-weight:600;color:var(--text-muted);
@@ -403,14 +460,12 @@
             </div>
             {% for item in participant_expense_summary %}
             <div style="display:flex;justify-content:space-between;align-items:center;
-                        padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+                        padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
               <span style="color:var(--text-primary);font-weight:500">{{ item.participant.user.get_full_name }}</span>
               {% if item.has_amount %}
-                <span style="color:#166534;font-weight:600;background:#dcfce7;padding:2px 8px;border-radius:6px">
-                  ₱{{ item.amount|floatformat:2 }}
-                </span>
+                <span style="color:#166534;font-weight:600">₱{{ item.amount|floatformat:2 }}</span>
               {% else %}
-                <span style="color:var(--text-muted);font-size:11px;font-style:italic">No amount submitted</span>
+                <span style="color:var(--text-muted);font-size:11px;font-style:italic">No amount</span>
               {% endif %}
             </div>
             {% endfor %}
@@ -436,40 +491,23 @@
 
         {% if not travel.is_budget_tagged %}
 
-          <!-- Submitted expenses panel (before tagging) -->
-          {% if is_secretary and participant_expense_summary %}
+          <!-- Suggested total notice (before tagging, no duplicate expense table) -->
+          {% if is_secretary and total_submitted %}
           <div style="background:var(--surface-2);border:1px solid var(--border);
-                      border-radius:var(--radius);padding:12px;margin-bottom:14px">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                        text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
-              Submitted Expenses
-            </div>
-            {% for item in participant_expense_summary %}
-            <div style="display:flex;justify-content:space-between;align-items:center;
-                        padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
-              <span style="color:var(--text-primary)">{{ item.participant.user.get_full_name }}</span>
-              {% if item.has_amount %}
-                <span style="color:#166534;font-weight:600">₱{{ item.amount|floatformat:2 }}</span>
-              {% else %}
-                <span style="color:#922b21;font-size:11px">
-                  <i class="bi bi-exclamation-triangle"></i> Not submitted
-                </span>
-              {% endif %}
-            </div>
-            {% endfor %}
-            <div style="display:flex;justify-content:space-between;padding-top:8px;
-                        font-size:13px;font-weight:700;color:var(--role-color)">
-              <span>Suggested Total</span>
-              <span>₱{{ total_submitted|floatformat:2 }}</span>
-            </div>
-            {% if not all_submitted %}
-            <div style="margin-top:6px;font-size:11px;color:#8a6400;background:#fef9c3;padding:5px 8px;border-radius:6px">
-              <i class="bi bi-exclamation-triangle"></i>
-              Some participants haven't submitted their expense amount yet.
-              Missing amounts will be split equally from the remainder.
-            </div>
-            {% endif %}
+                      border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;
+                      display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--text-muted)">Suggested total from expenses</span>
+            <span style="font-size:14px;font-weight:700;color:var(--role-color)">
+              ₱{{ total_submitted|floatformat:2 }}
+            </span>
           </div>
+          {% if not all_submitted %}
+          <div style="margin-bottom:12px;font-size:11px;color:#8a6400;background:#fef9c3;
+                      padding:5px 8px;border-radius:6px;display:flex;align-items:center;gap:4px">
+            <i class="bi bi-exclamation-triangle"></i>
+            Some participants haven't submitted yet. Missing amounts will be split equally.
+          </div>
+          {% endif %}
           {% endif %}
 
           {% if can_route and not travel.funding_college %}
@@ -496,9 +534,7 @@
                   <option value="{{ item.source.id }}">{{ item.source.budget_name }} (₱{{ item.remaining|floatformat:0 }} left)</option>
                   {% endfor %}
                 </select>
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
-                  Total Amount (₱) — suggested: ₱{{ total_submitted|floatformat:2 }}
-                </div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Total Amount (₱)</div>
                 <input type="number" name="amount" step="0.01" min="0" placeholder="Amount (₱)"
                        value="{{ total_submitted }}"
                        style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
@@ -542,9 +578,7 @@
                 </option>
                 {% endfor %}
               </select>
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
-                Total Amount (₱) — suggested from submitted expenses: ₱{{ total_submitted|floatformat:2 }}
-              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Total Amount (₱)</div>
               <input type="number" name="amount" step="0.01" min="0" placeholder="Amount (₱)"
                      value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% else %}{{ total_submitted }}{% endif %}"
                      style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
@@ -592,25 +626,6 @@
           <div style="display:flex;justify-content:space-between">
             <span style="color:var(--text-muted)">Funded by</span>
             <span>{{ travel.funding_college.name }}</span>
-          </div>
-          {% endif %}
-          {% if participant_expense_summary %}
-          <div style="padding-top:10px;border-top:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                        text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
-              Per-Participant Expenses
-            </div>
-            {% for item in participant_expense_summary %}
-            <div style="display:flex;justify-content:space-between;padding:4px 0;
-                        border-bottom:1px solid var(--border);font-size:12px">
-              <span>{{ item.participant.user.get_full_name }}</span>
-              {% if item.has_amount %}
-                <span style="font-weight:600;color:#166534">₱{{ item.amount|floatformat:2 }}</span>
-              {% else %}
-                <span style="color:var(--text-muted);font-style:italic">Not submitted</span>
-              {% endif %}
-            </div>
-            {% endfor %}
           </div>
           {% endif %}
         </div>
