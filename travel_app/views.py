@@ -2288,4 +2288,219 @@ def mark_all_notifications_read(request):
         Notification.objects.filter(user=user, is_read=False).update(is_read=True)
 
     return redirect('travel_app:notifications_list')
-        
+
+# ══════════════════════════════════════════════════════════════════════
+# MY SPENDING VIEW
+# Add to travel_app/views.py
+# ══════════════════════════════════════════════════════════════════════
+
+@never_cache
+def my_spending(request):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+
+    from datetime import date
+    import json as json_module
+    from django.db.models import Sum, Count
+    from django.db.models.functions import TruncMonth
+
+    today        = date.today()
+    selected_year = int(request.GET.get('year', today.year))
+    year_list    = [today.year - 1, today.year, today.year + 1]
+
+    # ── Personal monthly spending ──────────────────────────────────────
+    # Pull all travels this user was charged for (has a BudgetUsage row)
+    # We reconstruct monthly from TravelRecord.start_date + amount_deducted
+    # scoped to this user's participations
+
+    my_travels = TravelRecord.objects.filter(
+        participants__user=user,
+        budget_source__isnull=False,
+        start_date__year=selected_year,
+    ).distinct().order_by('start_date')
+
+    # Monthly spend — sum amount_deducted per month for user's travels
+    # We use BudgetUsage.used_amount per source as the source of truth per year
+    # but for monthly we use travel start_date + participant's individual doc amount
+    monthly_spend = {i: 0 for i in range(1, 13)}
+    travel_rows   = []
+    yearly_total  = 0
+
+    for t in my_travels:
+        # Get this user's individual amount from their BURS/Itinerary doc
+        my_participant = t.participants.filter(user=user).first()
+        individual_amount = None
+        doc_type_label   = '—'
+
+        if my_participant:
+            amount_doc = ParticipantDocument.objects.filter(
+                participant=my_participant,
+                doc_type__in=['BURS', 'ITINERARY'],
+                extracted_amount__isnull=False
+            ).order_by('-uploaded_at').first()
+
+            if amount_doc:
+                individual_amount = float(amount_doc.extracted_amount)
+                doc_type_label    = amount_doc.get_doc_type_display()
+
+        # Fallback: equal split from travel total
+        if individual_amount is None and t.amount_deducted and t.participant_count > 0:
+            individual_amount = float(t.amount_deducted) / t.participant_count
+            doc_type_label    = 'Estimated (equal split)'
+
+        amount = individual_amount or 0
+        monthly_spend[t.start_date.month] += amount
+        yearly_total += amount
+
+        travel_rows.append({
+            'travel':       t,
+            'amount':       amount,
+            'doc_type':     doc_type_label,
+            'has_amount':   individual_amount is not None,
+        })
+
+    monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun',
+                      'Jul','Aug','Sep','Oct','Nov','Dec']
+    monthly_data   = [round(monthly_spend[i], 2) for i in range(1, 13)]
+
+    # ── CSV export ─────────────────────────────────────────────────────
+    if request.GET.get('export') == 'csv':
+        import csv
+        from django.http import HttpResponse
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="spending_{user.get_full_name()}_{selected_year}.csv"'
+        )
+        writer = csv.writer(response)
+        writer.writerow(['Destination', 'Start Date', 'End Date', 'Budget Source', 'Amount (PHP)', 'Doc Type'])
+        for row in travel_rows:
+            t = row['travel']
+            writer.writerow([
+                t.destination,
+                t.start_date,
+                t.end_date or '',
+                t.budget_source.budget_name if t.budget_source else '—',
+                f'{row["amount"]:.2f}',
+                row['doc_type'],
+            ])
+        writer.writerow([])
+        writer.writerow(['', '', '', 'TOTAL', f'{yearly_total:.2f}', ''])
+        return response
+
+    context = {
+        'user':           user,
+        'today':          today,
+        'selected_year':  selected_year,
+        'year_list':      year_list,
+        'monthly_labels': json_module.dumps(monthly_labels),
+        'monthly_data':   json_module.dumps(monthly_data),
+        'travel_rows':    travel_rows,
+        'yearly_total':   yearly_total,
+        'travel_count':   len(travel_rows),
+    }
+    return render(request, 'travel_app/shared/my_spending.html', context)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ORG SPENDING DATA (AJAX) — for the switchable chart in stats page
+# ══════════════════════════════════════════════════════════════════════
+
+@never_cache
+def org_spending_data(request):
+    """
+    Returns JSON for the org-level spending chart.
+    Query params:
+      - year      : fiscal year (default current)
+      - view      : 'college' | 'campus' | 'user'
+      - metric    : 'amount' | 'travels'
+    """
+    user = get_authenticated_user(request)
+    if not user:
+        from django.http import JsonResponse
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+    if user.role not in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
+        from django.http import JsonResponse
+        return JsonResponse({'error': 'Access denied'}, status=403)
+
+    from django.http import JsonResponse
+    from django.db.models import Sum, Count
+    from datetime import date
+
+    today  = date.today()
+    year   = int(request.GET.get('year', today.year))
+    view   = request.GET.get('view', 'college')   # college | campus | user
+    metric = request.GET.get('metric', 'amount')  # amount | travels
+
+    # Base travel queryset scoped to role
+    if user.role == 'DEPT_SEC' and user.college:
+        travels = TravelRecord.objects.filter(
+            participants__college_name=user.college.name,
+            start_date__year=year,
+            budget_source__isnull=False,
+        ).distinct()
+    elif user.role == 'CAMPUS_SEC' and user.campus:
+        travels = TravelRecord.objects.filter(
+            participants__campus_name=user.campus.name,
+            start_date__year=year,
+            budget_source__isnull=False,
+        ).distinct()
+    else:  # ADMIN
+        travels = TravelRecord.objects.filter(
+            start_date__year=year,
+            budget_source__isnull=False,
+        ).distinct()
+
+    labels = []
+    data   = []
+
+    if view == 'college':
+        from django.db.models import Sum, Count
+        rows = (
+            TravelParticipant.objects
+            .filter(travel_record__in=travels)
+            .exclude(college_name='')
+            .values('college_name')
+            .annotate(
+                total_amount=Sum('travel_record__amount_deducted'),
+                total_travels=Count('travel_record', distinct=True),
+            )
+            .order_by('-total_amount' if metric == 'amount' else '-total_travels')[:12]
+        )
+        for r in rows:
+            labels.append(r['college_name'])
+            data.append(float(r['total_amount'] or 0) if metric == 'amount' else r['total_travels'])
+
+    elif view == 'campus':
+        rows = (
+            TravelParticipant.objects
+            .filter(travel_record__in=travels)
+            .exclude(campus_name='')
+            .values('campus_name')
+            .annotate(
+                total_amount=Sum('travel_record__amount_deducted'),
+                total_travels=Count('travel_record', distinct=True),
+            )
+            .order_by('-total_amount' if metric == 'amount' else '-total_travels')[:12]
+        )
+        for r in rows:
+            labels.append(r['campus_name'])
+            data.append(float(r['total_amount'] or 0) if metric == 'amount' else r['total_travels'])
+
+    elif view == 'user':
+        rows = (
+            TravelParticipant.objects
+            .filter(travel_record__in=travels)
+            .values('user__first_name', 'user__last_name')
+            .annotate(
+                total_amount=Sum('travel_record__amount_deducted'),
+                total_travels=Count('travel_record', distinct=True),
+            )
+            .order_by('-total_amount' if metric == 'amount' else '-total_travels')[:10]
+        )
+        for r in rows:
+            labels.append(f"{r['user__first_name']} {r['user__last_name']}")
+            data.append(float(r['total_amount'] or 0) if metric == 'amount' else r['total_travels'])
+
+    return JsonResponse({'labels': labels, 'data': data, 'metric': metric, 'view': view})

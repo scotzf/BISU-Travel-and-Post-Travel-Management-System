@@ -1,7 +1,5 @@
 {% comment %}
   templates/includes/sidebar.html
-  Include this in base.html instead of {% block sidebar %}
-  Automatically shows correct nav based on user.role from session
 {% endcomment %}
 
 {% if request.session.role == 'ADMIN' %}
@@ -28,6 +26,14 @@
   <span class="sidebar-section-label">Users</span>
   <a href="{% url 'accounts:pending_approvals' %}" class="nav-item-link {% if request.resolver_match.url_name == 'pending_approvals' %}active{% endif %}">
     <i class="bi bi-person-check"></i> User Approvals
+  </a>
+
+  <span class="sidebar-section-label">Reports</span>
+  <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i> Statistics
+  </a>
+  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
+    <i class="bi bi-wallet"></i> My Spending
   </a>
 
 {% elif request.session.role == 'DEPT_SEC' %}
@@ -67,6 +73,14 @@
     <i class="bi bi-diagram-3"></i> Event Groups
   </a>
 
+  <span class="sidebar-section-label">Reports</span>
+  <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i> Statistics
+  </a>
+  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
+    <i class="bi bi-wallet"></i> My Spending
+  </a>
+
 {% elif request.session.role == 'CAMPUS_SEC' %}
 
   <span class="sidebar-section-label">Main</span>
@@ -104,6 +118,14 @@
     <i class="bi bi-diagram-3"></i> Event Groups
   </a>
 
+  <span class="sidebar-section-label">Reports</span>
+  <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i> Statistics
+  </a>
+  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
+    <i class="bi bi-wallet"></i> My Spending
+  </a>
+
 {% else %} {# EMPLOYEE #}
 
   <span class="sidebar-section-label">Main</span>
@@ -122,13 +144,11 @@
     <i class="bi bi-calculator"></i> Liquidation
   </a>
 
-{% endif %}
-
-{% if request.session.role == 'ADMIN' or request.session.role == 'CAMPUS_SEC' or request.session.role == 'DEPT_SEC' %}
   <span class="sidebar-section-label">Reports</span>
-  <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
-    <i class="bi bi-bar-chart-line"></i> Statistics
+  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
+    <i class="bi bi-wallet"></i> My Spending
   </a>
+
 {% endif %}
 
 <span class="sidebar-section-label">Account</span>

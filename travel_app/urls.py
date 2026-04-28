@@ -59,5 +59,7 @@ urlpatterns = [
     path('notifications/',                    views.notifications_list,          name='notifications_list'),
     path('notifications/<int:notif_id>/read/', views.mark_notification_read,      name='mark_notification_read'),
     path('notifications/mark-all-read/',       views.mark_all_notifications_read, name='mark_all_notifications_read'),
+    path('spending/',              views.my_spending,        name='my_spending'),
+    path('spending/org-data/',     views.org_spending_data,  name='org_spending_data'),
  
 ]
