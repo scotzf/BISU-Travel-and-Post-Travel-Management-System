@@ -7,24 +7,31 @@
   --role-color: {% if user.role == 'CAMPUS_SEC' %}#6b21a8{% elif user.role == 'DEPT_SEC' %}#0f766e{% elif user.role == 'ADMIN' %}#92400e{% else %}#1a5c38{% endif %};
   --role-faint: {% if user.role == 'CAMPUS_SEC' %}#f3e8ff{% elif user.role == 'DEPT_SEC' %}#f0fdfa{% elif user.role == 'ADMIN' %}#fef3c7{% else %}#eaf4ee{% endif %};
 }
-.doc-slot { border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:10px;transition:box-shadow .15s; }
-.doc-slot:hover { box-shadow:var(--shadow-sm); }
-.doc-slot-header { display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--surface);cursor:pointer; }
-.doc-slot-header.uploaded { background:var(--primary-faint); }
-.doc-slot-icon { width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0; }
-.doc-slot-icon.done  { background:#1a5c38;color:white; }
-.doc-slot-icon.empty { background:var(--surface-3);color:var(--text-muted); }
-.doc-slot-name { font-size:13px;font-weight:500;color:var(--text-primary);flex:1; }
-.doc-files { padding:0 16px 12px;background:var(--surface-2); }
-.doc-file-row { display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;flex-wrap:wrap; }
-.doc-file-row:last-child { border-bottom:none; }
-.upload-area { border:2px dashed var(--border);border-radius:var(--radius);padding:16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);margin-top:8px; }
-.upload-area:hover,.upload-area.dragover { border-color:var(--role-color);background:var(--role-faint); }
-.upload-area input[type=file] { display:none; }
-.form-select { font-size:13px;border:1px solid var(--border);border-radius:var(--radius);padding:7px 10px;color:var(--text-primary);background:var(--surface); }
-.participant-tab { padding:8px 16px;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-muted);white-space:nowrap; }
-.participant-tab.active { border-bottom-color:var(--role-color);color:var(--role-color); }
-.participant-tabs { display:flex;overflow-x:auto;border-bottom:1px solid var(--border);margin-bottom:16px; }
+.doc-slot{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:10px;transition:box-shadow .15s;}
+.doc-slot:hover{box-shadow:var(--shadow-sm);}
+.doc-slot-header{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--surface);cursor:pointer;}
+.doc-slot-header.uploaded{background:var(--primary-faint);}
+.doc-slot-header.actual-uploaded{background:#fdf4ff;}
+.doc-slot-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.doc-slot-icon.done{background:#1a5c38;color:white;}
+.doc-slot-icon.actual-done{background:#7c3aed;color:white;}
+.doc-slot-icon.empty{background:var(--surface-3);color:var(--text-muted);}
+.doc-slot-name{font-size:13px;font-weight:500;color:var(--text-primary);flex:1;}
+.doc-files{padding:0 16px 12px;background:var(--surface-2);}
+.doc-file-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;flex-wrap:wrap;}
+.doc-file-row:last-child{border-bottom:none;}
+.upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);margin-top:8px;}
+.upload-area:hover,.upload-area.dragover{border-color:var(--role-color);background:var(--role-faint);}
+.upload-area input[type=file]{display:none;}
+.form-select{font-size:13px;border:1px solid var(--border);border-radius:var(--radius);padding:7px 10px;color:var(--text-primary);background:var(--surface);}
+.participant-tab{padding:8px 16px;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-muted);white-space:nowrap;}
+.participant-tab.active{border-bottom-color:var(--role-color);color:var(--role-color);}
+.participant-tabs{display:flex;overflow-x:auto;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.liquidation-badge-returned{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:#dcfce7;color:#166534;font-size:11px;font-weight:600;}
+.liquidation-badge-deducted{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:11px;font-weight:600;}
+.liquidation-badge-match{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:#f3f4f6;color:#374151;font-size:11px;font-weight:600;}
+.liquidation-compare-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.liquidation-compare-row:last-child{border-bottom:none;}
 {% endblock %}
 
 {% block content %}
@@ -40,22 +47,16 @@
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       {% if travel.is_budget_tagged %}
-        <span class="badge-status badge-tagged">
-          <i class="bi bi-check-circle-fill" style="font-size:10px"></i> Budget tagged
-        </span>
+        <span class="badge-status badge-tagged"><i class="bi bi-check-circle-fill" style="font-size:10px"></i> Budget tagged</span>
       {% else %}
-        <span class="badge-status badge-untagged">
-          <i class="bi bi-tag" style="font-size:10px"></i> Untagged
-        </span>
+        <span class="badge-status badge-untagged"><i class="bi bi-tag" style="font-size:10px"></i> Untagged</span>
       {% endif %}
-      <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}">
-        {{ travel.scope|title }} scope
-      </span>
+      <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}">{{ travel.scope|title }} scope</span>
     </div>
   </div>
 </div>
 
-<!-- Completeness bar — uses role-aware completeness_percentage from context -->
+<!-- Completeness bar -->
 <div class="card mb-3">
   <div class="card-body-custom" style="padding:14px 20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -63,14 +64,12 @@
       <span style="font-size:13px;font-weight:600;color:var(--role-color)">{{ completeness_percentage }}%</span>
     </div>
     <div class="budget-bar-track" style="height:8px">
-      <div class="budget-bar-fill fill-{% if completeness_percentage == 100 %}healthy{% elif completeness_percentage >= 50 %}warning{% else %}critical{% endif %}"
-           style="width:{{ completeness_percentage }}%"></div>
+      <div class="budget-bar-fill fill-{% if completeness_percentage == 100 %}healthy{% elif completeness_percentage >= 50 %}warning{% else %}critical{% endif %}" style="width:{{ completeness_percentage }}%"></div>
     </div>
   </div>
 </div>
 
 <div class="row g-3">
-
   <!-- Document folder -->
   <div class="col-lg-8">
     <div class="card">
@@ -89,51 +88,59 @@
         {% if participant_hubs %}
           <div class="participant-tabs">
             {% for hub in participant_hubs %}
-            <div class="participant-tab {% if forloop.first %}active{% endif %}"
-                 onclick="switchParticipant('hub_{{ hub.participant.id }}', this)">
+            <div class="participant-tab {% if forloop.first %}active{% endif %}" onclick="switchParticipant('hub_{{ hub.participant.id }}', this)">
               {{ hub.participant.user.get_full_name }}
             </div>
             {% endfor %}
           </div>
-
           {% for hub in participant_hubs %}
           <div id="hub_{{ hub.participant.id }}" style="{% if not forloop.first %}display:none{% endif %}">
             {% for doc_type, doc_label in doc_types %}
             {% if doc_type != 'LETTER_REQUEST' or travel.is_out_of_province %}
+
+            {# ── ACTUAL_ITINERARY: only show if budget is already tagged ── #}
+            {% if doc_type == 'ACTUAL_ITINERARY' and not travel.is_budget_tagged %}
+              {# skip — budget not tagged yet, no liquidation possible #}
+            {% else %}
+
             {% with slot=hub.docs_by_type|get_item:doc_type %}
             <div class="doc-slot">
-              <div class="doc-slot-header {% if slot.uploaded %}uploaded{% endif %}"
-                   onclick="toggleSlot('slot_{{ hub.participant.id }}_{{ doc_type }}')">
-                <div class="doc-slot-icon {% if slot.uploaded %}done{% else %}empty{% endif %}">
+              <div class="doc-slot-header {% if slot.uploaded %}{% if doc_type == 'ACTUAL_ITINERARY' %}actual-uploaded{% else %}uploaded{% endif %}{% endif %}" onclick="toggleSlot('slot_{{ hub.participant.id }}_{{ doc_type }}')">
+                <div class="doc-slot-icon {% if slot.uploaded %}{% if doc_type == 'ACTUAL_ITINERARY' %}actual-done{% else %}done{% endif %}{% else %}empty{% endif %}">
                   <i class="bi {% if slot.uploaded %}bi-check-lg{% else %}bi-file-earmark{% endif %}"></i>
                 </div>
-                <span class="doc-slot-name">{{ doc_label }}</span>
+                <span class="doc-slot-name">
+                  {{ doc_label }}
+                  {% if doc_type == 'ACTUAL_ITINERARY' %}
+                    <span style="font-size:10px;font-weight:400;color:#7c3aed;margin-left:4px">(post-travel)</span>
+                  {% endif %}
+                </span>
                 {% if slot.uploaded %}
                   <span class="badge-status badge-tagged" style="font-size:10px">{{ slot.documents.count }} file{{ slot.documents.count|pluralize }}</span>
                 {% else %}
-                  <span class="badge-status badge-untagged" style="font-size:10px">Not uploaded</span>
+                  {% if doc_type == 'ACTUAL_ITINERARY' %}
+                    <span style="font-size:10px;padding:2px 8px;border-radius:6px;background:#f3e8ff;color:#7c3aed;font-weight:500">Awaiting upload</span>
+                  {% else %}
+                    <span class="badge-status badge-untagged" style="font-size:10px">Not uploaded</span>
+                  {% endif %}
                 {% endif %}
-                <i class="bi bi-chevron-down" style="font-size:12px;color:var(--text-muted);transition:transform .2s"
-                   id="chevron_{{ hub.participant.id }}_{{ doc_type }}"></i>
+                <i class="bi bi-chevron-down" style="font-size:12px;color:var(--text-muted);transition:transform .2s" id="chevron_{{ hub.participant.id }}_{{ doc_type }}"></i>
               </div>
 
-              <div id="slot_{{ hub.participant.id }}_{{ doc_type }}"
-                   style="display:{% if slot.uploaded %}block{% else %}none{% endif %}">
+              <div id="slot_{{ hub.participant.id }}_{{ doc_type }}" style="display:{% if slot.uploaded %}block{% else %}none{% endif %}">
                 <div class="doc-files">
+
                   {% for doc in slot.documents %}
                   <div class="doc-file-row">
                     <i class="bi bi-file-earmark-text" style="color:var(--primary);font-size:14px;flex-shrink:0"></i>
-                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                      {{ doc.file.name|slice:"20:" }}
-                    </span>
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ doc.file.name|slice:"20:" }}</span>
                     <span style="color:var(--text-muted);flex-shrink:0">{{ doc.uploaded_at|date:"M j, Y" }}</span>
 
-                    {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+                    {# Amount badge for BURS / ITINERARY / ACTUAL_ITINERARY #}
+                    {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' or doc.doc_type == 'ACTUAL_ITINERARY' %}
                       {% if doc.extracted_amount %}
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
-                                     border-radius:6px;background:#dcfce7;color:#166534;
-                                     font-size:11px;font-weight:600;flex-shrink:0">
-                          ₱{{ doc.extracted_amount|floatformat:2 }}
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:{% if doc.doc_type == 'ACTUAL_ITINERARY' %}#f3e8ff;color:#6b21a8{% else %}#dcfce7;color:#166534{% endif %};font-size:11px;font-weight:600;flex-shrink:0">
+                          {{ doc.extracted_amount|peso }}
                         </span>
                       {% endif %}
                     {% endif %}
@@ -141,18 +148,12 @@
                     <a href="{{ doc.file.url }}" target="_blank" class="btn-secondary-custom" style="padding:4px 10px;font-size:11px;flex-shrink:0">
                       <i class="bi bi-download"></i> Download
                     </a>
-
                     {% if doc.doc_type != 'TRAVEL_ORDER' %}
                     {% if is_creator or is_secretary or is_admin %}
-                    <form method="post" action="{% url 'travel_app:replace_document' doc.id %}"
-                          enctype="multipart/form-data" id="replaceForm_{{ doc.id }}" style="display:inline;flex-shrink:0">
+                    <form method="post" action="{% url 'travel_app:replace_document' doc.id %}" enctype="multipart/form-data" id="replaceForm_{{ doc.id }}" style="display:inline;flex-shrink:0">
                       {% csrf_token %}
-                      <input type="file" id="replaceFile_{{ doc.id }}" name="file" style="display:none"
-                             onchange="document.getElementById('replaceForm_{{ doc.id }}').submit()"/>
-                      <button type="button" onclick="document.getElementById('replaceFile_{{ doc.id }}').click()"
-                              style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
-                                     border-radius:6px;border:1px solid var(--border);background:var(--surface);
-                                     color:var(--text-muted);font-size:11px;cursor:pointer;">
+                      <input type="file" id="replaceFile_{{ doc.id }}" name="file" style="display:none" onchange="document.getElementById('replaceForm_{{ doc.id }}').submit()"/>
+                      <button type="button" onclick="document.getElementById('replaceFile_{{ doc.id }}').click()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:11px;cursor:pointer;">
                         <i class="bi bi-arrow-repeat"></i> Replace
                       </button>
                     </form>
@@ -160,65 +161,61 @@
                     {% endif %}
                   </div>
 
-                  {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' %}
+                  {# Amount entry form for BURS / ITINERARY / ACTUAL_ITINERARY #}
+                  {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' or doc.doc_type == 'ACTUAL_ITINERARY' %}
                   {% if is_creator or is_secretary or is_admin %}
                   <div style="padding:8px 0;border-bottom:1px solid var(--border)">
-                    <form method="post" action="{% url 'travel_app:set_document_amount' doc.id %}"
-                          style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+
+                    {# Liquidation hint for ACTUAL_ITINERARY #}
+                    {% if doc.doc_type == 'ACTUAL_ITINERARY' and travel.is_budget_tagged %}
+                    <div style="font-size:11px;color:#6b21a8;background:#f3e8ff;padding:5px 8px;border-radius:6px;margin-bottom:6px;display:flex;align-items:center;gap:4px">
+                      <i class="bi bi-lightning-charge-fill"></i>
+                      Saving this amount will automatically adjust the budget source based on the difference from the planned itinerary.
+                    </div>
+                    {% endif %}
+
+                    <form method="post" action="{% url 'travel_app:set_document_amount' doc.id %}" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                       {% csrf_token %}
-                      <span style="font-size:12px;color:var(--text-muted)">
-                        {% if doc.extracted_amount %}Edit amount:{% else %}Enter amount:{% endif %}
-                      </span>
-                      <input type="number" name="amount" step="0.01" min="0"
-                             value="{% if doc.extracted_amount %}{{ doc.extracted_amount }}{% endif %}"
-                             placeholder="0.00"
-                             style="font-size:13px;border:1px solid var(--border);border-radius:6px;
-                                    padding:5px 8px;width:130px;background:var(--surface);color:var(--text-primary);"
-                             required/>
-                      <button type="submit"
-                              style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;
-                                     border-radius:6px;border:none;background:var(--role-color);
-                                     color:white;font-size:12px;font-weight:600;cursor:pointer;">
-                        <i class="bi bi-check2"></i> Save
+                      <span style="font-size:12px;color:var(--text-muted)">{% if doc.extracted_amount %}Edit amount:{% else %}Enter amount:{% endif %}</span>
+                      <input type="number" name="amount" step="0.01" min="0" value="{% if doc.extracted_amount %}{{ doc.extracted_amount }}{% endif %}" placeholder="0.00"
+                             style="font-size:13px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:130px;background:var(--surface);color:var(--text-primary);" required/>
+                      <button type="submit" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:6px;border:none;background:{% if doc.doc_type == 'ACTUAL_ITINERARY' %}#7c3aed{% else %}var(--role-color){% endif %};color:white;font-size:12px;font-weight:600;cursor:pointer;">
+                        <i class="bi bi-{% if doc.doc_type == 'ACTUAL_ITINERARY' %}lightning-charge{% else %}check2{% endif %}"></i>
+                        {% if doc.doc_type == 'ACTUAL_ITINERARY' %}Liquidate{% else %}Save{% endif %}
                       </button>
                     </form>
                   </div>
                   {% endif %}
                   {% endif %}
+
                   {% endfor %}
 
+                  {# Upload area #}
                   {% if is_creator or is_secretary or is_admin %}
-                  <form method="post" action="{% url 'travel_app:upload_document' travel.id %}"
-                        enctype="multipart/form-data" id="form_{{ hub.participant.id }}_{{ doc_type }}">
+                  <form method="post" action="{% url 'travel_app:upload_document' travel.id %}" enctype="multipart/form-data" id="form_{{ hub.participant.id }}_{{ doc_type }}">
                     {% csrf_token %}
                     <input type="hidden" name="doc_type" value="{{ doc_type }}"/>
                     <input type="hidden" name="participant_id" value="{{ hub.participant.id }}"/>
-                    <div class="upload-area"
-                         onclick="document.getElementById('file_{{ hub.participant.id }}_{{ doc_type }}').click()"
-                         ondragover="event.preventDefault();this.classList.add('dragover')"
-                         ondragleave="this.classList.remove('dragover')"
-                         ondrop="handleDrop(event,'{{ hub.participant.id }}','{{ doc_type }}')">
-                      <input type="file" id="file_{{ hub.participant.id }}_{{ doc_type }}" name="file"
-                             onchange="autoSubmit('form_{{ hub.participant.id }}_{{ doc_type }}')"/>
+                    <div class="upload-area" onclick="document.getElementById('file_{{ hub.participant.id }}_{{ doc_type }}').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event,'{{ hub.participant.id }}','{{ doc_type }}')">
+                      <input type="file" id="file_{{ hub.participant.id }}_{{ doc_type }}" name="file" onchange="autoSubmit('form_{{ hub.participant.id }}_{{ doc_type }}')"/>
                       <i class="bi bi-cloud-upload" style="font-size:20px;color:var(--text-muted);display:block;margin-bottom:6px"></i>
                       <div style="font-size:12.5px;color:var(--text-muted)">Click or drag to upload {{ doc_label }}</div>
                     </div>
                   </form>
                   {% endif %}
+
                 </div>
               </div>
             </div>
             {% endwith %}
-            {% endif %}
+
+            {% endif %}{# end ACTUAL_ITINERARY budget-tagged check #}
+            {% endif %}{# end LETTER_REQUEST check #}
             {% endfor %}
           </div>
           {% endfor %}
-
         {% else %}
-          <div class="empty-state">
-            <i class="bi bi-people"></i>
-            <p>No participants yet.</p>
-          </div>
+          <div class="empty-state"><i class="bi bi-people"></i><p>No participants yet.</p></div>
         {% endif %}
       </div>
     </div>
@@ -229,14 +226,11 @@
 
     <!-- Travel info -->
     <div class="card mb-3">
-      <div class="card-header-custom">
-        <div class="card-title">Travel Info</div>
-      </div>
+      <div class="card-header-custom"><div class="card-title">Travel Info</div></div>
       <div class="card-body-custom" style="padding:16px 20px">
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;justify-content:space-between;font-size:13px">
-            <span style="color:var(--text-muted)">Destination</span>
-            <span style="font-weight:500">{{ travel.destination }}</span>
+            <span style="color:var(--text-muted)">Destination</span><span style="font-weight:500">{{ travel.destination }}</span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:13px">
             <span style="color:var(--text-muted)">Dates</span>
@@ -249,7 +243,7 @@
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span style="color:var(--text-muted)">Amount</span>
             {% if travel.amount_deducted %}
-              <span style="font-weight:600;color:var(--text-primary)">₱{{ travel.amount_deducted|floatformat:2 }}</span>
+              <span style="font-weight:600;color:var(--text-primary)">{{ travel.amount_deducted|peso }}</span>
             {% else %}
               <span style="color:var(--text-muted);font-size:12px;font-style:italic">Not set</span>
             {% endif %}
@@ -257,14 +251,9 @@
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span style="color:var(--text-muted)">Scope</span>
             <div style="display:flex;align-items:center;gap:6px">
-              <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}" style="font-size:10px">
-                {{ travel.scope|title }}
-              </span>
+              <span class="badge-status badge-{% if travel.scope == 'CAMPUS' %}campus{% else %}college{% endif %}" style="font-size:10px">{{ travel.scope|title }}</span>
               {% if is_secretary or is_creator %}
-              <button type="button" onclick="toggleScopeForm()"
-                      style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
-                             border-radius:6px;border:1px solid var(--border);background:var(--surface);
-                             color:var(--text-muted);font-size:11px;cursor:pointer;">
+              <button type="button" onclick="toggleScopeForm()" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:11px;cursor:pointer;">
                 <i class="bi bi-arrow-left-right"></i> Change
               </button>
               {% endif %}
@@ -272,24 +261,14 @@
           </div>
           {% if is_secretary or is_creator %}
           <div id="scopeChangeForm" style="display:none;padding:10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)">
-            <form method="post" action="{% url 'travel_app:change_scope' travel.pk %}"
-                  style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <form method="post" action="{% url 'travel_app:change_scope' travel.pk %}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               {% csrf_token %}
               <select name="scope" class="form-select" style="flex:1">
                 <option value="COLLEGE" {% if travel.scope == 'COLLEGE' %}selected{% endif %}>College-Level</option>
-                <option value="CAMPUS"  {% if travel.scope == 'CAMPUS'  %}selected{% endif %}>Campus-Level</option>
+                <option value="CAMPUS" {% if travel.scope == 'CAMPUS' %}selected{% endif %}>Campus-Level</option>
               </select>
-              <button type="submit"
-                      style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;
-                             border-radius:8px;border:none;background:#1a5c38;color:white;font-size:12px;font-weight:600;cursor:pointer;">
-                <i class="bi bi-check2"></i> Save
-              </button>
-              <button type="button" onclick="toggleScopeForm()"
-                      style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;
-                             border-radius:8px;border:1px solid var(--border);background:var(--surface);
-                             color:var(--text-secondary);font-size:12px;cursor:pointer;">
-                Cancel
-              </button>
+              <button type="submit" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:8px;border:none;background:#1a5c38;color:white;font-size:12px;font-weight:600;cursor:pointer;"><i class="bi bi-check2"></i> Save</button>
+              <button type="button" onclick="toggleScopeForm()" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-size:12px;cursor:pointer;">Cancel</button>
             </form>
           </div>
           {% endif %}
@@ -306,10 +285,7 @@
           {% if travel.event_group %}
           <div style="padding-top:10px;border-top:1px solid var(--border)">
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Event Group</div>
-            <a href="{% url 'travel_app:event_group_detail' travel.event_group.id %}"
-               style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
-                      border-radius:20px;background:var(--role-faint);color:var(--role-color);
-                      font-size:12px;font-weight:500;text-decoration:none">
+            <a href="{% url 'travel_app:event_group_detail' travel.event_group.id %}" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;background:var(--role-faint);color:var(--role-color);font-size:12px;font-weight:500;text-decoration:none">
               <i class="bi bi-diagram-3" style="font-size:11px"></i> {{ travel.event_group.name }}
             </a>
           </div>
@@ -318,18 +294,14 @@
       </div>
     </div>
 
-    <!-- ══ Participants card ══ -->
+    <!-- Participants card -->
     <div class="card mb-3">
       <div class="card-header-custom">
         <div class="card-title">Participants ({{ travel.participant_count }})</div>
       </div>
-
-      <!-- Registered participants list -->
       {% for p in travel.participants.all %}
       <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">
-        <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-faint);
-                    display:flex;align-items:center;justify-content:center;
-                    font-size:11px;font-weight:600;color:var(--primary);flex-shrink:0">
+        <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-faint);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--primary);flex-shrink:0">
           {{ p.user.first_name|slice:":1" }}{{ p.user.last_name|slice:":1" }}
         </div>
         <div style="flex:1;min-width:0">
@@ -339,74 +311,80 @@
       </div>
       {% endfor %}
 
-      <!-- ══ Per-participant expense summary — visible to secretary/admin ══
-           FIX #4: shown directly in Participants card, filtered by role in view.
-           DEPT_SEC sees only their college's participants.
-           CAMPUS_SEC and ADMIN see all.
-           EMPLOYEE sees only themselves.
-      -->
-      {% if participant_expense_summary and is_secretary or participant_expense_summary and is_admin %}
-      <div style="padding:12px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
-        <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                    text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
-          <i class="bi bi-receipt"></i>
-          {% if user.role == 'DEPT_SEC' %}
-            {{ user.college.name }} Expenses
-          {% else %}
-            Submitted Expenses
-          {% endif %}
+      {# ── Liquidation comparison table (shown when actual itinerary exists) ── #}
+      {% if travel.is_budget_tagged and liquidation_summary %}
+      <div style="padding:12px 16px;background:#faf5ff;border-top:2px solid #e9d5ff">
+        <div style="font-size:11px;font-weight:600;color:#6b21a8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:5px">
+          <i class="bi bi-lightning-charge-fill"></i> Liquidation Summary
         </div>
-        {% for item in participant_expense_summary %}
-        <div style="display:flex;justify-content:space-between;align-items:center;
-                    padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
-          <div>
-            <div style="font-weight:500;color:var(--text-primary)">{{ item.participant.user.get_full_name }}</div>
-            {% if item.doc_type %}
-              <div style="font-size:10.5px;color:var(--text-muted)">via {{ item.doc_type }}</div>
-            {% endif %}
+        {% for item in liquidation_summary %}
+        <div class="liquidation-compare-row">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:500;color:var(--text-primary);font-size:12px">{{ item.name }}</div>
+            <div style="font-size:10.5px;color:var(--text-muted);margin-top:1px">
+              Planned: {% if item.planned %}{{ item.planned|peso }}{% else %}—{% endif %}
+              &nbsp;·&nbsp;
+              Actual: {% if item.actual %}{{ item.actual|peso }}{% else %}—{% endif %}
+            </div>
           </div>
-          {% if item.has_amount %}
-            <span style="color:#166534;font-weight:600;background:#dcfce7;
-                         padding:2px 8px;border-radius:6px;font-size:12px">
-              ₱{{ item.amount|floatformat:2 }}
-            </span>
+          {% if item.planned and item.actual %}
+            {% if item.difference < 0 %}
+              <span class="liquidation-badge-returned"><i class="bi bi-arrow-down-circle-fill"></i> {{ item.difference_abs|peso }} returned</span>
+            {% elif item.difference > 0 %}
+              <span class="liquidation-badge-deducted"><i class="bi bi-arrow-up-circle-fill"></i> {{ item.difference_abs|peso }} extra</span>
+            {% else %}
+              <span class="liquidation-badge-match"><i class="bi bi-check-circle-fill"></i> Matched</span>
+            {% endif %}
+          {% elif item.actual %}
+            <span style="font-size:11px;color:#6b21a8;font-style:italic">No planned amount</span>
           {% else %}
-            <span style="color:#922b21;font-size:11px;display:flex;align-items:center;gap:3px">
-              <i class="bi bi-exclamation-triangle"></i> Not submitted
-            </span>
+            <span style="font-size:11px;color:var(--text-muted);font-style:italic">Pending</span>
           {% endif %}
         </div>
         {% endfor %}
-        <!-- Total row -->
-        <div style="display:flex;justify-content:space-between;align-items:center;
-                    padding-top:8px;font-size:13px;font-weight:700">
+      </div>
+      {% endif %}
+
+      {% if participant_expense_summary and is_secretary or participant_expense_summary and is_admin %}
+      <div style="padding:12px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+          <i class="bi bi-receipt"></i>
+          {% if user.role == 'DEPT_SEC' %}{{ user.college.name }} Expenses{% else %}Submitted Expenses{% endif %}
+        </div>
+        {% for item in participant_expense_summary %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+          <div>
+            <div style="font-weight:500;color:var(--text-primary)">{{ item.participant.user.get_full_name }}</div>
+            {% if item.doc_type %}<div style="font-size:10.5px;color:var(--text-muted)">via {{ item.doc_type }}</div>{% endif %}
+          </div>
+          {% if item.has_amount %}
+            <span style="color:#166534;font-weight:600;background:#dcfce7;padding:2px 8px;border-radius:6px;font-size:12px">{{ item.amount|peso }}</span>
+          {% else %}
+            <span style="color:#922b21;font-size:11px;display:flex;align-items:center;gap:3px"><i class="bi bi-exclamation-triangle"></i> Not submitted</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;font-size:13px;font-weight:700">
           <span style="color:var(--text-primary)">Total</span>
-          <span style="color:var(--role-color)">₱{{ total_submitted|floatformat:2 }}</span>
+          <span style="color:var(--role-color)">{{ total_submitted|peso }}</span>
         </div>
         {% if not all_submitted %}
-        <div style="margin-top:6px;font-size:11px;color:#8a6400;background:#fef9c3;
-                    padding:5px 8px;border-radius:6px;display:flex;align-items:center;gap:4px">
-          <i class="bi bi-exclamation-triangle"></i>
-          Some participants haven't submitted their expense amount yet.
+        <div style="margin-top:6px;font-size:11px;color:#8a6400;background:#fef9c3;padding:5px 8px;border-radius:6px;display:flex;align-items:center;gap:4px">
+          <i class="bi bi-exclamation-triangle"></i> Some participants haven't submitted their expense amount yet.
         </div>
         {% endif %}
       </div>
       {% endif %}
 
-      <!-- Unregistered participants — secretary only -->
       {% if is_secretary and unregistered_travelers %}
       <div style="padding:10px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
-        <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                    text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
           <i class="bi bi-person-x"></i> Unregistered Participants
         </div>
         {% for name in unregistered_travelers %}
-        <div style="display:flex;align-items:center;justify-content:space-between;
-                    padding:8px 0;border-bottom:1px solid var(--border);gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:30px;height:30px;border-radius:50%;background:#fef2f2;
-                        display:flex;align-items:center;justify-content:center;
-                        font-size:14px;color:#922b21;flex-shrink:0">
+            <div style="width:30px;height:30px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;font-size:14px;color:#922b21;flex-shrink:0">
               <i class="bi bi-person-x"></i>
             </div>
             <div>
@@ -414,14 +392,10 @@
               <div style="font-size:11px;color:#922b21">Not registered in system</div>
             </div>
           </div>
-          <form method="post" action="{% url 'travel_app:invite_participant' travel.id %}"
-                style="display:inline">
+          <form method="post" action="{% url 'travel_app:invite_participant' travel.id %}" style="display:inline">
             {% csrf_token %}
             <input type="hidden" name="invited_name" value="{{ name }}"/>
-            <button type="submit"
-                    style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
-                           border-radius:6px;border:1px solid #0f766e;background:#f0fdfa;
-                           color:#0f766e;font-size:11px;font-weight:600;cursor:pointer;">
+            <button type="submit" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:6px;border:1px solid #0f766e;background:#f0fdfa;color:#0f766e;font-size:11px;font-weight:600;cursor:pointer;">
               <i class="bi bi-envelope-plus"></i> Send Invite
             </button>
           </form>
@@ -436,160 +410,133 @@
     <div class="card mb-3">
       <div class="card-header-custom">
         <div class="card-title"><i class="bi bi-tag"></i> Budget Source</div>
+        {% if travel.is_budget_tagged %}
+          <span class="badge-status badge-tagged" style="font-size:10px"><i class="bi bi-check-circle-fill" style="font-size:9px"></i> Tagged</span>
+        {% endif %}
       </div>
       <div class="card-body-custom" style="padding:16px 20px">
 
-        {% if travel.is_budget_tagged %}
-          <div class="alert-custom alert-success" style="margin-bottom:12px">
-            <i class="bi bi-check-circle-fill"></i>
-            <div>
-              <strong>{{ travel.budget_source.budget_name }}</strong><br/>
-              <span style="font-size:12px">
-                Tagged by {{ travel.budget_tagged_by.get_full_name }}
-                on {{ travel.budget_tagged_at|date:"M j, Y" }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Per-participant breakdown after tagging (budget panel — condensed) -->
-          {% if participant_expense_summary %}
-          <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                        text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
-              Per-Participant Expenses
-            </div>
-            {% for item in participant_expense_summary %}
-            <div style="display:flex;justify-content:space-between;align-items:center;
-                        padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
-              <span style="color:var(--text-primary);font-weight:500">{{ item.participant.user.get_full_name }}</span>
-              {% if item.has_amount %}
-                <span style="color:#166534;font-weight:600">₱{{ item.amount|floatformat:2 }}</span>
-              {% else %}
-                <span style="color:var(--text-muted);font-size:11px;font-style:italic">No amount</span>
-              {% endif %}
-            </div>
-            {% endfor %}
-            <div style="display:flex;justify-content:space-between;padding-top:8px;font-size:13px;font-weight:600">
-              <span>Total Tagged</span>
-              <span style="color:var(--role-color)">₱{{ travel.amount_deducted|floatformat:2 }}</span>
-            </div>
-          </div>
-          {% endif %}
-        {% endif %}
-
         {% if travel.funding_college and not travel.is_budget_tagged %}
-          <div class="alert-custom alert-info" style="margin-bottom:12px">
-            <i class="bi bi-arrow-right-circle-fill"></i>
-            <div>
-              Routed to <strong>{{ travel.funding_college.name }}</strong> Secretary for tagging.
-              {% if user.role == 'DEPT_SEC' and travel.funding_college == user.college %}
-                <br/><span style="font-size:12px">This is your queue — please assign a budget source below.</span>
-              {% endif %}
-            </div>
+        <div class="alert-custom alert-info" style="margin-bottom:12px">
+          <i class="bi bi-arrow-right-circle-fill"></i>
+          <div>
+            Routed to <strong>{{ travel.funding_college.name }}</strong> Secretary for tagging.
+            {% if user.role == 'DEPT_SEC' and travel.funding_college == user.college %}
+              <br/><span style="font-size:12px">This is your queue — please assign a budget source below.</span>
+            {% endif %}
           </div>
+        </div>
         {% endif %}
 
-        {% if not travel.is_budget_tagged %}
-
-          <!-- Suggested total notice (before tagging, no duplicate expense table) -->
-          {% if is_secretary and total_submitted %}
-          <div style="background:var(--surface-2);border:1px solid var(--border);
-                      border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;
-                      display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;color:var(--text-muted)">Suggested total from expenses</span>
-            <span style="font-size:14px;font-weight:700;color:var(--role-color)">
-              ₱{{ total_submitted|floatformat:2 }}
-            </span>
+        {% if travel.is_budget_tagged %}
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Current Tag</div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+            <span style="color:var(--text-muted)">Source</span><span style="font-weight:600">{{ travel.budget_source.budget_name }}</span>
           </div>
-          {% if not all_submitted %}
-          <div style="margin-bottom:12px;font-size:11px;color:#8a6400;background:#fef9c3;
-                      padding:5px 8px;border-radius:6px;display:flex;align-items:center;gap:4px">
-            <i class="bi bi-exclamation-triangle"></i>
-            Some participants haven't submitted yet. Missing amounts will be split equally.
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+            <span style="color:var(--text-muted)">Amount</span><span style="font-weight:600;color:var(--role-color)">{{ travel.amount_deducted|peso }}</span>
           </div>
-          {% endif %}
-          {% endif %}
+          <div style="display:flex;justify-content:space-between;font-size:12px">
+            <span style="color:var(--text-muted)">Tagged by</span>
+            <span>{{ travel.budget_tagged_by.get_full_name }} · {{ travel.budget_tagged_at|date:"M j, Y" }}</span>
+          </div>
+        </div>
+        {% if participant_expense_summary %}
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Per-Participant Expenses</div>
+          {% for item in participant_expense_summary %}
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+            <span style="color:var(--text-primary);font-weight:500">{{ item.participant.user.get_full_name }}</span>
+            {% if item.has_amount %}
+              <span style="color:#166534;font-weight:600">{{ item.amount|peso }}</span>
+            {% else %}
+              <span style="color:var(--text-muted);font-size:11px;font-style:italic">No amount</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <div style="display:flex;justify-content:space-between;padding-top:8px;font-size:13px;font-weight:600">
+            <span>Total Tagged</span><span style="color:var(--role-color)">{{ travel.amount_deducted|peso }}</span>
+          </div>
+        </div>
+        {% endif %}
+        {% endif %}
 
-          {% if can_route and not travel.funding_college %}
-            <div style="display:flex;gap:8px;margin-bottom:14px">
-              <button onclick="showPanel('campus')" id="btn_campus" class="btn-primary-custom"
-                      style="flex:1;justify-content:center;font-size:12px;padding:8px">
-                <i class="bi bi-diagram-3"></i> Campus budget
-              </button>
-              <button onclick="showPanel('college')" id="btn_college" class="btn-secondary-custom"
-                      style="flex:1;justify-content:center;font-size:12px;padding:8px">
-                <i class="bi bi-building"></i> Route to college
-              </button>
-            </div>
+        {% if not travel.is_budget_tagged and is_secretary and total_submitted %}
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12px;color:var(--text-muted)">Suggested total from expenses</span>
+          <span style="font-size:14px;font-weight:700;color:var(--role-color)">{{ total_submitted|peso }}</span>
+        </div>
+        {% if not all_submitted %}
+        <div style="margin-bottom:12px;font-size:11px;color:#8a6400;background:#fef9c3;padding:5px 8px;border-radius:6px;display:flex;align-items:center;gap:4px">
+          <i class="bi bi-exclamation-triangle"></i> Some participants haven't submitted yet. Missing amounts will be split equally.
+        </div>
+        {% endif %}
+        {% endif %}
 
-            <div id="panel_campus">
-              <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="tag"/>
-                <select name="budget_source_id"
-                        style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
-                               border-radius:var(--radius);width:100%;margin-bottom:10px;background:var(--surface)">
-                  <option value="">— Select source —</option>
-                  {% for item in budget_sources %}
-                  <option value="{{ item.source.id }}">{{ item.source.budget_name }} (₱{{ item.remaining|floatformat:0 }} left)</option>
-                  {% endfor %}
-                </select>
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Total Amount (₱)</div>
-                <input type="number" name="amount" step="0.01" min="0" placeholder="Amount (₱)"
-                       value="{{ total_submitted }}"
-                       style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
-                              padding:8px 10px;width:100%;margin-bottom:10px;background:var(--surface);color:var(--text-primary);" required/>
-                <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
-                  <i class="bi bi-tag"></i> Tag Campus Budget
-                </button>
-              </form>
-            </div>
-
-            <div id="panel_college" style="display:none">
-              <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="route"/>
-                <select name="funding_college_id"
-                        style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
-                               border-radius:var(--radius);width:100%;margin-bottom:10px;background:var(--surface)">
-                  <option value="">— Select college —</option>
-                  {% for college in route_colleges %}
-                  <option value="{{ college.id }}">{{ college.name }}</option>
-                  {% endfor %}
-                </select>
-                <button type="submit" class="btn-secondary-custom"
-                        style="width:100%;justify-content:center;color:#0f766e;border-color:#0f766e">
-                  <i class="bi bi-arrow-right-circle"></i> Route to Dept Secretary
-                </button>
-              </form>
-            </div>
-
-          {% elif can_tag_budget %}
+        {% if can_route and not travel.funding_college %}
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+            {% if travel.is_budget_tagged %}Change Budget Source{% else %}Tag Budget Source{% endif %}
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <button onclick="showPanel('campus')" id="btn_campus" class="btn-primary-custom" style="flex:1;justify-content:center;font-size:12px;padding:8px"><i class="bi bi-diagram-3"></i> Campus budget</button>
+            <button onclick="showPanel('college')" id="btn_college" class="btn-secondary-custom" style="flex:1;justify-content:center;font-size:12px;padding:8px"><i class="bi bi-building"></i> Route to college</button>
+          </div>
+          <div id="panel_campus">
             <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="tag"/>
-              <select name="budget_source_id"
-                      style="font-size:13px;padding:8px 10px;border:1px solid var(--border);
-                             border-radius:var(--radius);width:100%;margin-bottom:10px;background:var(--surface)">
+              {% csrf_token %}<input type="hidden" name="action" value="tag"/>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Budget Source</label>
+              <select name="budget_source_id" style="font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);width:100%;margin-bottom:10px;background:var(--surface)">
                 <option value="">— Select source —</option>
                 {% for item in budget_sources %}
-                <option value="{{ item.source.id }}" {% if travel.budget_source.id == item.source.id %}selected{% endif %}>
-                  {{ item.source.budget_name }} (₱{{ item.remaining|floatformat:0 }} left)
-                </option>
+                <option value="{{ item.source.id }}" {% if travel.budget_source.id == item.source.id %}selected{% endif %}>{{ item.source.budget_name }} ({{ item.remaining|peso }} left)</option>
                 {% endfor %}
               </select>
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Total Amount (₱)</div>
-              <input type="number" name="amount" step="0.01" min="0" placeholder="Amount (₱)"
-                     value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% else %}{{ total_submitted }}{% endif %}"
-                     style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);
-                            padding:8px 10px;width:100%;margin-bottom:10px;background:var(--surface);color:var(--text-primary);" required/>
-              <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
-                <i class="bi bi-tag"></i> {% if travel.is_budget_tagged %}Update Budget{% else %}Tag Budget{% endif %}
-              </button>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Total Amount (₱)</label>
+              <input type="number" name="amount" step="0.01" min="0" placeholder="0.00" value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% else %}{{ total_submitted }}{% endif %}" style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;width:100%;margin-bottom:10px;background:var(--surface);color:var(--text-primary);" required/>
+              {% if travel.is_budget_tagged %}
+              <div style="font-size:11px;color:#8a6400;background:#fef9c3;padding:6px 10px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+                <i class="bi bi-exclamation-triangle"></i> Re-tagging will return {{ travel.amount_deducted|peso }} to "{{ travel.budget_source.budget_name }}" and deduct the new amount from the selected source.
+              </div>
+              {% endif %}
+              <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center"><i class="bi bi-tag"></i> {% if travel.is_budget_tagged %}Update Budget Tag{% else %}Tag Campus Budget{% endif %}</button>
             </form>
-          {% endif %}
+          </div>
+          <div id="panel_college" style="display:none">
+            <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
+              {% csrf_token %}<input type="hidden" name="action" value="route"/>
+              <select name="funding_college_id" style="font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);width:100%;margin-bottom:10px;background:var(--surface)">
+                <option value="">— Select college —</option>
+                {% for college in route_colleges %}<option value="{{ college.id }}">{{ college.name }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="btn-secondary-custom" style="width:100%;justify-content:center;color:#0f766e;border-color:#0f766e"><i class="bi bi-arrow-right-circle"></i> Route to Dept Secretary</button>
+            </form>
+          </div>
 
+        {% elif can_tag_budget %}
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+            {% if travel.is_budget_tagged %}Change Budget Source{% else %}Tag Budget Source{% endif %}
+          </div>
+          <form method="post" action="{% url 'travel_app:tag_budget' travel.id %}">
+            {% csrf_token %}<input type="hidden" name="action" value="tag"/>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Budget Source</label>
+            <select name="budget_source_id" style="font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);width:100%;margin-bottom:10px;background:var(--surface)">
+              <option value="">— Select source —</option>
+              {% for item in budget_sources %}
+              <option value="{{ item.source.id }}" {% if travel.budget_source.id == item.source.id %}selected{% endif %}>{{ item.source.budget_name }} ({{ item.remaining|peso }} left)</option>
+              {% endfor %}
+            </select>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Total Amount (₱)</label>
+            <input type="number" name="amount" step="0.01" min="0" placeholder="0.00" value="{% if travel.amount_deducted %}{{ travel.amount_deducted }}{% else %}{{ total_submitted }}{% endif %}" style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;width:100%;margin-bottom:10px;background:var(--surface);color:var(--text-primary);" required/>
+            {% if travel.is_budget_tagged %}
+            <div style="font-size:11px;color:#8a6400;background:#fef9c3;padding:6px 10px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+              <i class="bi bi-exclamation-triangle"></i> Re-tagging will return {{ travel.amount_deducted|peso }} to "{{ travel.budget_source.budget_name }}" and deduct the new amount from the selected source.
+            </div>
+            {% endif %}
+            <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center"><i class="bi bi-tag"></i> {% if travel.is_budget_tagged %}Update Budget Tag{% else %}Tag Budget{% endif %}</button>
+          </form>
         {% endif %}
+
       </div>
     </div>
     {% endif %}
@@ -597,36 +544,16 @@
     <!-- Admin budget info card -->
     {% if is_admin and travel.is_budget_tagged %}
     <div class="card mt-3">
-      <div class="card-header-custom">
-        <div class="card-title"><i class="bi bi-tag"></i> Budget Info</div>
-      </div>
+      <div class="card-header-custom"><div class="card-title"><i class="bi bi-tag"></i> Budget Info</div></div>
       <div class="card-body-custom" style="padding:16px 20px">
         <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--text-muted)">Source</span>
-            <span style="font-weight:500">{{ travel.budget_source.budget_name }}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--text-muted)">Fiscal Year</span>
-            <span>FY {{ travel.budget_source.fiscal_year }}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--text-muted)">Scope</span>
-            <span>{{ travel.budget_source.get_budget_scope_display }}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--text-muted)">Amount deducted</span>
-            <span style="font-weight:500">₱{{ travel.amount_deducted|floatformat:2 }}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--text-muted)">Tagged by</span>
-            <span>{{ travel.budget_tagged_by.get_full_name }}</span>
-          </div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Source</span><span style="font-weight:500">{{ travel.budget_source.budget_name }}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Fiscal Year</span><span>FY {{ travel.budget_source.fiscal_year }}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Scope</span><span>{{ travel.budget_source.get_budget_scope_display }}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Amount deducted</span><span style="font-weight:500">{{ travel.amount_deducted|peso }}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Tagged by</span><span>{{ travel.budget_tagged_by.get_full_name }}</span></div>
           {% if travel.funding_college %}
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--text-muted)">Funded by</span>
-            <span>{{ travel.funding_college.name }}</span>
-          </div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Funded by</span><span>{{ travel.funding_college.name }}</span></div>
           {% endif %}
         </div>
       </div>
@@ -639,42 +566,11 @@
 
 {% block extra_js %}
 <script>
-function switchParticipant(hubId, tabEl) {
-  document.querySelectorAll('[id^="hub_"]').forEach(el => el.style.display = 'none');
-  document.querySelectorAll('.participant-tab').forEach(el => el.classList.remove('active'));
-  document.getElementById(hubId).style.display = 'block';
-  tabEl.classList.add('active');
-}
-function toggleSlot(id) {
-  const el   = document.getElementById(id);
-  const parts = id.replace('slot_', '').split('_');
-  const key  = parts[parts.length - 1];
-  const pid  = parts.slice(0, parts.length - 1).join('_');
-  const ch   = document.getElementById('chevron_' + pid + '_' + key);
-  const open = el.style.display === 'none';
-  el.style.display = open ? 'block' : 'none';
-  if (ch) ch.style.transform = open ? 'rotate(180deg)' : '';
-}
-function autoSubmit(formId) { document.getElementById(formId).submit(); }
-function handleDrop(event, participantId, docType) {
-  event.preventDefault()
-  event.currentTarget.classList.remove('dragover');
-  const file  = event.dataTransfer.files[0];
-  const input = document.getElementById('file_' + participantId + '_' + docType);
-  const dt    = new DataTransfer();
-  dt.items.add(file);
-  input.files = dt.files;
-  autoSubmit('form_' + participantId + '_' + docType);
-}
-function showPanel(name) {
-  document.getElementById('panel_campus').style.display  = name === 'campus'  ? '' : 'none';
-  document.getElementById('panel_college').style.display = name === 'college' ? '' : 'none';
-  document.getElementById('btn_campus').className  = name === 'campus'  ? 'btn-primary-custom' : 'btn-secondary-custom';
-  document.getElementById('btn_college').className = name === 'college' ? 'btn-primary-custom' : 'btn-secondary-custom';
-}
-function toggleScopeForm() {
-  const form = document.getElementById('scopeChangeForm');
-  form.style.display = form.style.display === 'none' ? 'block' : 'none';
-}
+function switchParticipant(hubId,tabEl){document.querySelectorAll('[id^="hub_"]').forEach(el=>el.style.display='none');document.querySelectorAll('.participant-tab').forEach(el=>el.classList.remove('active'));document.getElementById(hubId).style.display='block';tabEl.classList.add('active');}
+function toggleSlot(id){const el=document.getElementById(id);const parts=id.replace('slot_','').split('_');const key=parts[parts.length-1];const pid=parts.slice(0,parts.length-1).join('_');const ch=document.getElementById('chevron_'+pid+'_'+key);const open=el.style.display==='none';el.style.display=open?'block':'none';if(ch)ch.style.transform=open?'rotate(180deg)':'';}
+function autoSubmit(formId){document.getElementById(formId).submit();}
+function handleDrop(event,participantId,docType){event.preventDefault();event.currentTarget.classList.remove('dragover');const file=event.dataTransfer.files[0];const input=document.getElementById('file_'+participantId+'_'+docType);const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;autoSubmit('form_'+participantId+'_'+docType);}
+function showPanel(name){document.getElementById('panel_campus').style.display=name==='campus'?'':'none';document.getElementById('panel_college').style.display=name==='college'?'':'none';document.getElementById('btn_campus').className=name==='campus'?'btn-primary-custom':'btn-secondary-custom';document.getElementById('btn_college').className=name==='college'?'btn-primary-custom':'btn-secondary-custom';}
+function toggleScopeForm(){const form=document.getElementById('scopeChangeForm');form.style.display=form.style.display==='none'?'block':'none';}
 </script>
 {% endblock %}

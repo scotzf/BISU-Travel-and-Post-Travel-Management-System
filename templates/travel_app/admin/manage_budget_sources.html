@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load travel_tags %}
 {% block title %}Budget Sources — BISU Travel Hub{% endblock %}
 
 {% block extra_css %}
@@ -152,9 +153,9 @@
               {% endif %}
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
                 {% if item.source.budget_scope == 'COLLEGE' %}
-                  ₱{{ item.source.budget_amount|floatformat:0 }} — college budget
+                  {{ item.source.budget_amount|peso }} — college budget
                 {% else %}
-                  ₱{{ item.source.budget_amount|floatformat:0 }} — campus pool
+                  {{ item.source.budget_amount|peso }} — campus pool
                 {% endif %}
                 &nbsp;·&nbsp; {{ item.travel_count }} travel{{ item.travel_count|pluralize }} tagged
               </div>
@@ -202,8 +203,8 @@
           </div>
           <div style="display:flex;justify-content:space-between;font-size:11px;
                       color:var(--text-muted);margin-top:4px">
-            <span>{{ item.percentage }}% used &nbsp;·&nbsp; ₱{{ item.used|floatformat:0 }} of ₱{{ item.source.budget_amount|floatformat:0 }}</span>
-            <span>₱{{ item.remaining|floatformat:0 }} remaining</span>
+            <span>{{ item.percentage }}% used &nbsp;·&nbsp; {{ item.used|peso }} of {{ item.source.budget_amount|peso }}</span>
+            <span>{{ item.remaining|peso }} remaining</span>
           </div>
           {% endif %}
         </div>

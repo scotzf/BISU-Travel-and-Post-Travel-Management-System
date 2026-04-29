@@ -316,6 +316,7 @@ class ParticipantDocument(models.Model):
     DOC_TYPE_CHOICES = [
         ('TRAVEL_ORDER',   'Travel Order'),
         ('ITINERARY',      'Itinerary of Travel'),
+        ('ACTUAL_ITINERARY',  'Actual Itinerary of Travel'),
         ('DV',             'Disbursement Voucher'),
         ('BURS',           'Budget Utilization Request and Status'),
         ('RECEIPTS',       'Official Receipts'),

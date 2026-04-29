@@ -103,3 +103,101 @@ def get_sources_for_secretary(user, year=None):
         return result
 
     return []
+
+def liquidate_participant(participant, actual_amount):
+    from .models import ParticipantDocument, BudgetUsage
+    from decimal import Decimal
+
+    actual_amount = Decimal(str(actual_amount))
+
+    # Get the original itinerary (planned amount)
+    original_doc = ParticipantDocument.objects.filter(
+        participant=participant,
+        doc_type='ITINERARY',
+        extracted_amount__isnull=False
+    ).order_by('-uploaded_at').first()
+
+    if not original_doc:
+        return {
+            'success': False,
+            'reason': 'no_itinerary',
+            'message': 'No original itinerary amount found. Cannot liquidate.',
+        }
+
+    travel = participant.travel_record
+    if not travel.budget_source:
+        return {
+            'success': False,
+            'reason': 'no_budget_tagged',
+            'message': 'No budget source tagged for this travel.',
+        }
+
+    source = travel.budget_source
+
+    try:
+        usage = BudgetUsage.objects.get(
+            user=participant.user,
+            budget_source=source,
+            year=source.fiscal_year,
+        )
+    except BudgetUsage.DoesNotExist:
+        return {
+            'success': False,
+            'reason': 'no_usage_record',
+            'message': 'No budget usage record found for this participant.',
+        }
+
+    original_amount = Decimal(str(original_doc.extracted_amount))
+
+    # Check if there's a PREVIOUS actual itinerary that was already applied
+    # We look for the previously confirmed actual itinerary doc (not the current one)
+    previous_actual_doc = ParticipantDocument.objects.filter(
+        participant=participant,
+        doc_type='ACTUAL_ITINERARY',
+        extracted_amount__isnull=False,
+        is_confirmed=True,  # only already-applied ones
+    ).order_by('-uploaded_at').first()
+
+    if previous_actual_doc:
+        # We already applied a liquidation before.
+        # The budget currently reflects: original deducted → then adjusted by previous actual.
+        # Now we need to reverse the PREVIOUS adjustment and apply the NEW one.
+        previous_actual = Decimal(str(previous_actual_doc.extracted_amount))
+        previous_diff   = previous_actual - original_amount
+
+        # Reverse the previous adjustment
+        if previous_diff < 0:
+            # We previously restored abs(diff) — undo that restore by deducting it back
+            usage.deduct(abs(previous_diff))
+        elif previous_diff > 0:
+            # We previously deducted extra — undo that by restoring it
+            usage.restore(previous_diff)
+
+    # Now apply the new actual amount vs original
+    difference = actual_amount - original_amount
+
+    if difference < 0:
+        usage.restore(abs(difference))
+        action        = 'returned'
+        action_amount = abs(difference)
+    elif difference > 0:
+        usage.deduct(difference)
+        action        = 'deducted'
+        action_amount = difference
+    else:
+        action        = 'no_change'
+        action_amount = Decimal('0')
+
+    return {
+        'success':         True,
+        'action':          action,
+        'action_amount':   action_amount,
+        'original_amount': original_amount,
+        'actual_amount':   actual_amount,
+        'difference':      difference,
+        'message': (
+            f'₱{action_amount:,.2f} {action} to budget source "{source.budget_name}".'
+            if action != 'no_change'
+            else 'Actual matches planned amount. No budget adjustment needed.'
+        ),
+    }

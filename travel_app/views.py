@@ -689,7 +689,6 @@ def upload_document(request, pk):
 # ══════════════════════════════════════════════════════════════════════
 # TAG BUDGET
 # ══════════════════════════════════════════════════════════════════════
-
 @csrf_protect
 @never_cache
 def tag_budget(request, pk):
@@ -763,6 +762,40 @@ def tag_budget(request, pk):
                     except InvalidOperation:
                         amount_deducted = Decimal('0')
 
+                    is_retag = travel.is_budget_tagged
+                    old_source = travel.budget_source
+                    old_amount = travel.amount_deducted or Decimal('0')
+
+                    # ── STEP 1: Restore old source if re-tagging ──────────────
+                    if is_retag and old_source:
+                        participants = travel.participants.select_related('user').all()
+                        participant_count = participants.count()
+
+                        for tp in participants:
+                            individual_amount = ParticipantDocument.objects.filter(
+                                participant=tp,
+                                doc_type__in=['BURS', 'ITINERARY'],
+                                extracted_amount__isnull=False
+                            ).order_by('-uploaded_at').values_list(
+                                'extracted_amount', flat=True
+                            ).first()
+
+                            if individual_amount is not None:
+                                restore_amount = Decimal(str(individual_amount))
+                            else:
+                                restore_amount = old_amount / participant_count if participant_count else Decimal('0')
+
+                            try:
+                                old_usage = BudgetUsage.objects.get(
+                                    user=tp.user,
+                                    budget_source=old_source,
+                                    year=old_source.fiscal_year
+                                )
+                                old_usage.restore(restore_amount)
+                            except BudgetUsage.DoesNotExist:
+                                pass
+
+                    # ── STEP 2: Update travel record ──────────────────────────
                     travel.budget_source    = source
                     travel.budget_tagged_by = user
                     travel.budget_tagged_at = tz.now()
@@ -772,14 +805,12 @@ def tag_budget(request, pk):
                         'budget_tagged_at', 'amount_deducted'
                     ])
 
-                    # Deduct per participant based on their submitted BURS/Itinerary amount
-                    # Falls back to equal split only if no individual amounts are set
+                    # ── STEP 3: Deduct from new source ────────────────────────
                     participants = travel.participants.select_related('user').all()
                     participant_count = participants.count()
 
                     if participant_count > 0:
                         for tp in participants:
-                            # Get the participant's individual submitted amount from their docs
                             individual_amount = ParticipantDocument.objects.filter(
                                 participant=tp,
                                 doc_type__in=['BURS', 'ITINERARY'],
@@ -791,17 +822,25 @@ def tag_budget(request, pk):
                             if individual_amount is not None:
                                 deduct_amount = Decimal(str(individual_amount))
                             else:
-                                # Fallback: equal split if no individual amount submitted
                                 deduct_amount = amount_deducted / participant_count
 
                             usage, _ = source.get_or_create_usage(tp.user)
                             usage.deduct(deduct_amount)
 
                     from django.contrib import messages
-                    messages.success(
-                        request,
-                        f'Budget source "{source.budget_name}" assigned with ₱{amount_deducted:,.2f} deducted.'
-                    )
+                    if is_retag:
+                        messages.success(
+                            request,
+                            f'Budget re-tagged to "{source.budget_name}". '
+                            f'₱{old_amount:,.2f} returned to "{old_source.budget_name}", '
+                            f'₱{amount_deducted:,.2f} deducted from new source.'
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            f'Budget source "{source.budget_name}" assigned. '
+                            f'₱{amount_deducted:,.2f} deducted.'
+                        )
 
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
@@ -811,7 +850,6 @@ def tag_budget(request, pk):
                 messages.error(request, f'Error tagging budget: {str(e)}')
 
     return redirect('travel_app:travel_detail', pk=pk)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # ALL TRAVELS
@@ -1970,9 +2008,9 @@ def set_document_amount(request, doc_id):
         messages.error(request, 'You do not have permission to set this amount.')
         return redirect('travel_app:travel_detail', pk=travel.id)
 
-    if doc.doc_type not in ('BURS', 'ITINERARY'):
+    if doc.doc_type not in ('BURS', 'ITINERARY', 'ACTUAL_ITINERARY'):
         from django.contrib import messages
-        messages.error(request, 'Amount can only be set on BURS or Itinerary documents.')
+        messages.error(request, 'Amount can only be set on BURS, Itinerary, or Actual Itinerary documents.')
         return redirect('travel_app:travel_detail', pk=travel.id)
 
     if request.method == 'POST':
@@ -1991,7 +2029,21 @@ def set_document_amount(request, doc_id):
         doc.save(update_fields=['extracted_amount'])
 
         from django.contrib import messages
-        messages.success(request, f'Amount of ₱{amount:,.2f} saved.')
+
+        # If this is an actual itinerary and budget is already tagged, liquidate
+        if doc.doc_type == 'ACTUAL_ITINERARY' and travel.is_budget_tagged:
+            from .budget_service import liquidate_participant
+            result = liquidate_participant(doc.participant, amount)
+            if result['success']:
+                doc.is_confirmed = True
+                doc.confirmed_by = user
+                doc.confirmed_at = timezone.now()
+                doc.save(update_fields=['is_confirmed', 'confirmed_by', 'confirmed_at'])
+                messages.success(request, f'Amount saved. Liquidation: {result["message"]}')
+            else:
+                messages.warning(request, f'Amount saved but liquidation skipped: {result["message"]}')
+        else:
+            messages.success(request, f'Amount of ₱{amount:,.2f} saved.')
 
     return redirect('travel_app:travel_detail', pk=travel.id)
 
