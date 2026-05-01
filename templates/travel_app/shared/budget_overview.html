@@ -20,17 +20,16 @@
         {% if user.role == 'CAMPUS_SEC' %} — {{ user.campus.name }}{% endif %}
       </div>
     </div>
-    <div style="display:flex;gap:8px">
-      {% for y in year_range %}
-      <a href="?year={{ y }}"
-         style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:500;
-                text-decoration:none;border:1px solid var(--border);
-                {% if y == current_year %}background:var(--role-color);color:white;border-color:var(--role-color)
-                {% else %}background:var(--surface);color:var(--text-secondary){% endif %}">
-        FY {{ y }}
-      </a>
-      {% endfor %}
-    </div>
+    <form method="get" style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:12px;color:var(--text-muted)">Year</label>
+      <select name="year" onchange="this.form.submit()"
+              style="font-size:13px;padding:6px 10px;border:1px solid var(--border);
+                     border-radius:var(--radius);background:var(--surface);color:var(--text-primary)">
+        {% for y in year_range %}
+        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>FY {{ y }}</option>
+        {% endfor %}
+      </select>
+    </form>
   </div>
 </div>
 

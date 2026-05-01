@@ -99,7 +99,7 @@ DATABASES = {
         'NAME': 'travel_hub',
         'USER': 'desktop',
         'PASSWORD': '@Jangcy099',
-        'HOST':'192.168.1.10',
+        'HOST':'localhost',
         'PORT':'3306',
     }
 }

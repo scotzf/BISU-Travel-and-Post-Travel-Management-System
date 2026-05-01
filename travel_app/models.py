@@ -271,16 +271,31 @@ class TravelRecord(models.Model):
 # ══════════════════════════════════════════════════════════════════════
 # TRAVEL PARTICIPANTS
 # ══════════════════════════════════════════════════════════════════════
-
 class TravelParticipant(models.Model):
     """
     One row per person per travel.
+
+    Covers both registered users and unregistered participants.
+    - Registered: user is set, is_registered=True, name is blank
+    - Unregistered: user is null, is_registered=False, name is set
 
     college_name and campus_name store the participant's college/campus
     AT THE TIME of travel creation for historical accuracy.
     """
     travel_record = models.ForeignKey(TravelRecord, on_delete=models.CASCADE, related_name='participants')
-    user          = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='travel_participations')
+    user          = models.ForeignKey(
+        'accounts.User', on_delete=models.CASCADE,
+        related_name='travel_participations',
+        null=True, blank=True,                    # nullable for unregistered
+    )
+    name          = models.CharField(
+        max_length=200, blank=True,
+        help_text='Name for unregistered participants. Leave blank for registered users.'
+    )
+    is_registered = models.BooleanField(
+        default=True,
+        help_text='True = has a user account. False = unregistered participant.'
+    )
     college_name  = models.CharField(
         max_length=100, blank=True,
         help_text='College name at time of travel. Used for scope detection and historical stats.'
@@ -289,20 +304,33 @@ class TravelParticipant(models.Model):
         max_length=100, blank=True,
         help_text='Campus name at time of travel.'
     )
+    liquidated_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text='Total amount already budget-adjusted via actual itinerary. Used to compute delta on re-liquidation.'
+    )
     added_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        if not self.college_name and self.user.college:
-            self.college_name = self.user.college.name
-        if not self.campus_name and self.user.campus:
-            self.campus_name = self.user.campus.name
+        if self.user:
+            self.is_registered = True
+            if not self.college_name and self.user.college:
+                self.college_name = self.user.college.name
+            if not self.campus_name and self.user.campus:
+                self.campus_name = self.user.campus.name
+        else:
+            self.is_registered = False
         super().save(*args, **kwargs)
 
+    def get_display_name(self):
+        """Use everywhere instead of user.get_full_name() directly."""
+        if self.user:
+            return self.user.get_full_name()
+        return self.name or 'Unknown'
+
     def __str__(self):
-        return f"{self.user.get_full_name()} → {self.travel_record}"
+        return f"{self.get_display_name()} → {self.travel_record}"
 
     class Meta:
-        unique_together = [['travel_record', 'user']]
         ordering = ['added_at']
         verbose_name = 'Travel Participant'
         verbose_name_plural = 'Travel Participants'

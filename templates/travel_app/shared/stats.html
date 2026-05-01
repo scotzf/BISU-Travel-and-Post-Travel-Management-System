@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load travel_tags %}
 {% block title %}Statistics — BISU Travel Hub{% endblock %}
 
 {% block extra_css %}
@@ -205,21 +206,21 @@
   <div class="col-6 col-md-4">
     <div class="stat-card">
       <i class="bi bi-bank stat-icon"></i>
-      <div class="stat-value">₱{{ total_allocated|floatformat:0 }}</div>
+      <div class="stat-value">{{ total_allocated|peso }}</div>
       <div class="stat-label">Total allocated {{ selected_year }}</div>
     </div>
   </div>
   <div class="col-6 col-md-4">
     <div class="stat-card">
       <i class="bi bi-cash-stack stat-icon"></i>
-      <div class="stat-value">₱{{ total_used|floatformat:0 }}</div>
+      <div class="stat-value">{{ total_used|peso }}</div>
       <div class="stat-label">Total spent</div>
     </div>
   </div>
   <div class="col-6 col-md-4">
     <div class="stat-card">
       <i class="bi bi-piggy-bank stat-icon"></i>
-      <div class="stat-value">₱{{ total_remaining|floatformat:0 }}</div>
+      <div class="stat-value">{{ total_remaining|peso }}</div>
       <div class="stat-label">Remaining</div>
     </div>
   </div>
@@ -356,7 +357,7 @@
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-weight:600;font-size:12px">{{ u.usage_percentage }}%</div>
-          <div style="font-size:11px;color:var(--text-muted)">₱{{ u.remaining_amount|floatformat:0 }} left</div>
+          <div style="font-size:11px;color:var(--text-muted)">{{ u.remaining_amount|peso }} left</div>
         </div>
       </div>
       {% empty %}

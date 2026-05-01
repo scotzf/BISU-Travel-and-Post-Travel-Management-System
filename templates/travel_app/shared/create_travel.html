@@ -18,7 +18,6 @@
 }
 textarea.form-control { resize:vertical; min-height:90px; }
 
-/* Upload zone */
 .upload-zone {
   border: 2px dashed var(--border);
   border-radius: 12px;
@@ -35,7 +34,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
 .upload-zone.uploading { pointer-events: none; opacity: .7; }
 .upload-icon { font-size: 40px; color: var(--text-muted); margin-bottom: 12px; }
 
-/* Extraction progress */
 .extraction-bar {
   height: 4px;
   background: var(--border);
@@ -51,7 +49,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
   border-radius: 2px;
 }
 
-/* Form reveal */
 #formSection { display: none; }
 #formSection.revealed { display: block; animation: fadeUp .4s ease; }
 @keyframes fadeUp {
@@ -59,7 +56,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
   to   { opacity:1; transform:translateY(0); }
 }
 
-/* Extraction badge */
 .extraction-badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
@@ -68,7 +64,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
 .extraction-badge.medium { background: #fef9c3; color: #854d0e; }
 .extraction-badge.low    { background: #fee2e2; color: #991b1b; }
 
-/* Traveler tags */
 .traveler-tag {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: 20px; padding: 6px 12px;
@@ -78,7 +73,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
 .traveler-tag.unmatched { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
 .tag-remove { font-size: 14px; line-height: 1; }
 
-/* Participant tags */
 .participant-tag {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--role-faint); color: var(--role-color);
@@ -96,7 +90,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
   font-size: 12px; font-weight: 600; transition: all .3s;
 }
 
-/* Skip upload link */
 .skip-link {
   font-size: 12px; color: var(--text-muted);
   cursor: pointer; text-decoration: underline;
@@ -148,7 +141,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
                    onchange="handleFileSelect(this.files[0])"/>
           </div>
 
-          <!-- Progress -->
           <div id="uploadProgress" style="display:none;margin-top:16px">
             <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)">
               <div class="spinner-border spinner-border-sm" style="color:var(--role-color)"></div>
@@ -159,7 +151,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
             </div>
           </div>
 
-          <!-- Error message -->
           <div id="uploadError" style="display:none;margin-top:12px"
                class="alert-custom alert-danger">
             <i class="bi bi-exclamation-circle"></i>
@@ -169,7 +160,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
         </div>
       </div>
 
-      <!-- Skip option -->
       <div style="text-align:center;padding-bottom:8px">
         <button type="button" class="skip-link" onclick="skipUpload()">
           Skip — fill in details manually
@@ -180,10 +170,9 @@ textarea.form-control { resize:vertical; min-height:90px; }
 </div>
 
 
-<!-- ── Step 2: Form (revealed after extraction) ────────────────── -->
+<!-- ── Step 2: Form ────────────────────────────────────────────── -->
 <div id="formSection">
 
-  <!-- Extraction result banner -->
   <div id="extractionBanner" style="display:none;margin-bottom:16px">
     <div class="card" style="border-left:4px solid var(--role-color)">
       <div class="card-body-custom" style="padding:12px 16px">
@@ -205,7 +194,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
     </div>
   </div>
 
-  <!-- Extracted Travelers Card -->
   <div id="extractedTravelersCard" style="display:none;margin-bottom:16px">
     <div class="card">
       <div class="card-header-custom">
@@ -217,7 +205,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
       </div>
       <div class="card-body-custom">
 
-        <!-- Unmatched warning -->
         <div id="unmatchedWarning" style="display:none;margin-bottom:12px"
              class="alert-custom alert-warning">
           <i class="bi bi-exclamation-triangle"></i>
@@ -226,7 +213,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
 
         <div id="travelerTagsList" style="display:flex;flex-wrap:wrap;gap:10px"></div>
 
-        <!-- Manual add traveler -->
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
           <div style="font-size:11px;font-weight:600;color:var(--text-muted);
                       text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
@@ -256,16 +242,12 @@ textarea.form-control { resize:vertical; min-height:90px; }
 
   <form method="post" id="travelForm">
     {% csrf_token %}
-
-    <!-- Hidden inputs live INSIDE the form so they get submitted -->
     <div id="allTravelerNamesInputs"></div>
 
     <div class="row g-3">
 
-      <!-- Main form -->
       <div class="col-lg-8">
 
-        <!-- Travel details -->
         <div class="card mb-3">
           <div class="card-header-custom">
             <div class="card-title"><i class="bi bi-geo-alt"></i> Travel Details</div>
@@ -319,7 +301,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
         </div>
 
-        <!-- Participants (secretaries only) -->
         {% if user.role in 'DEPT_SEC,CAMPUS_SEC' and available_participants %}
         <div class="card mb-3">
           <div class="card-header-custom">
@@ -357,7 +338,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
               </label>
             </div>
 
-            <!-- All participants -->
             <div style="font-size:11px;font-weight:600;color:var(--text-muted);
                         letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">
               All employees
@@ -402,7 +382,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
           <div class="card-body-custom" style="padding:16px 20px">
 
-            <!-- Created by -->
             <div style="margin-bottom:14px">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
                            letter-spacing:.5px;margin-bottom:4px">Created by</div>
@@ -412,9 +391,13 @@ textarea.form-control { resize:vertical; min-height:90px; }
               <div style="font-size:12px;color:var(--text-muted)">
                 {{ user.college.name|default:user.campus.name|default:"BISU" }}
               </div>
+              {% if user.role == 'EMPLOYEE' %}
+              <div style="font-size:11px;color:var(--primary);margin-top:4px;display:flex;align-items:center;gap:4px">
+                <i class="bi bi-person-check-fill"></i> You will be added as a participant
+              </div>
+              {% endif %}
             </div>
 
-            <!-- Travel scope -->
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
                            letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
@@ -427,7 +410,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
                 Budget will be tagged by Dept Secretary
               </div>
 
-              <!-- Manual override — available to all roles -->
               <div style="margin-top:10px">
                 <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">
                   Override scope manually:
@@ -442,15 +424,13 @@ textarea.form-control { resize:vertical; min-height:90px; }
               </div>
             </div>
 
-            <!-- Travelers -->
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
                            letter-spacing:.5px;margin-bottom:4px">Travelers</div>
               <div style="font-size:22px;font-weight:600;font-family:var(--font-display);
-                           color:var(--text-primary)" id="summaryCount">1</div>
+                           color:var(--text-primary)" id="summaryCount">{% if user.role == 'EMPLOYEE' %}1{% else %}0{% endif %}</div>
             </div>
 
-            <!-- Info -->
             <div style="padding-top:14px;border-top:1px solid var(--border)">
               <div class="alert-custom alert-info" style="padding:10px 12px;font-size:12px">
                 <i class="bi bi-info-circle"></i>
@@ -478,16 +458,17 @@ const EXTRACT_URL  = "{% url 'travel_app:extract_travel_order_ajax' %}";
 const CSRF_TOKEN   = "{{ csrf_token }}";
 const selectedIds  = new Set();
 const collegeMap   = {};
-let unmatchedTravelerCount = 0;
-let scopeManualOverride    = null;  // null = auto-detect
 
-// Build college map from rendered tags
+// ── FIXED: employee is always counted as 1 traveler ─────────────────
+const isEmployee = "{{ user.role }}" === "EMPLOYEE";
+
+let unmatchedTravelerCount = 0;
+let scopeManualOverride    = null;
+
 document.querySelectorAll('.participant-tag').forEach(tag => {
   collegeMap[tag.dataset.id] = tag.dataset.college;
 });
 
-
-// ── Drag and Drop ────────────────────────────────────────────────────
 function handleDragOver(e) {
   e.preventDefault();
   document.getElementById('uploadZone').classList.add('dragover');
@@ -502,8 +483,6 @@ function handleDrop(e) {
   if (file) handleFileSelect(file);
 }
 
-
-// ── File selected — start extraction ────────────────────────────────
 function handleFileSelect(file) {
   if (!file) return;
 
@@ -523,12 +502,7 @@ function handleFileSelect(file) {
     bar.style.width = pct + '%';
   }, 200);
 
-  const steps = [
-    'Reading document...',
-    'Extracting text...',
-    'Identifying fields...',
-    'Matching travelers...',
-  ];
+  const steps = ['Reading document...', 'Extracting text...', 'Identifying fields...', 'Matching travelers...'];
   let stepIdx = 0;
   const stepTicker = setInterval(() => {
     if (stepIdx < steps.length) progText.textContent = steps[stepIdx++];
@@ -572,8 +546,6 @@ function showUploadError(msg) {
   el.style.display = 'flex';
 }
 
-
-// ── Pre-fill form fields ─────────────────────────────────────────────
 function prefillForm(data) {
   if (data.destination) setField('fieldDestination', data.destination);
   if (data.start_date)  setField('fieldStartDate',   data.start_date);
@@ -586,13 +558,10 @@ function setField(id, value) {
   if (el) el.value = value;
 }
 
-
-// ── Reveal form and show extraction results ──────────────────────────
 function revealForm(data) {
   document.getElementById('uploadSection').style.display = 'none';
   document.getElementById('formSection').classList.add('revealed');
 
-  // Extraction banner
   document.getElementById('extractionBanner').style.display = 'block';
   const badge = document.getElementById('confidenceBadge');
   const conf  = data.confidence || 'low';
@@ -619,9 +588,6 @@ function revealForm(data) {
       ${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}
     `;
 
-    // Traveler count — matched go into selectedIds via toggleParticipant (if they exist in the
-    // picker). But secretaries only see their own college/campus, so some matched travelers
-    // may not appear in the picker at all — count those separately.
     const hasPicker = document.getElementById('participantList') !== null;
     let pickerMissCount = 0;
     if (hasPicker) {
@@ -644,14 +610,12 @@ function revealForm(data) {
         `;
         tag.title = 'Found in system — will be added as participant';
 
-        // Hidden input inside the form so it gets submitted
         const hidden = document.createElement('input');
         hidden.type  = 'hidden';
         hidden.name  = 'matched_travelers';
         hidden.value = t.id;
         document.getElementById('allTravelerNamesInputs').appendChild(hidden);
 
-        // Pre-select in the participant picker for secretaries
         const mainTag = document.querySelector(`.participant-tag[data-id="${t.id}"]`);
         if (mainTag && !selectedIds.has(String(t.id))) {
           toggleParticipant(mainTag);
@@ -666,7 +630,6 @@ function revealForm(data) {
         `;
         tag.title = 'Not found in system';
 
-        // Store unregistered name so view can save it to unregistered_travelers field
         const unregHidden = document.createElement('input');
         unregHidden.type  = 'hidden';
         unregHidden.name  = 'unregistered_travelers';
@@ -688,23 +651,17 @@ function revealForm(data) {
   updateSummary();
 }
 
-
-// ── Skip upload ──────────────────────────────────────────────────────
 function skipUpload() {
   document.getElementById('uploadSection').style.display = 'none';
   document.getElementById('formSection').classList.add('revealed');
   updateSummary();
 }
 
-
-// ── Manual scope override ────────────────────────────────────────────
 function manualScopeOverride(value) {
   scopeManualOverride = value || null;
   updateSummary();
 }
 
-
-// ── Participant toggling ─────────────────────────────────────────────
 function toggleParticipant(el) {
   const id  = el.dataset.id;
   const cb  = el.querySelector('.participant-checkbox');
@@ -726,21 +683,22 @@ function toggleParticipant(el) {
 
 function updateSummary() {
   const includeCreator = document.getElementById('includeCreator');
-  const creatorCount   = includeCreator && includeCreator.checked ? 1 : 0;
-  const count          = selectedIds.size + creatorCount + unmatchedTravelerCount;
+
+  // FIXED: employees always count as 1, secretaries depend on checkbox
+  const creatorCount = isEmployee ? 1 : (includeCreator && includeCreator.checked ? 1 : 0);
+  const count        = selectedIds.size + creatorCount + unmatchedTravelerCount;
 
   const countEl = document.getElementById('selectedCount');
   if (countEl) countEl.textContent = selectedIds.size + ' selected';
   document.getElementById('summaryCount').textContent = count;
 
-  // Use manual override if set, otherwise auto-detect from participants
   let isMultiCollege;
   if (scopeManualOverride) {
     isMultiCollege = scopeManualOverride === 'CAMPUS';
   } else {
     const colleges       = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
     const creatorCollege = '{{ user.college.name|default:"" }}';
-    if (creatorCollege) colleges.add(creatorCollege);
+    if (creatorCollege && !isEmployee === false) colleges.add(creatorCollege);
     isMultiCollege = colleges.size > 1;
   }
 
@@ -761,8 +719,6 @@ function updateSummary() {
   }
 }
 
-
-// ── Extra travelers (manually added) ────────────────────────────────
 const extraTravelers = [];
 
 function addExtraTraveler() {
@@ -798,7 +754,6 @@ function addExtraTraveler() {
           <span onclick="removeExtraTraveler(this, '${nameLower}')"
                 style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
         `;
-        tag.title = 'Found in system — will be added as participant';
 
         const hidden = document.createElement('input');
         hidden.type         = 'hidden';
@@ -824,7 +779,6 @@ function addExtraTraveler() {
         hidden.dataset.name = nameLower;
         document.getElementById('allTravelerNamesInputs').appendChild(hidden);
 
-        // Also save as unregistered so it appears in travel_detail
         const unregHidden = document.createElement('input');
         unregHidden.type         = 'hidden';
         unregHidden.name         = 'unregistered_travelers';
@@ -869,26 +823,19 @@ function addExtraTraveler() {
 function removeExtraTraveler(el, nameLower) {
   const idx = extraTravelers.indexOf(nameLower);
   if (idx > -1) extraTravelers.splice(idx, 1);
-
   el.closest('.traveler-tag').remove();
-
   const hidden = document.querySelector(`#allTravelerNamesInputs input[data-name="${nameLower}"]`);
   if (hidden) hidden.remove();
-
   const countEl = document.getElementById('summaryCount');
   countEl.textContent = Math.max(0, parseInt(countEl.textContent || 0) - 1);
 }
 
-
-// ── Participant search filter ────────────────────────────────────────
 function filterParticipants(query) {
   document.querySelectorAll('#participantList .participant-tag').forEach(tag => {
     tag.style.display = tag.dataset.name.includes(query.toLowerCase()) ? '' : 'none';
   });
 }
 
-
-// ── Date validation ──────────────────────────────────────────────────
 function validateDates() {
   const start = document.getElementById('fieldStartDate').value;
   const end   = document.getElementById('fieldEndDate').value;

@@ -326,9 +326,11 @@ def create_travel(request):
                     travel.save(update_fields=['scope'])
 
                 if user.role == 'EMPLOYEE':
-                    TravelParticipant.objects.create(travel_record=travel, user=user)
+                    # Employee is always a participant in their own travel
+                    TravelParticipant.objects.get_or_create(travel_record=travel, user=user)
                 elif request.POST.get('include_creator') == 'yes':
-                    TravelParticipant.objects.create(travel_record=travel, user=user)
+                    # Secretary opted in via checkbox
+                    TravelParticipant.objects.get_or_create(travel_record=travel, user=user)
 
                 for pid in matched_traveler_ids:
                     try:
@@ -346,12 +348,16 @@ def create_travel(request):
                             pass
 
                 travel.refresh_scope()
-                import json
                 unregistered_names = request.POST.getlist('unregistered_travelers')
-                if unregistered_names:
-                    travel.unregistered_travelers = json.dumps(unregistered_names)
-                    travel.save(update_fields=['unregistered_travelers'])
-
+                for name in unregistered_names:
+                    name = name.strip()
+                    if name:
+                        TravelParticipant.objects.create(
+                            travel_record=travel,
+                            user=None,
+                            name=name,
+                            is_registered=False,
+                        )
                 temp_path = request.session.pop('temp_travel_order_path', None)
                 request.session.pop('temp_travel_order_names', [])
 
@@ -556,26 +562,19 @@ def travel_detail(request, pk):
             'doc_type':    amount_doc.get_doc_type_display() if amount_doc else None,
         })
 
-    # ── Unregistered travelers ──────────────────────────────────────────
-    import json
+    # ── Unregistered travelers — now from TravelParticipant rows ────────
     from .models import TravelInvite
 
     unregistered_travelers = []
     if is_secretary:
-        if travel.unregistered_travelers:
-            try:
-                unregistered_travelers = json.loads(travel.unregistered_travelers)
-            except Exception:
-                unregistered_travelers = []
-
         active_invite_names = set(
             TravelInvite.objects.filter(
                 travel=travel, is_used=False
             ).values_list('invited_name', flat=True)
         )
         unregistered_travelers = [
-            name for name in unregistered_travelers
-            if name not in active_invite_names
+            p.name for p in all_participants
+            if not p.is_registered and p.name not in active_invite_names
         ]
 
     # ── Completeness percentage — filtered by role ──────────────────────
