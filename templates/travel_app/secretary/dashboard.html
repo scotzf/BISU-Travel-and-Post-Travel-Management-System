@@ -206,17 +206,6 @@
         </div>
       {% endif %}
     </div>
-
-    <!-- Duplicate alert -->
-    {% if duplicate_alerts %}
-    <div class="alert-custom alert-warning">
-      <i class="bi bi-exclamation-triangle-fill"></i>
-      <div>
-        <strong>{{ duplicate_alerts|length }} possible duplicate{{ duplicate_alerts|length|pluralize }}</strong> detected.
-        <a href="{% url 'travel_app:event_groups' %}" style="color:inherit;font-weight:500"> Review →</a>
-      </div>
-    </div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}

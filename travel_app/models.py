@@ -115,45 +115,6 @@ class BudgetUsage(models.Model):
         verbose_name_plural = 'Budget Usage Records'
 
 
-# ══════════════════════════════════════════════════════════════════════
-# EVENT GROUP
-# ══════════════════════════════════════════════════════════════════════
-
-class EventGroup(models.Model):
-    SCOPE_CHOICES = [
-        ('COLLEGE', 'Single College'),
-        ('CAMPUS',  'Cross-College / Campus-Wide'),
-    ]
-
-    name        = models.CharField(max_length=200, help_text='e.g. "CHED Regional Conference 2026"')
-    destination = models.CharField(max_length=200)
-    start_date  = models.DateField()
-    end_date    = models.DateField(null=True, blank=True)
-    scope       = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='COLLEGE')
-    notes       = models.TextField(blank=True, max_length=500)
-    created_by  = models.ForeignKey(
-        'accounts.User', on_delete=models.SET_NULL, null=True,
-        related_name='created_event_groups'
-    )
-    created_at  = models.DateTimeField(auto_now_add=True)
-
-    @property
-    def total_participants(self):
-        return TravelParticipant.objects.filter(travel_record__event_group=self).count()
-
-    @property
-    def total_amount_deducted(self):
-        from django.db.models import Sum
-        result = self.travel_records.aggregate(total=Sum('amount_deducted'))
-        return result['total'] or 0
-
-    def __str__(self):
-        return f"{self.name} ({self.start_date})"
-
-    class Meta:
-        ordering = ['-start_date']
-        verbose_name = 'Event Group'
-        verbose_name_plural = 'Event Groups'
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -199,11 +160,6 @@ class TravelRecord(models.Model):
     )
     budget_tagged_at = models.DateTimeField(null=True, blank=True)
 
-    event_group = models.ForeignKey(
-        EventGroup, on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='travel_records',
-    )
     funding_college = models.ForeignKey(
         'accounts.College',
         on_delete=models.SET_NULL,

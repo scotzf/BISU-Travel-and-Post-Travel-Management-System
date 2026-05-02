@@ -7,7 +7,6 @@ urlpatterns = [
     # ── Employee ──────────────────────────────────────────────────────
     path('employee/',               views.employee_dashboard,         name='employee_dashboard'),
     path('employee/travels/',       views.my_travels,                 name='my_travels'),
-    path('employee/stats/',         views.my_stats,                   name='my_stats'),
 
     # ── Secretary ─────────────────────────────────────────────────────
     path('dept-secretary/',         views.dept_secretary_dashboard,   name='dept_secretary_dashboard'),
@@ -41,17 +40,7 @@ urlpatterns = [
     path('budget/',                 views.budget_overview,            name='budget_overview'),
     path('liquidation/',            views.liquidation_calculator,     name='liquidation_calculator'),
 
-    # ── Event groups ──────────────────────────────────────────────────
-    path('events/',                          views.event_groups,              name='event_groups'),
-    path('events/create/',                   views.create_event_group,        name='create_event_group'),
-    path('events/<int:pk>/',                 views.event_group_detail,        name='event_group_detail'),
-    path('events/<int:pk>/edit/',            views.edit_event_group,          name='edit_event_group'),
-    path('events/<int:pk>/delete/',          views.delete_event_group,        name='delete_event_group'),
-    path('events/<int:pk>/unlink/<int:travel_pk>/', views.unlink_travel_from_group, name='unlink_travel_from_group'),
-    path('events/<int:pk>/add-travel/',      views.add_travel_to_group,       name='add_travel_to_group'),
-
     # ── Reports ───────────────────────────────────────────────────────
-    path('stats/',                  views.stats_view,                 name='stats'),
 
 
     path('travels/<int:pk>/invite/', views.invite_participant, name='invite_participant'),
@@ -59,7 +48,5 @@ urlpatterns = [
     path('notifications/',                    views.notifications_list,          name='notifications_list'),
     path('notifications/<int:notif_id>/read/', views.mark_notification_read,      name='mark_notification_read'),
     path('notifications/mark-all-read/',       views.mark_all_notifications_read, name='mark_all_notifications_read'),
-    path('spending/',              views.my_spending,        name='my_spending'),
-    path('spending/org-data/',     views.org_spending_data,  name='org_spending_data'),
  
 ]

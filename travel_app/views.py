@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 from .models import (
     TravelRecord, ParticipantDocument, TravelParticipant,
-    BudgetSource, BudgetUsage, EventGroup, Notification
+    BudgetSource, BudgetUsage, Notification
 )
 from .budget_service import get_sources_for_secretary
 
@@ -45,27 +45,6 @@ def _travel_stats_for_queryset(qs):
     }
 
 
-def _detect_duplicates(travels_qs):
-    travels = list(travels_qs.filter(event_group__isnull=True).order_by('destination', 'start_date'))
-    alerts, seen = [], set()
-
-    for i, a in enumerate(travels):
-        for b in travels[i+1:]:
-            if len(alerts) >= 10:
-                break
-            if a.destination.lower() != b.destination.lower():
-                continue
-            if a.start_date != b.start_date:
-                continue
-            if a.end_date != b.end_date:
-                continue
-            key = tuple(sorted([a.id, b.id]))
-            if key not in seen:
-                seen.add(key)
-                alerts.append((a, b))
-
-    return alerts
-
 
 def _notify_if_duplicate(travel, creator):
     from django.db.models import Q
@@ -93,7 +72,6 @@ def _notify_if_duplicate(travel, creator):
             message=(
                 f'A new travel to {travel.destination} '
                 f'({travel.start_date}) may overlap with an existing record. '
-                f'Consider linking them as an event group.'
             ),
             travel_record=travel,
         )
@@ -138,7 +116,6 @@ def dept_secretary_dashboard(request, user=None):
     untagged          = college_travels.filter(budget_source__isnull=True)
     budget_sources    = get_sources_for_secretary(user, year=year)
     total_budget_used = sum(item.get('used', 0) for item in budget_sources)
-    duplicate_alerts  = _detect_duplicates(college_travels)
 
     context = {
         'user':              user,
@@ -151,7 +128,6 @@ def dept_secretary_dashboard(request, user=None):
         'total_travelers':   sum(t.participant_count for t in college_travels),
         'total_budget_used': total_budget_used,
         'budget_sources':    budget_sources,
-        'duplicate_alerts':  duplicate_alerts,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -173,7 +149,6 @@ def campus_secretary_dashboard(request, user=None):
     untagged          = campus_travels.filter(budget_source__isnull=True)
     budget_sources    = get_sources_for_secretary(user, year=year)
     total_budget_used = sum(item.get('used', 0) for item in budget_sources)
-    duplicate_alerts  = _detect_duplicates(campus_travels)
 
     context = {
         'user':              user,
@@ -186,7 +161,6 @@ def campus_secretary_dashboard(request, user=None):
         'total_travelers':   sum(t.participant_count for t in campus_travels),
         'total_budget_used': total_budget_used,
         'budget_sources':    budget_sources,
-        'duplicate_alerts':  duplicate_alerts,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -431,7 +405,7 @@ def travel_detail(request, pk):
 
     travel = get_object_or_404(
         TravelRecord.objects.select_related(
-            'created_by', 'budget_source', 'event_group',
+            'created_by', 'budget_source',
             'funding_college', 'budget_tagged_by'
         ).prefetch_related('participants__user', 'participants__documents'),
         pk=pk
@@ -933,10 +907,6 @@ def my_travels(request, user=None):
     return redirect('travel_app:all_travels')
 
 
-@never_cache
-@require_role(['EMPLOYEE'])
-def my_stats(request, user=None):
-    return redirect('travel_app:employee_dashboard')
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1151,237 +1121,6 @@ def budget_overview(request):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# EVENT GROUPS
-# ══════════════════════════════════════════════════════════════════════
-
-@never_cache
-def event_groups(request):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
-        return redirect('accounts:dashboard')
-
-    today  = timezone.now().date()
-    groups = EventGroup.objects.select_related('created_by').prefetch_related(
-        'travel_records__participants'
-    ).order_by('-start_date')
-
-    if user.role == 'DEPT_SEC' and user.college:
-        groups = groups.filter(
-            travel_records__participants__college_name=user.college.name
-        ).distinct()
-    elif user.role == 'CAMPUS_SEC' and user.campus:
-        groups = groups.filter(
-            travel_records__participants__campus_name=user.campus.name
-        ).distinct()
-
-    if user.role == 'DEPT_SEC':
-        ungrouped = TravelRecord.objects.filter(
-            scope='COLLEGE', event_group__isnull=True,
-            participants__college_name=user.college.name if user.college else ''
-        ).distinct()
-    elif user.role == 'CAMPUS_SEC':
-        ungrouped = TravelRecord.objects.filter(
-            event_group__isnull=True,
-            participants__campus_name=user.campus.name if user.campus else ''
-        ).distinct()
-    else:
-        ungrouped = TravelRecord.objects.filter(event_group__isnull=True)
-
-    context = {
-        'user':             user,
-        'today':            today,
-        'groups':           groups,
-        'duplicate_alerts': _detect_duplicates(ungrouped),
-    }
-    return render(request, 'travel_app/shared/event_groups.html', context)
-
-
-@csrf_protect
-@never_cache
-def create_event_group(request):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
-        return redirect('accounts:dashboard')
-
-    a_id = request.GET.get('a') or request.POST.get('a')
-    b_id = request.GET.get('b') or request.POST.get('b')
-
-    if not a_id or not b_id:
-        from django.contrib import messages
-        messages.error(request, 'Please use the "Link as Event Group" button from a duplicate alert.')
-        return redirect('travel_app:event_groups')
-
-    try:
-        travel_a = TravelRecord.objects.get(id=a_id)
-        travel_b = TravelRecord.objects.get(id=b_id)
-    except TravelRecord.DoesNotExist:
-        from django.contrib import messages
-        messages.error(request, 'One or both travels not found.')
-        return redirect('travel_app:event_groups')
-
-    suggested_name = f"{travel_a.destination} — {travel_a.start_date.strftime('%B %Y')}"
-
-    if request.method == 'POST':
-        name  = request.POST.get('name', '').strip()
-        notes = request.POST.get('notes', '').strip()
-
-        if not name:
-            from django.contrib import messages
-            messages.error(request, 'Event group name is required.')
-            return render(request, 'travel_app/shared/create_event_group.html', {
-                'user': user, 'travel_a': travel_a, 'travel_b': travel_b,
-                'suggested_name': suggested_name, 'post': request.POST,
-            })
-
-        with transaction.atomic():
-            travels   = [travel_a, travel_b]
-            end_dates = [t.end_date for t in travels if t.end_date]
-
-            group = EventGroup.objects.create(
-                name        = name,
-                destination = travel_a.destination,
-                start_date  = travel_a.start_date,
-                end_date    = max(end_dates) if end_dates else None,
-                notes       = notes,
-                created_by  = user,
-                scope       = 'CAMPUS' if len(set(
-                    p.college_name
-                    for t in travels
-                    for p in t.participants.all()
-                    if p.college_name
-                )) > 1 else 'COLLEGE',
-            )
-
-            travel_a.event_group = group
-            travel_b.event_group = group
-            travel_a.save(update_fields=['event_group'])
-            travel_b.save(update_fields=['event_group'])
-
-        from django.contrib import messages
-        messages.success(request, f'Event group "{name}" created. Both travels are now linked.')
-        return redirect('travel_app:event_groups')
-
-    return render(request, 'travel_app/shared/create_event_group.html', {
-        'user':           user,
-        'travel_a':       travel_a,
-        'travel_b':       travel_b,
-        'suggested_name': suggested_name,
-        'post':           {},
-    })
-
-
-@never_cache
-def event_group_detail(request, pk):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
-        return redirect('accounts:dashboard')
-
-    group = get_object_or_404(
-        EventGroup.objects.prefetch_related(
-            'travel_records__participants__user',
-            'travel_records__budget_source',
-        ),
-        pk=pk
-    )
-
-    context = {
-        'user':    user,
-        'group':   group,
-        'travels': group.travel_records.all(),
-        'today':   timezone.now().date(),
-    }
-    return render(request, 'travel_app/shared/event_group_detail.html', context)
-
-
-@csrf_protect
-@never_cache
-def edit_event_group(request, pk):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
-        return redirect('accounts:dashboard')
-
-    group = get_object_or_404(EventGroup, pk=pk)
-
-    if request.method == 'POST':
-        name  = request.POST.get('name', '').strip()
-        notes = request.POST.get('notes', '').strip()
-
-        if not name:
-            from django.contrib import messages
-            messages.error(request, 'Name is required.')
-            return redirect('travel_app:event_group_detail', pk=pk)
-
-        group.name  = name
-        group.notes = notes
-        group.save(update_fields=['name', 'notes'])
-
-        from django.contrib import messages
-        messages.success(request, f'Event group renamed to "{name}".')
-
-    return redirect('travel_app:event_group_detail', pk=pk)
-
-
-@csrf_protect
-@never_cache
-def delete_event_group(request, pk):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
-        return redirect('accounts:dashboard')
-
-    group = get_object_or_404(EventGroup, pk=pk)
-
-    if request.method == 'POST':
-        name = group.name
-        group.travel_records.all().update(event_group=None)
-        group.delete()
-
-        from django.contrib import messages
-        messages.success(request, f'Event group "{name}" deleted. Travels have been unlinked.')
-
-    return redirect('travel_app:event_groups')
-
-
-@csrf_protect
-@never_cache
-def unlink_travel_from_group(request, pk, travel_pk):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
-        return redirect('accounts:dashboard')
-
-    group  = get_object_or_404(EventGroup, pk=pk)
-    travel = get_object_or_404(TravelRecord, pk=travel_pk, event_group=group)
-
-    if request.method == 'POST':
-        travel.event_group = None
-        travel.save(update_fields=['event_group'])
-
-        from django.contrib import messages
-        messages.success(request, f'"{travel.destination}" unlinked from {group.name}.')
-
-    return redirect('travel_app:event_group_detail', pk=pk)
-
-
-@csrf_protect
-@never_cache
-def add_travel_to_group(request, pk):
-    from django.contrib import messages
-    messages.error(request, 'Travels can only be linked via duplicate detection.')
-    return redirect('travel_app:event_group_detail', pk=pk)
-
-
-# ══════════════════════════════════════════════════════════════════════
 # SECRETARY QUEUE
 # ══════════════════════════════════════════════════════════════════════
 
@@ -1554,254 +1293,6 @@ from django.db.models.functions import TruncMonth, TruncYear
 from datetime import date, timedelta
 import json as json_module
 
-
-def stats_view(request):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-    if user.role not in ['ADMIN', 'CAMPUS_SEC', 'DEPT_SEC']:
-        return redirect('travel_app:employee_dashboard')
-
-    today      = date.today()
-    this_year  = today.year
-    this_month = today.month
-
-    if user.role == 'ADMIN':
-        travels = TravelRecord.objects.all()
-    elif user.role == 'CAMPUS_SEC':
-        travels = TravelRecord.objects.filter(
-            participants__campus_name=user.campus.name
-        ).distinct()
-    else:  # DEPT_SEC
-        travels = TravelRecord.objects.filter(
-            participants__college_name=user.college.name
-        ).distinct()
-
-    # FIX 1: Default to current year, not oldest year in list
-    selected_year = int(request.GET.get('year', this_year))
-    travels_year  = travels.filter(start_date__year=selected_year)
-
-    # Build year list — always include current year even if no travels yet
-    year_list = sorted(set(
-        list(TravelRecord.objects.filter(
-            id__in=travels.values_list('id', flat=True)
-        ).dates('start_date', 'year').values_list('start_date__year', flat=True))
-        + [this_year]
-    ), reverse=True)
-
-    grouped_travel_ids = set()
-    seen_groups        = set()
-    for travel in travels_year.select_related('event_group').order_by('created_at'):
-        if travel.event_group_id:
-            if travel.event_group_id in seen_groups:
-                grouped_travel_ids.add(travel.id)
-            else:
-                seen_groups.add(travel.event_group_id)
-
-    deduped = travels_year.exclude(id__in=grouped_travel_ids)
-
-    monthly_raw = (
-        deduped
-        .annotate(month=TruncMonth('start_date'))
-        .values('month')
-        .annotate(count=Count('id'))
-        .order_by('month')
-    )
-    monthly_counts = {i: 0 for i in range(1, 13)}
-    for row in monthly_raw:
-        monthly_counts[row['month'].month] = row['count']
-    monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun',
-                      'Jul','Aug','Sep','Oct','Nov','Dec']
-    monthly_data   = [monthly_counts[i] for i in range(1, 13)]
-
-    scope_data = {
-        'COLLEGE': deduped.filter(scope='COLLEGE').count(),
-        'CAMPUS':  deduped.filter(scope='CAMPUS').count(),
-    }
-
-    college_volume = (
-        deduped
-        .values('participants__college_name')
-        .annotate(count=Count('id', distinct=True))
-        .exclude(participants__college_name='')
-        .order_by('-count')[:8]
-    )
-    college_vol_labels = [r['participants__college_name'] or 'Unknown' for r in college_volume]
-    college_vol_data   = [r['count'] for r in college_volume]
-
-    all_grouped_ids = set()
-    all_seen_groups = set()
-    for travel in travels.select_related('event_group').order_by('created_at'):
-        if travel.event_group_id:
-            if travel.event_group_id in all_seen_groups:
-                all_grouped_ids.add(travel.id)
-            else:
-                all_seen_groups.add(travel.event_group_id)
-
-    all_deduped = travels.exclude(id__in=all_grouped_ids)
-    yearly_raw = (
-        all_deduped
-        .annotate(yr=TruncYear('start_date'))
-        .values('yr')
-        .annotate(count=Count('id'))
-        .order_by('yr')
-    )
-    yearly_labels = [str(r['yr'].year) for r in yearly_raw]
-    yearly_data   = [r['count'] for r in yearly_raw]
-
-    if user.role == 'ADMIN':
-        budget_usages = BudgetUsage.objects.filter(
-            year=selected_year
-        ).select_related('budget_source', 'user__college', 'user__campus')
-    elif user.role == 'CAMPUS_SEC':
-        budget_usages = BudgetUsage.objects.filter(
-            year=selected_year,
-            user__campus=user.campus
-        ).select_related('budget_source', 'user__college', 'user__campus')
-    else:  # DEPT_SEC
-        budget_usages = BudgetUsage.objects.filter(
-            year=selected_year,
-            user__college=user.college
-        ).select_related('budget_source', 'user__college')
-
-    monthly_spend_raw = (
-        travels_year
-        .filter(budget_source__isnull=False)
-        .annotate(month=TruncMonth('start_date'))
-        .values('month')
-        .annotate(total=Sum('amount_deducted'))
-        .order_by('month')
-    )
-    monthly_spend = {i: 0 for i in range(1, 13)}
-    for row in monthly_spend_raw:
-        monthly_spend[row['month'].month] = float(row['total'] or 0)
-    monthly_spend_data = [monthly_spend[i] for i in range(1, 13)]
-
-    # FIX 2: Use source.budget_amount not sum of allocated_amount from usage rows
-    budget_sources_for_year = BudgetSource.objects.filter(
-        fiscal_year=selected_year,
-        usage__in=budget_usages
-    ).distinct()
-    total_allocated = sum(s.budget_amount for s in budget_sources_for_year)
-    total_used      = sum(u.used_amount for u in budget_usages)
-    total_remaining = total_allocated - total_used
-
-    from .models import TravelParticipant
-
-    top_travelers = (
-        TravelParticipant.objects
-        .filter(travel_record__in=travels_year)
-        .values('user__first_name', 'user__last_name', 'college_name')
-        .annotate(count=Count('id'))
-        .order_by('-count')[:8]
-    )
-
-    avg_participants = deduped.annotate(
-        pcount=Count('participants')
-    ).aggregate(avg=Avg('pcount'))['avg'] or 0
-
-    total_participant_days = 0
-    for t in travels_year.annotate(pcount=Count('participants')):
-        total_participant_days += t.pcount * t.get_duration_days()
-
-    college_participation = (
-        TravelParticipant.objects
-        .filter(travel_record__in=travels_year)
-        .values('college_name')
-        .annotate(count=Count('id'))
-        .exclude(college_name='')
-        .order_by('-count')[:8]
-    )
-
-    anomalies = []
-
-    no_docs = travels_year.annotate(
-        doc_count=Count('participants__documents')
-    ).filter(doc_count=0)
-    if no_docs.exists():
-        anomalies.append({
-            'type':    'warning',
-            'icon':    'bi-folder-x',
-            'title':   f'{no_docs.count()} travel(s) with no documents uploaded',
-            'detail':  ', '.join([str(t.destination) for t in no_docs[:3]]) +
-                       ('...' if no_docs.count() > 3 else ''),
-            'travels': list(no_docs.values('id', 'destination', 'start_date')[:5]),
-        })
-
-    critical_budgets = [u for u in budget_usages if u.usage_percentage >= 80]
-    for u in critical_budgets:
-        label = u.user.college.name if u.user.college else u.user.campus.name if u.user.campus else 'Unknown'
-        anomalies.append({
-            'type':    'critical' if u.usage_percentage >= 100 else 'warning',
-            'icon':    'bi-exclamation-triangle-fill',
-            'title':   f'{u.budget_source.budget_name} — {u.user.get_full_name()} at {u.usage_percentage}%',
-            'detail':  f'₱{u.used_amount:,.0f} used of ₱{u.allocated_amount:,.0f}',
-            'travels': [],
-        })
-
-    untagged = travels_year.filter(budget_source__isnull=True)
-    if untagged.exists():
-        anomalies.append({
-            'type':    'info',
-            'icon':    'bi-tag',
-            'title':   f'{untagged.count()} travel(s) with no budget tagged',
-            'detail':  ', '.join([str(t.destination) for t in untagged[:3]]) +
-                       ('...' if untagged.count() > 3 else ''),
-            'travels': list(untagged.values('id', 'destination', 'start_date')[:5]),
-        })
-
-    ungrouped_this_year = travels_year.filter(event_group__isnull=True)
-    duplicate_pairs     = _detect_duplicates(ungrouped_this_year)
-    if duplicate_pairs:
-        anomalies.append({
-            'type':    'info',
-            'icon':    'bi-copy',
-            'title':   f'{len(duplicate_pairs)} possible duplicate travel(s) detected',
-            'detail':  'Same destination and dates — consider linking as event group',
-            'travels': [],
-        })
-
-    total_travels    = deduped.count()
-    total_this_month = deduped.filter(start_date__month=this_month).count()
-    out_of_province  = deduped.filter(is_out_of_province=True).count()
-
-    context = {
-        'user':          user,
-        'is_admin':      user.role == 'ADMIN',
-        'is_secretary':  user.role in ['CAMPUS_SEC', 'DEPT_SEC'],
-
-        'selected_year': selected_year,
-        'year_list':     year_list,
-        'this_year':     this_year,
-
-        'total_travels':          total_travels,
-        'total_this_month':       total_this_month,
-        'out_of_province':        out_of_province,
-        'avg_participants':       round(avg_participants, 1),
-        'total_participant_days': total_participant_days,
-        'total_allocated':        total_allocated,
-        'total_used':             total_used,
-        'total_remaining':        total_remaining,
-
-        'monthly_labels':       json_module.dumps(monthly_labels),
-        'monthly_data':         json_module.dumps(monthly_data),
-        'yearly_labels':        json_module.dumps(yearly_labels),
-        'yearly_data':          json_module.dumps(yearly_data),
-        'scope_data':           json_module.dumps(scope_data),
-        'college_vol_labels':   json_module.dumps(college_vol_labels),
-        'college_vol_data':     json_module.dumps(college_vol_data),
-        'monthly_spend_data':   json_module.dumps(monthly_spend_data),
-        'monthly_labels_spend': json_module.dumps(monthly_labels),
-
-        'budget_usages':         budget_usages,
-        'top_travelers':         top_travelers,
-        'college_participation': college_participation,
-
-        'anomalies':     anomalies,
-        'anomaly_count': len(anomalies),
-    }
-
-    return render(request, 'travel_app/shared/stats.html', context)
 
 # ══════════════════════════════════════════════════════════════════════
 # EXTRACT TRAVEL ORDER (AJAX)
@@ -2339,219 +1830,3 @@ def mark_all_notifications_read(request):
         Notification.objects.filter(user=user, is_read=False).update(is_read=True)
 
     return redirect('travel_app:notifications_list')
-
-# ══════════════════════════════════════════════════════════════════════
-# MY SPENDING VIEW
-# Add to travel_app/views.py
-# ══════════════════════════════════════════════════════════════════════
-
-@never_cache
-def my_spending(request):
-    user = get_authenticated_user(request)
-    if not user:
-        return redirect('accounts:login')
-
-    from datetime import date
-    import json as json_module
-    from django.db.models import Sum, Count
-    from django.db.models.functions import TruncMonth
-
-    today        = date.today()
-    selected_year = int(request.GET.get('year', today.year))
-    year_list    = [today.year - 1, today.year, today.year + 1]
-
-    # ── Personal monthly spending ──────────────────────────────────────
-    # Pull all travels this user was charged for (has a BudgetUsage row)
-    # We reconstruct monthly from TravelRecord.start_date + amount_deducted
-    # scoped to this user's participations
-
-    my_travels = TravelRecord.objects.filter(
-        participants__user=user,
-        budget_source__isnull=False,
-        start_date__year=selected_year,
-    ).distinct().order_by('start_date')
-
-    # Monthly spend — sum amount_deducted per month for user's travels
-    # We use BudgetUsage.used_amount per source as the source of truth per year
-    # but for monthly we use travel start_date + participant's individual doc amount
-    monthly_spend = {i: 0 for i in range(1, 13)}
-    travel_rows   = []
-    yearly_total  = 0
-
-    for t in my_travels:
-        # Get this user's individual amount from their BURS/Itinerary doc
-        my_participant = t.participants.filter(user=user).first()
-        individual_amount = None
-        doc_type_label   = '—'
-
-        if my_participant:
-            amount_doc = ParticipantDocument.objects.filter(
-                participant=my_participant,
-                doc_type__in=['BURS', 'ITINERARY'],
-                extracted_amount__isnull=False
-            ).order_by('-uploaded_at').first()
-
-            if amount_doc:
-                individual_amount = float(amount_doc.extracted_amount)
-                doc_type_label    = amount_doc.get_doc_type_display()
-
-        # Fallback: equal split from travel total
-        if individual_amount is None and t.amount_deducted and t.participant_count > 0:
-            individual_amount = float(t.amount_deducted) / t.participant_count
-            doc_type_label    = 'Estimated (equal split)'
-
-        amount = individual_amount or 0
-        monthly_spend[t.start_date.month] += amount
-        yearly_total += amount
-
-        travel_rows.append({
-            'travel':       t,
-            'amount':       amount,
-            'doc_type':     doc_type_label,
-            'has_amount':   individual_amount is not None,
-        })
-
-    monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun',
-                      'Jul','Aug','Sep','Oct','Nov','Dec']
-    monthly_data   = [round(monthly_spend[i], 2) for i in range(1, 13)]
-
-    # ── CSV export ─────────────────────────────────────────────────────
-    if request.GET.get('export') == 'csv':
-        import csv
-        from django.http import HttpResponse
-
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = (
-            f'attachment; filename="spending_{user.get_full_name()}_{selected_year}.csv"'
-        )
-        writer = csv.writer(response)
-        writer.writerow(['Destination', 'Start Date', 'End Date', 'Budget Source', 'Amount (PHP)', 'Doc Type'])
-        for row in travel_rows:
-            t = row['travel']
-            writer.writerow([
-                t.destination,
-                t.start_date,
-                t.end_date or '',
-                t.budget_source.budget_name if t.budget_source else '—',
-                f'{row["amount"]:.2f}',
-                row['doc_type'],
-            ])
-        writer.writerow([])
-        writer.writerow(['', '', '', 'TOTAL', f'{yearly_total:.2f}', ''])
-        return response
-
-    context = {
-        'user':           user,
-        'today':          today,
-        'selected_year':  selected_year,
-        'year_list':      year_list,
-        'monthly_labels': json_module.dumps(monthly_labels),
-        'monthly_data':   json_module.dumps(monthly_data),
-        'travel_rows':    travel_rows,
-        'yearly_total':   yearly_total,
-        'travel_count':   len(travel_rows),
-    }
-    return render(request, 'travel_app/shared/my_spending.html', context)
-
-
-# ══════════════════════════════════════════════════════════════════════
-# ORG SPENDING DATA (AJAX) — for the switchable chart in stats page
-# ══════════════════════════════════════════════════════════════════════
-
-@never_cache
-def org_spending_data(request):
-    """
-    Returns JSON for the org-level spending chart.
-    Query params:
-      - year      : fiscal year (default current)
-      - view      : 'college' | 'campus' | 'user'
-      - metric    : 'amount' | 'travels'
-    """
-    user = get_authenticated_user(request)
-    if not user:
-        from django.http import JsonResponse
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
-    if user.role not in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
-        from django.http import JsonResponse
-        return JsonResponse({'error': 'Access denied'}, status=403)
-
-    from django.http import JsonResponse
-    from django.db.models import Sum, Count
-    from datetime import date
-
-    today  = date.today()
-    year   = int(request.GET.get('year', today.year))
-    view   = request.GET.get('view', 'college')   # college | campus | user
-    metric = request.GET.get('metric', 'amount')  # amount | travels
-
-    # Base travel queryset scoped to role
-    if user.role == 'DEPT_SEC' and user.college:
-        travels = TravelRecord.objects.filter(
-            participants__college_name=user.college.name,
-            start_date__year=year,
-            budget_source__isnull=False,
-        ).distinct()
-    elif user.role == 'CAMPUS_SEC' and user.campus:
-        travels = TravelRecord.objects.filter(
-            participants__campus_name=user.campus.name,
-            start_date__year=year,
-            budget_source__isnull=False,
-        ).distinct()
-    else:  # ADMIN
-        travels = TravelRecord.objects.filter(
-            start_date__year=year,
-            budget_source__isnull=False,
-        ).distinct()
-
-    labels = []
-    data   = []
-
-    if view == 'college':
-        from django.db.models import Sum, Count
-        rows = (
-            TravelParticipant.objects
-            .filter(travel_record__in=travels)
-            .exclude(college_name='')
-            .values('college_name')
-            .annotate(
-                total_amount=Sum('travel_record__amount_deducted'),
-                total_travels=Count('travel_record', distinct=True),
-            )
-            .order_by('-total_amount' if metric == 'amount' else '-total_travels')[:12]
-        )
-        for r in rows:
-            labels.append(r['college_name'])
-            data.append(float(r['total_amount'] or 0) if metric == 'amount' else r['total_travels'])
-
-    elif view == 'campus':
-        rows = (
-            TravelParticipant.objects
-            .filter(travel_record__in=travels)
-            .exclude(campus_name='')
-            .values('campus_name')
-            .annotate(
-                total_amount=Sum('travel_record__amount_deducted'),
-                total_travels=Count('travel_record', distinct=True),
-            )
-            .order_by('-total_amount' if metric == 'amount' else '-total_travels')[:12]
-        )
-        for r in rows:
-            labels.append(r['campus_name'])
-            data.append(float(r['total_amount'] or 0) if metric == 'amount' else r['total_travels'])
-
-    elif view == 'user':
-        rows = (
-            TravelParticipant.objects
-            .filter(travel_record__in=travels)
-            .values('user__first_name', 'user__last_name')
-            .annotate(
-                total_amount=Sum('travel_record__amount_deducted'),
-                total_travels=Count('travel_record', distinct=True),
-            )
-            .order_by('-total_amount' if metric == 'amount' else '-total_travels')[:10]
-        )
-        for r in rows:
-            labels.append(f"{r['user__first_name']} {r['user__last_name']}")
-            data.append(float(r['total_amount'] or 0) if metric == 'amount' else r['total_travels'])
-
-    return JsonResponse({'labels': labels, 'data': data, 'metric': metric, 'view': view})

@@ -32,9 +32,6 @@
   <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
     <i class="bi bi-bar-chart-line"></i> Statistics
   </a>
-  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
-    <i class="bi bi-wallet"></i> My Spending
-  </a>
 
 {% elif request.session.role == 'DEPT_SEC' %}
 
@@ -68,17 +65,11 @@
     <i class="bi bi-calculator"></i> Liquidation
   </a>
 
-  <span class="sidebar-section-label">Events</span>
-  <a href="{% url 'travel_app:event_groups' %}" class="nav-item-link {% if request.resolver_match.url_name == 'event_groups' %}active{% endif %}">
-    <i class="bi bi-diagram-3"></i> Event Groups
   </a>
 
   <span class="sidebar-section-label">Reports</span>
   <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
     <i class="bi bi-bar-chart-line"></i> Statistics
-  </a>
-  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
-    <i class="bi bi-wallet"></i> My Spending
   </a>
 
 {% elif request.session.role == 'CAMPUS_SEC' %}
@@ -113,17 +104,11 @@
     <i class="bi bi-calculator"></i> Liquidation
   </a>
 
-  <span class="sidebar-section-label">Events</span>
-  <a href="{% url 'travel_app:event_groups' %}" class="nav-item-link {% if request.resolver_match.url_name == 'event_groups' %}active{% endif %}">
-    <i class="bi bi-diagram-3"></i> Event Groups
   </a>
 
   <span class="sidebar-section-label">Reports</span>
   <a href="{% url 'travel_app:stats' %}" class="nav-item-link {% if request.resolver_match.url_name == 'stats' %}active{% endif %}">
     <i class="bi bi-bar-chart-line"></i> Statistics
-  </a>
-  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
-    <i class="bi bi-wallet"></i> My Spending
   </a>
 
 {% else %} {# EMPLOYEE #}
@@ -144,9 +129,6 @@
     <i class="bi bi-calculator"></i> Liquidation
   </a>
 
-  <span class="sidebar-section-label">Reports</span>
-  <a href="{% url 'travel_app:my_spending' %}" class="nav-item-link {% if request.resolver_match.url_name == 'my_spending' %}active{% endif %}">
-    <i class="bi bi-wallet"></i> My Spending
   </a>
 
 {% endif %}
