@@ -65,7 +65,7 @@ def get_sources_for_secretary(user, year=None):
         year = timezone.now().year
 
     if user.role == 'DEPT_SEC':
-        sources = BudgetSource.objects.filter(budget_scope='COLLEGE', fiscal_year=year, is_active=True)
+        sources = BudgetSource.objects.filter(budget_scope='COLLEGE', fiscal_year=year, is_active=True, college=user.college)
         result  = []
         for s in sources:
             usages     = BudgetUsage.objects.filter(budget_source=s, year=year, user__college=user.college)

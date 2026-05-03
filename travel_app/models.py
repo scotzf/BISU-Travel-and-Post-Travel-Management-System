@@ -22,6 +22,14 @@ class BudgetSource(models.Model):
     )
     description = models.TextField(blank=True, max_length=500)
     is_active   = models.BooleanField(default=True)
+    college = models.ForeignKey(
+    'accounts.College',
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name='budget_sources',
+    help_text='College this budget belongs to (COLLEGE scope only)'
+)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 

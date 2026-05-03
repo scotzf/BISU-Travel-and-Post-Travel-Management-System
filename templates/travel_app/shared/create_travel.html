@@ -21,7 +21,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
 .upload-zone {
   border: 2px dashed var(--border);
   border-radius: 12px;
-  padding: 48px 24px;
+  padding: 32px 24px;
   text-align: center;
   cursor: pointer;
   transition: all .2s;
@@ -32,28 +32,14 @@ textarea.form-control { resize:vertical; min-height:90px; }
   background: var(--role-faint);
 }
 .upload-zone.uploading { pointer-events: none; opacity: .7; }
-.upload-icon { font-size: 40px; color: var(--text-muted); margin-bottom: 12px; }
 
 .extraction-bar {
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 12px;
+  height: 4px; background: var(--border); border-radius: 2px;
+  overflow: hidden; margin-top: 12px;
 }
 .extraction-bar-fill {
-  height: 100%;
-  background: var(--role-color);
-  width: 0%;
-  transition: width .4s;
-  border-radius: 2px;
-}
-
-#formSection { display: none; }
-#formSection.revealed { display: block; animation: fadeUp .4s ease; }
-@keyframes fadeUp {
-  from { opacity:0; transform:translateY(12px); }
-  to   { opacity:1; transform:translateY(0); }
+  height: 100%; background: var(--role-color);
+  width: 0%; transition: width .4s; border-radius: 2px;
 }
 
 .extraction-badge {
@@ -71,7 +57,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
 }
 .traveler-tag.matched   { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
 .traveler-tag.unmatched { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
-.tag-remove { font-size: 14px; line-height: 1; }
 
 .participant-tag {
   display: inline-flex; align-items: center; gap: 6px;
@@ -82,7 +67,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
 }
 .participant-tag:hover    { background: color-mix(in srgb, var(--role-color) 20%, transparent); }
 .participant-tag.selected { background: var(--role-color); color: white; }
-.participant-tag.unmatched { background: #fff7ed; color: #c2410c; border-color: #fdba74; }
 
 .scope-badge {
   display: inline-flex; align-items: center; gap: 6px;
@@ -90,12 +74,12 @@ textarea.form-control { resize:vertical; min-height:90px; }
   font-size: 12px; font-weight: 600; transition: all .3s;
 }
 
-.skip-link {
-  font-size: 12px; color: var(--text-muted);
-  cursor: pointer; text-decoration: underline;
-  background: none; border: none; padding: 0;
+.autofill-toggle {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--role-color); cursor: pointer;
+  padding: 8px 0; border: none; background: none; font-weight: 500;
 }
-.skip-link:hover { color: var(--text-primary); }
+.autofill-toggle:hover { opacity: .8; }
 {% endblock %}
 
 {% block content %}
@@ -103,7 +87,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
   <div class="page-header-row">
     <div>
       <div class="page-title">New Travel Record</div>
-      <div class="page-subtitle">Upload your Travel Order to get started</div>
+      <div class="page-subtitle">Fill in the details below to create a travel record</div>
     </div>
     <a href="{% url 'travel_app:all_travels' %}" class="btn-secondary-custom">
       <i class="bi bi-arrow-left"></i> Back
@@ -111,68 +95,9 @@ textarea.form-control { resize:vertical; min-height:90px; }
   </div>
 </div>
 
-<!-- ── Step 1: Upload Zone ─────────────────────────────────────── -->
-<div id="uploadSection">
-  <div class="row justify-content-center">
-    <div class="col-lg-7">
-      <div class="card mb-3">
-        <div class="card-header-custom">
-          <div class="card-title"><i class="bi bi-file-earmark-arrow-up"></i> Upload Travel Order</div>
-        </div>
-        <div class="card-body-custom">
-
-          <div class="upload-zone" id="uploadZone"
-               onclick="document.getElementById('travelOrderFile').click()"
-               ondragover="handleDragOver(event)"
-               ondragleave="handleDragLeave(event)"
-               ondrop="handleDrop(event)">
-            <div class="upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
-            <div style="font-size:15px;font-weight:500;color:var(--text-primary);margin-bottom:6px">
-              Drop your Travel Order here
-            </div>
-            <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
-              PDF, DOCX, JPG, PNG or XLSX
-            </div>
-            <div class="btn-primary-custom" style="display:inline-flex;pointer-events:none">
-              <i class="bi bi-folder2-open"></i> Choose File
-            </div>
-            <input type="file" id="travelOrderFile" style="display:none"
-                   accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.xlsx"
-                   onchange="handleFileSelect(this.files[0])"/>
-          </div>
-
-          <div id="uploadProgress" style="display:none;margin-top:16px">
-            <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)">
-              <div class="spinner-border spinner-border-sm" style="color:var(--role-color)"></div>
-              <span id="progressText">Extracting data from document...</span>
-            </div>
-            <div class="extraction-bar">
-              <div class="extraction-bar-fill" id="extractionBarFill"></div>
-            </div>
-          </div>
-
-          <div id="uploadError" style="display:none;margin-top:12px"
-               class="alert-custom alert-danger">
-            <i class="bi bi-exclamation-circle"></i>
-            <span id="uploadErrorText"></span>
-          </div>
-
-        </div>
-      </div>
-
-      <div style="text-align:center;padding-bottom:8px">
-        <button type="button" class="skip-link" onclick="skipUpload()">
-          Skip — fill in details manually
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<!-- ── Step 2: Form ────────────────────────────────────────────── -->
 <div id="formSection">
 
+  <!-- Extraction Banner (shown after upload) -->
   <div id="extractionBanner" style="display:none;margin-bottom:16px">
     <div class="card" style="border-left:4px solid var(--role-color)">
       <div class="card-body-custom" style="padding:12px 16px">
@@ -180,12 +105,8 @@ textarea.form-control { resize:vertical; min-height:90px; }
           <div style="display:flex;align-items:center;gap:10px">
             <i class="bi bi-magic" style="color:var(--role-color);font-size:16px"></i>
             <div>
-              <div style="font-size:13px;font-weight:500;color:var(--text-primary)">
-                Travel Order data extracted
-              </div>
-              <div style="font-size:12px;color:var(--text-muted)">
-                Review and edit the pre-filled fields below before submitting.
-              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--text-primary)">Travel Order data extracted</div>
+              <div style="font-size:12px;color:var(--text-muted)">Review and edit the pre-filled fields below before submitting.</div>
             </div>
           </div>
           <span class="extraction-badge" id="confidenceBadge">high</span>
@@ -194,6 +115,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
     </div>
   </div>
 
+  <!-- Extracted Travelers Card (shown after upload) -->
   <div id="extractedTravelersCard" style="display:none;margin-bottom:16px">
     <div class="card">
       <div class="card-header-custom">
@@ -204,37 +126,26 @@ textarea.form-control { resize:vertical; min-height:90px; }
         <div id="travelerSummaryBadge" style="font-size:12px;color:var(--text-muted)"></div>
       </div>
       <div class="card-body-custom">
-
-        <div id="unmatchedWarning" style="display:none;margin-bottom:12px"
-             class="alert-custom alert-warning">
+        <div id="unmatchedWarning" style="display:none;margin-bottom:12px" class="alert-custom alert-warning">
           <i class="bi bi-exclamation-triangle"></i>
           <span id="unmatchedText"></span>
         </div>
-
         <div id="travelerTagsList" style="display:flex;flex-wrap:wrap;gap:10px"></div>
-
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-          <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                      text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
-            Add extra traveler
-          </div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Add extra traveler</div>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="text" id="extraTravelerInput" class="form-control"
-                   placeholder="Type full name and press Enter or click Add"
-                   style="flex:1"
+                   placeholder="Type full name and press Enter or click Add" style="flex:1"
                    onkeydown="if(event.key==='Enter'){event.preventDefault();addExtraTraveler();}"/>
-            <button type="button" onclick="addExtraTraveler()"
-                    class="btn-secondary-custom" style="white-space:nowrap">
+            <button type="button" onclick="addExtraTraveler()" class="btn-secondary-custom" style="white-space:nowrap">
               <i class="bi bi-plus-lg"></i> Add
             </button>
           </div>
           <div id="extraTravelersList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
         </div>
-
         <div style="font-size:11.5px;color:var(--text-muted);margin-top:12px">
           <i class="bi bi-info-circle"></i>
-          Green = found in system and will be added as participant.
-          Orange = not registered in the system.
+          Green = found in system. Orange = not registered.
         </div>
       </div>
     </div>
@@ -245,49 +156,80 @@ textarea.form-control { resize:vertical; min-height:90px; }
     <div id="allTravelerNamesInputs"></div>
 
     <div class="row g-3">
-
       <div class="col-lg-8">
 
+        <!-- Optional Auto-fill from Travel Order -->
+        <div class="card mb-3">
+          <div class="card-body-custom" style="padding:14px 20px">
+            <button type="button" class="autofill-toggle" onclick="toggleUploadSection()">
+              <i class="bi bi-file-earmark-arrow-up"></i>
+              Auto-fill from Travel Order
+              <i class="bi bi-chevron-down" id="uploadChevron" style="margin-left:auto;font-size:11px"></i>
+            </button>
+            <div id="uploadSection" style="display:none;margin-top:12px">
+              <div class="upload-zone" id="uploadZone"
+                   onclick="document.getElementById('travelOrderFile').click()"
+                   ondragover="handleDragOver(event)"
+                   ondragleave="handleDragLeave(event)"
+                   ondrop="handleDrop(event)">
+                <div style="font-size:32px;color:var(--text-muted);margin-bottom:8px"><i class="bi bi-cloud-arrow-up"></i></div>
+                <div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:4px">Drop your Travel Order here</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">PDF, DOCX, JPG, PNG or XLSX</div>
+                <div class="btn-primary-custom" style="display:inline-flex;pointer-events:none">
+                  <i class="bi bi-folder2-open"></i> Choose File
+                </div>
+                <input type="file" id="travelOrderFile" style="display:none"
+                       accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.xlsx"
+                       onchange="handleFileSelect(this.files[0])"/>
+              </div>
+              <div id="uploadProgress" style="display:none;margin-top:16px">
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)">
+                  <div class="spinner-border spinner-border-sm" style="color:var(--role-color)"></div>
+                  <span id="progressText">Extracting data from document...</span>
+                </div>
+                <div class="extraction-bar"><div class="extraction-bar-fill" id="extractionBarFill"></div></div>
+              </div>
+              <div id="uploadError" style="display:none;margin-top:12px" class="alert-custom alert-danger">
+                <i class="bi bi-exclamation-circle"></i>
+                <span id="uploadErrorText"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Travel Details -->
         <div class="card mb-3">
           <div class="card-header-custom">
             <div class="card-title"><i class="bi bi-geo-alt"></i> Travel Details</div>
           </div>
           <div class="card-body-custom">
             <div class="row g-3">
-
               <div class="col-12">
                 <label class="form-label">Destination *</label>
                 <input type="text" name="destination" id="fieldDestination" class="form-control"
                        placeholder="e.g. Cebu City, Metro Cebu"
                        value="{{ post.destination|default:'' }}" required/>
               </div>
-
               <div class="col-md-6">
                 <label class="form-label">Start Date *</label>
                 <input type="date" name="start_date" id="fieldStartDate" class="form-control"
-                       value="{{ post.start_date|default:'' }}"
-                       required onchange="validateDates()"/>
+                       value="{{ post.start_date|default:'' }}" required onchange="validateDates()"/>
               </div>
-
               <div class="col-md-6">
                 <label class="form-label">End Date</label>
                 <input type="date" name="end_date" id="fieldEndDate" class="form-control"
-                       value="{{ post.end_date|default:'' }}"
-                       onchange="validateDates()"/>
+                       value="{{ post.end_date|default:'' }}" onchange="validateDates()"/>
               </div>
-
               <div class="col-12">
                 <label class="form-label">Purpose *</label>
                 <textarea name="purpose" id="fieldPurpose" class="form-control"
                           placeholder="Describe the purpose of this travel...">{{ post.purpose|default:'' }}</textarea>
               </div>
-
               <div class="col-12">
                 <label class="form-label">Notes <span style="color:var(--text-muted)">(optional)</span></label>
                 <textarea name="notes" class="form-control" style="min-height:60px"
                           placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
               </div>
-
               <div class="col-12">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;color:var(--text-primary)">
                   <input type="checkbox" name="is_out_of_province"
@@ -296,11 +238,11 @@ textarea.form-control { resize:vertical; min-height:90px; }
                   This travel is out of province
                 </label>
               </div>
-
             </div>
           </div>
         </div>
 
+        <!-- Participants (secretary only) -->
         {% if user.role in 'DEPT_SEC,CAMPUS_SEC' and available_participants %}
         <div class="card mb-3">
           <div class="card-header-custom">
@@ -311,153 +253,111 @@ textarea.form-control { resize:vertical; min-height:90px; }
                 {% else %}Showing all employees on {{ user.campus.name }}{% endif %}
               </div>
             </div>
-            <div id="scopeIndicator" class="scope-badge"
-                 style="background:var(--primary-faint);color:var(--primary)">
+            <div id="scopeIndicator" class="scope-badge" style="background:var(--primary-faint);color:var(--primary)">
               <i class="bi bi-building"></i> College scope
             </div>
           </div>
           <div class="card-body-custom">
-
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
               Click names to add/remove.
               <span id="selectedCount" style="font-weight:600;color:var(--role-color)">0 selected</span>
             </div>
-
             <input type="text" id="participantSearch" class="form-control"
                    placeholder="Search by name..." style="margin-bottom:12px"
                    oninput="filterParticipants(this.value)"/>
-
-            <div style="display:flex;align-items:center;gap:8px;padding:10px 0;
-                        border-bottom:1px solid var(--border);margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
               <input type="checkbox" name="include_creator" value="yes" id="includeCreator"
-                     style="width:16px;height:16px;accent-color:var(--role-color)"
-                     onchange="updateSummary()"/>
-              <label for="includeCreator"
-                     style="font-size:13.5px;color:var(--text-primary);cursor:pointer;margin:0">
+                     style="width:16px;height:16px;accent-color:var(--role-color)" onchange="updateSummary()"/>
+              <label for="includeCreator" style="font-size:13.5px;color:var(--text-primary);cursor:pointer;margin:0">
                 Include myself as a traveler
               </label>
             </div>
-
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);
-                        letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">
-              All employees
-            </div>
-            <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">All employees</div>
+            <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px;max-height:300px;overflow-y:auto;padding:4px 2px;border:1px solid var(--border);border-radius:8px;padding:10px;">
               {% regroup available_participants by college as college_groups %}
               {% for group in college_groups %}
                 {% if user.role == 'CAMPUS_SEC' %}
-                  <div style="width:100%;font-size:11px;font-weight:600;color:var(--text-muted);
-                               letter-spacing:.5px;text-transform:uppercase;margin-top:8px;
-                               padding-top:8px;border-top:1px solid var(--border)">
-                    {{ group.grouper.name|default:"No College" }}
-                  </div>
+                <div style="width:100%;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+                  {{ group.grouper.name|default:"No College" }}
+                </div>
                 {% endif %}
                 {% for p in group.list %}
-                <div class="participant-tag"
-                     data-id="{{ p.id }}"
-                     data-college="{{ p.college.name|default:'' }}"
-                     data-name="{{ p.get_full_name|lower }}"
-                     onclick="toggleParticipant(this)">
+                <div class="participant-tag" data-id="{{ p.id }}" data-college="{{ p.college.name|default:'' }}" data-name="{{ p.get_full_name|lower }}" onclick="toggleParticipant(this)">
                   <i class="bi bi-person" style="font-size:12px"></i>
                   {{ p.get_full_name }}
                   <span class="tag-remove">+</span>
-                  <input type="checkbox" name="participants" value="{{ p.id }}"
-                         style="display:none" class="participant-checkbox"/>
+                  <input type="checkbox" name="participants" value="{{ p.id }}" style="display:none" class="participant-checkbox"/>
                 </div>
                 {% endfor %}
               {% endfor %}
             </div>
-
           </div>
         </div>
         {% endif %}
 
       </div>
 
-      <!-- Sidebar summary -->
+      <!-- Sidebar -->
       <div class="col-lg-4">
         <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
           <div class="card-header-custom">
             <div class="card-title">Summary</div>
           </div>
           <div class="card-body-custom" style="padding:16px 20px">
-
             <div style="margin-bottom:14px">
-              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
-                           letter-spacing:.5px;margin-bottom:4px">Created by</div>
-              <div style="font-size:13.5px;font-weight:500;color:var(--text-primary)">
-                {{ user.get_full_name }}
-              </div>
-              <div style="font-size:12px;color:var(--text-muted)">
-                {{ user.college.name|default:user.campus.name|default:"BISU" }}
-              </div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Created by</div>
+              <div style="font-size:13.5px;font-weight:500;color:var(--text-primary)">{{ user.get_full_name }}</div>
+              <div style="font-size:12px;color:var(--text-muted)">{{ user.college.name|default:user.campus.name|default:"BISU" }}</div>
               {% if user.role == 'EMPLOYEE' %}
               <div style="font-size:11px;color:var(--primary);margin-top:4px;display:flex;align-items:center;gap:4px">
                 <i class="bi bi-person-check-fill"></i> You will be added as a participant
               </div>
               {% endif %}
             </div>
-
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
-              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
-                           letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
-
-              <div id="summaryScope" class="scope-badge"
-                   style="background:var(--primary-faint);color:var(--primary)">
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
+              <div id="summaryScope" class="scope-badge" style="background:var(--primary-faint);color:var(--primary)">
                 <i class="bi bi-building"></i> College-level
               </div>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px" id="scopeHint">
-                Budget will be tagged by Dept Secretary
-              </div>
-
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px" id="scopeHint">Budget will be tagged by Dept Secretary</div>
               <div style="margin-top:10px">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">
-                  Override scope manually:
-                </div>
-                <select name="scope_override" id="scopeOverride" class="form-select"
-                        style="font-size:12px;padding:6px 10px"
-                        onchange="manualScopeOverride(this.value)">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">Override scope manually:</div>
+                <select name="scope_override" id="scopeOverride" class="form-select" style="font-size:12px;padding:6px 10px" onchange="manualScopeOverride(this.value)">
                   <option value="">Auto-detect from participants</option>
                   <option value="COLLEGE">College-Level</option>
                   <option value="CAMPUS">Campus-Level</option>
                 </select>
               </div>
             </div>
-
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
-              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;
-                           letter-spacing:.5px;margin-bottom:4px">Travelers</div>
-              <div style="font-size:22px;font-weight:600;font-family:var(--font-display);
-                           color:var(--text-primary)" id="summaryCount">{% if user.role == 'EMPLOYEE' %}1{% else %}0{% endif %}</div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Travelers</div>
+              <div style="font-size:22px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)" id="summaryCount">{% if user.role == 'EMPLOYEE' %}1{% else %}0{% endif %}</div>
             </div>
-
             <div style="padding-top:14px;border-top:1px solid var(--border)">
               <div class="alert-custom alert-info" style="padding:10px 12px;font-size:12px">
                 <i class="bi bi-info-circle"></i>
                 <span>Budget source will be assigned by the secretary after creation.</span>
               </div>
             </div>
-          {% if overlap_warnings %}
-          {% for pid in post.participants %}<input type="hidden" name="participants" value="{{ pid }}">{% endfor %}
-          {% for pid in post.matched_travelers %}<input type="hidden" name="matched_travelers" value="{{ pid }}">{% endfor %}
-          <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:16px;margin-bottom:16px">
-            <strong><i class="bi bi-exclamation-triangle-fill"></i> Overlapping travel detected</strong>
-            <ul style="margin:8px 0 12px 16px">
-              {% for w in overlap_warnings %}
-              <li>{{ w.name }} already has travel to <strong>{{ w.destination }}</strong> on {{ w.start_date }}</li>
-              {% endfor %}
-            </ul>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-              <input type="checkbox" name="overlap_confirmed" value="yes">
-              I understand and want to proceed anyway
-            </label>
-          </div>
-          {% endif %}
-            <button type="submit" class="btn-primary-custom"
-                    style="width:100%;margin-top:16px;justify-content:center">
+            {% if overlap_warnings %}
+            {% for pid in post.participants %}<input type="hidden" name="participants" value="{{ pid }}">{% endfor %}
+            {% for pid in post.matched_travelers %}<input type="hidden" name="matched_travelers" value="{{ pid }}">{% endfor %}
+            <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:16px;margin-top:16px">
+              <strong><i class="bi bi-exclamation-triangle-fill"></i> Overlapping travel detected</strong>
+              <ul style="margin:8px 0 12px 16px">
+                {% for w in overlap_warnings %}
+                <li>{{ w.name }} already has travel to <strong>{{ w.destination }}</strong> on {{ w.start_date }}</li>
+                {% endfor %}
+              </ul>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" name="overlap_confirmed" value="yes">
+                I understand and want to proceed anyway
+              </label>
+            </div>
+            {% endif %}
+            <button type="submit" class="btn-primary-custom" style="width:100%;margin-top:16px;justify-content:center">
               <i class="bi bi-plus-lg"></i> Create Travel Record
             </button>
-
           </div>
         </div>
       </div>
@@ -469,20 +369,27 @@ textarea.form-control { resize:vertical; min-height:90px; }
 
 {% block extra_js %}
 <script>
-const EXTRACT_URL  = "{% url 'travel_app:extract_travel_order_ajax' %}";
-const CSRF_TOKEN   = "{{ csrf_token }}";
-const selectedIds  = new Set();
-const collegeMap   = {};
-
-// ── FIXED: employee is always counted as 1 traveler ─────────────────
-const isEmployee = "{{ user.role }}" === "EMPLOYEE";
-
+const EXTRACT_URL = "{% url 'travel_app:extract_travel_order_ajax' %}";
+const CSRF_TOKEN  = "{{ csrf_token }}";
+const selectedIds = new Set();
+const collegeMap  = {};
+const isEmployee  = "{{ user.role }}" === "EMPLOYEE";
 let unmatchedTravelerCount = 0;
 let scopeManualOverride    = null;
 
 document.querySelectorAll('.participant-tag').forEach(tag => {
   collegeMap[tag.dataset.id] = tag.dataset.college;
 });
+
+function toggleUploadSection() {
+  const section  = document.getElementById('uploadSection');
+  const chevron  = document.getElementById('uploadChevron');
+  const isHidden = section.style.display === 'none';
+  section.style.display = isHidden ? 'block' : 'none';
+  chevron.className = isHidden ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+  chevron.style.marginLeft = 'auto';
+  chevron.style.fontSize = '11px';
+}
 
 function handleDragOver(e) {
   e.preventDefault();
@@ -500,7 +407,6 @@ function handleDrop(e) {
 
 function handleFileSelect(file) {
   if (!file) return;
-
   const zone     = document.getElementById('uploadZone');
   const progress = document.getElementById('uploadProgress');
   const errorDiv = document.getElementById('uploadError');
@@ -512,16 +418,10 @@ function handleFileSelect(file) {
   errorDiv.style.display = 'none';
 
   let pct = 0;
-  const ticker = setInterval(() => {
-    pct = Math.min(pct + 4, 85);
-    bar.style.width = pct + '%';
-  }, 200);
-
-  const steps = ['Reading document...', 'Extracting text...', 'Identifying fields...', 'Matching travelers...'];
+  const ticker = setInterval(() => { pct = Math.min(pct + 4, 85); bar.style.width = pct + '%'; }, 200);
+  const steps = ['Reading document...','Extracting text...','Identifying fields...','Matching travelers...'];
   let stepIdx = 0;
-  const stepTicker = setInterval(() => {
-    if (stepIdx < steps.length) progText.textContent = steps[stepIdx++];
-  }, 1800);
+  const stepTicker = setInterval(() => { if (stepIdx < steps.length) progText.textContent = steps[stepIdx++]; }, 1800);
 
   const formData = new FormData();
   formData.append('file', file);
@@ -530,25 +430,23 @@ function handleFileSelect(file) {
   fetch(EXTRACT_URL, { method: 'POST', body: formData })
     .then(r => r.json())
     .then(data => {
-      clearInterval(ticker);
-      clearInterval(stepTicker);
+      clearInterval(ticker); clearInterval(stepTicker);
       bar.style.width = '100%';
-
       setTimeout(() => {
         zone.classList.remove('uploading');
         progress.style.display = 'none';
         bar.style.width = '0%';
-
         if (data.error)    { showUploadError(data.error); return; }
-        if (!data.success) { showUploadError(data.error || 'Extraction failed. Try a clearer document.'); return; }
-
+        if (!data.success) { showUploadError(data.error || 'Extraction failed.'); return; }
         prefillForm(data);
-        revealForm(data);
+        showExtractionResults(data);
+        // Collapse upload section after success
+        document.getElementById('uploadSection').style.display = 'none';
+        document.getElementById('uploadChevron').className = 'bi bi-chevron-down';
       }, 400);
     })
     .catch(() => {
-      clearInterval(ticker);
-      clearInterval(stepTicker);
+      clearInterval(ticker); clearInterval(stepTicker);
       zone.classList.remove('uploading');
       progress.style.display = 'none';
       showUploadError('Network error. Please try again.');
@@ -562,113 +460,64 @@ function showUploadError(msg) {
 }
 
 function prefillForm(data) {
-  if (data.destination) setField('fieldDestination', data.destination);
-  if (data.start_date)  setField('fieldStartDate',   data.start_date);
-  if (data.end_date)    setField('fieldEndDate',      data.end_date);
-  if (data.purpose)     setField('fieldPurpose',      data.purpose);
+  if (data.destination) document.getElementById('fieldDestination').value = data.destination;
+  if (data.start_date)  document.getElementById('fieldStartDate').value   = data.start_date;
+  if (data.end_date)    document.getElementById('fieldEndDate').value      = data.end_date;
+  if (data.purpose)     document.getElementById('fieldPurpose').value      = data.purpose;
 }
 
-function setField(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.value = value;
-}
-
-function revealForm(data) {
-  document.getElementById('uploadSection').style.display = 'none';
-  document.getElementById('formSection').classList.add('revealed');
-
+function showExtractionResults(data) {
   document.getElementById('extractionBanner').style.display = 'block';
   const badge = document.getElementById('confidenceBadge');
   const conf  = data.confidence || 'low';
   badge.textContent = conf + ' confidence';
   badge.className   = 'extraction-badge ' + conf;
 
-  const allTravelers = [
-    ...(data.matched_travelers   || []),
-    ...(data.unmatched_travelers || []),
-  ];
-
+  const allTravelers = [...(data.matched_travelers || []), ...(data.unmatched_travelers || [])];
   if (allTravelers.length > 0) {
-    const card      = document.getElementById('extractedTravelersCard');
-    const list      = document.getElementById('travelerTagsList');
-    const badgeEl   = document.getElementById('travelerSummaryBadge');
-    const matched   = data.matched_travelers.length;
+    const card    = document.getElementById('extractedTravelersCard');
+    const list    = document.getElementById('travelerTagsList');
+    const badgeEl = document.getElementById('travelerSummaryBadge');
+    const matched = data.matched_travelers.length;
     const unmatched = data.unmatched_count || 0;
 
     card.style.display = 'block';
-    list.innerHTML     = '';
-
-    badgeEl.innerHTML = `
-      <span style="color:#166534;font-weight:600">${matched} matched</span>
-      ${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}
-    `;
+    list.innerHTML = '';
+    badgeEl.innerHTML = `<span style="color:#166534;font-weight:600">${matched} matched</span>${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}`;
 
     const hasPicker = document.getElementById('participantList') !== null;
     let pickerMissCount = 0;
     if (hasPicker) {
-      data.matched_travelers.forEach(t => {
-        const mainTag = document.querySelector(`.participant-tag[data-id="${t.id}"]`);
-        if (!mainTag) pickerMissCount++;
-      });
+      data.matched_travelers.forEach(t => { if (!document.querySelector(`.participant-tag[data-id="${t.id}"]`)) pickerMissCount++; });
     }
     unmatchedTravelerCount = hasPicker ? (unmatched + pickerMissCount) : allTravelers.length;
 
     allTravelers.forEach(t => {
       const tag = document.createElement('div');
-
       if (t.matched) {
         tag.className = 'traveler-tag matched';
-        tag.innerHTML = `
-          <i class="bi bi-person-check-fill" style="font-size:13px"></i>
-          <span>${t.name}</span>
-          ${t.college ? `<span style="font-size:11px;opacity:.7">· ${t.college}</span>` : ''}
-        `;
-        tag.title = 'Found in system — will be added as participant';
-
+        tag.innerHTML = `<i class="bi bi-person-check-fill" style="font-size:13px"></i><span>${t.name}</span>${t.college ? `<span style="font-size:11px;opacity:.7">· ${t.college}</span>` : ''}`;
         const hidden = document.createElement('input');
-        hidden.type  = 'hidden';
-        hidden.name  = 'matched_travelers';
-        hidden.value = t.id;
+        hidden.type = 'hidden'; hidden.name = 'matched_travelers'; hidden.value = t.id;
         document.getElementById('allTravelerNamesInputs').appendChild(hidden);
-
         const mainTag = document.querySelector(`.participant-tag[data-id="${t.id}"]`);
-        if (mainTag && !selectedIds.has(String(t.id))) {
-          toggleParticipant(mainTag);
-        }
-
+        if (mainTag && !selectedIds.has(String(t.id))) toggleParticipant(mainTag);
       } else {
         tag.className = 'traveler-tag unmatched';
-        tag.innerHTML = `
-          <i class="bi bi-person-x-fill" style="font-size:13px"></i>
-          <span>${t.name}</span>
-          <span style="font-size:11px;opacity:.7">· not in system</span>
-        `;
-        tag.title = 'Not found in system';
-
+        tag.innerHTML = `<i class="bi bi-person-x-fill" style="font-size:13px"></i><span>${t.name}</span><span style="font-size:11px;opacity:.7">· not in system</span>`;
         const unregHidden = document.createElement('input');
-        unregHidden.type  = 'hidden';
-        unregHidden.name  = 'unregistered_travelers';
-        unregHidden.value = t.name;
+        unregHidden.type = 'hidden'; unregHidden.name = 'unregistered_travelers'; unregHidden.value = t.name;
         document.getElementById('allTravelerNamesInputs').appendChild(unregHidden);
       }
-
       list.appendChild(tag);
     });
 
     if (unmatched > 0) {
       const warn = document.getElementById('unmatchedWarning');
-      document.getElementById('unmatchedText').textContent =
-        `${unmatched} traveler${unmatched > 1 ? 's are' : ' is'} not registered in the system and cannot be added automatically.`;
+      document.getElementById('unmatchedText').textContent = `${unmatched} traveler${unmatched > 1 ? 's are' : ' is'} not registered in the system.`;
       warn.style.display = 'flex';
     }
   }
-
-  updateSummary();
-}
-
-function skipUpload() {
-  document.getElementById('uploadSection').style.display = 'none';
-  document.getElementById('formSection').classList.add('revealed');
   updateSummary();
 }
 
@@ -681,28 +530,20 @@ function toggleParticipant(el) {
   const id  = el.dataset.id;
   const cb  = el.querySelector('.participant-checkbox');
   const rem = el.querySelector('.tag-remove');
-
   if (selectedIds.has(id)) {
-    selectedIds.delete(id);
-    el.classList.remove('selected');
-    if (cb)  cb.checked      = false;
-    if (rem) rem.textContent = '+';
+    selectedIds.delete(id); el.classList.remove('selected');
+    if (cb) cb.checked = false; if (rem) rem.textContent = '+';
   } else {
-    selectedIds.add(id);
-    el.classList.add('selected');
-    if (cb)  cb.checked      = true;
-    if (rem) rem.textContent = '×';
+    selectedIds.add(id); el.classList.add('selected');
+    if (cb) cb.checked = true; if (rem) rem.textContent = '×';
   }
   updateSummary();
 }
 
 function updateSummary() {
   const includeCreator = document.getElementById('includeCreator');
-
-  // FIXED: employees always count as 1, secretaries depend on checkbox
   const creatorCount = isEmployee ? 1 : (includeCreator && includeCreator.checked ? 1 : 0);
-  const count        = selectedIds.size + creatorCount + unmatchedTravelerCount;
-
+  const count = selectedIds.size + creatorCount + unmatchedTravelerCount;
   const countEl = document.getElementById('selectedCount');
   if (countEl) countEl.textContent = selectedIds.size + ' selected';
   document.getElementById('summaryCount').textContent = count;
@@ -711,16 +552,13 @@ function updateSummary() {
   if (scopeManualOverride) {
     isMultiCollege = scopeManualOverride === 'CAMPUS';
   } else {
-    const colleges       = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
-    const creatorCollege = '{{ user.college.name|default:"" }}';
-    if (creatorCollege && !isEmployee === false) colleges.add(creatorCollege);
+    const colleges = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
     isMultiCollege = colleges.size > 1;
   }
 
   const scopeEl   = document.getElementById('scopeIndicator');
   const summScope = document.getElementById('summaryScope');
   const hintEl    = document.getElementById('scopeHint');
-
   if (isMultiCollege) {
     const style = 'background:#f3e8ff;color:#6b21a8';
     if (scopeEl)   { scopeEl.setAttribute('style', style);   scopeEl.innerHTML   = '<i class="bi bi-diagram-3"></i> Campus scope'; }
@@ -735,17 +573,11 @@ function updateSummary() {
 }
 
 const extraTravelers = [];
-
 function addExtraTraveler() {
   const input = document.getElementById('extraTravelerInput');
   const name  = input.value.trim();
   if (!name) return;
-
-  if (extraTravelers.includes(name.toLowerCase())) {
-    input.value = '';
-    return;
-  }
-
+  if (extraTravelers.includes(name.toLowerCase())) { input.value = ''; return; }
   extraTravelers.push(name.toLowerCase());
   input.value = '';
 
@@ -756,80 +588,24 @@ function addExtraTraveler() {
   fetch("{% url 'travel_app:lookup_traveler_ajax' %}", { method: 'POST', body: formData })
     .then(r => r.json())
     .then(data => {
-      const list      = document.getElementById('extraTravelersList');
-      const tag       = document.createElement('div');
+      const list = document.getElementById('extraTravelersList');
+      const tag  = document.createElement('div');
       const nameLower = name.toLowerCase();
-
       if (data.found) {
         tag.className = 'traveler-tag matched';
-        tag.innerHTML = `
-          <i class="bi bi-person-check-fill" style="font-size:13px"></i>
-          <span>${data.name}</span>
-          ${data.college ? `<span style="font-size:11px;opacity:.7">· ${data.college}</span>` : ''}
-          <span onclick="removeExtraTraveler(this, '${nameLower}')"
-                style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
-        `;
-
+        tag.innerHTML = `<i class="bi bi-person-check-fill" style="font-size:13px"></i><span>${data.name}</span>${data.college ? `<span style="font-size:11px;opacity:.7">· ${data.college}</span>` : ''}<span onclick="removeExtraTraveler(this,'${nameLower}')" style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>`;
         const hidden = document.createElement('input');
-        hidden.type         = 'hidden';
-        hidden.name         = 'matched_travelers';
-        hidden.value        = data.id;
-        hidden.dataset.name = nameLower;
+        hidden.type = 'hidden'; hidden.name = 'matched_travelers'; hidden.value = data.id; hidden.dataset.name = nameLower;
         document.getElementById('allTravelerNamesInputs').appendChild(hidden);
-
       } else {
         tag.className = 'traveler-tag unmatched';
-        tag.innerHTML = `
-          <i class="bi bi-person-plus-fill" style="font-size:13px"></i>
-          <span>${name}</span>
-          <span style="font-size:11px;opacity:.7">· not in system</span>
-          <span onclick="removeExtraTraveler(this, '${nameLower}')"
-                style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
-        `;
-
+        tag.innerHTML = `<i class="bi bi-person-plus-fill" style="font-size:13px"></i><span>${name}</span><span style="font-size:11px;opacity:.7">· not in system</span><span onclick="removeExtraTraveler(this,'${nameLower}')" style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>`;
         const hidden = document.createElement('input');
-        hidden.type         = 'hidden';
-        hidden.name         = 'extra_travelers';
-        hidden.value        = name;
-        hidden.dataset.name = nameLower;
+        hidden.type = 'hidden'; hidden.name = 'unregistered_travelers'; hidden.value = name; hidden.dataset.name = nameLower;
         document.getElementById('allTravelerNamesInputs').appendChild(hidden);
-
-        const unregHidden = document.createElement('input');
-        unregHidden.type         = 'hidden';
-        unregHidden.name         = 'unregistered_travelers';
-        unregHidden.value        = name;
-        unregHidden.dataset.name = nameLower + '_unreg';
-        document.getElementById('allTravelerNamesInputs').appendChild(unregHidden);
       }
-
       tag.dataset.name = nameLower;
       list.appendChild(tag);
-
-      const countEl = document.getElementById('summaryCount');
-      countEl.textContent = parseInt(countEl.textContent || 0) + 1;
-    })
-    .catch(() => {
-      const list      = document.getElementById('extraTravelersList');
-      const tag       = document.createElement('div');
-      const nameLower = name.toLowerCase();
-      tag.className    = 'traveler-tag unmatched';
-      tag.dataset.name = nameLower;
-      tag.innerHTML    = `
-        <i class="bi bi-person-plus-fill" style="font-size:13px"></i>
-        <span>${name}</span>
-        <span style="font-size:11px;opacity:.7">· not in system</span>
-        <span onclick="removeExtraTraveler(this, '${nameLower}')"
-              style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>
-      `;
-      list.appendChild(tag);
-
-      const hidden = document.createElement('input');
-      hidden.type         = 'hidden';
-      hidden.name         = 'extra_travelers';
-      hidden.value        = name;
-      hidden.dataset.name = nameLower;
-      document.getElementById('allTravelerNamesInputs').appendChild(hidden);
-
       const countEl = document.getElementById('summaryCount');
       countEl.textContent = parseInt(countEl.textContent || 0) + 1;
     });

@@ -1057,6 +1057,7 @@ def manage_budget_sources(request):
                         fiscal_year=fiscal_year,
                         budget_amount=budget_amount,
                         description=description,
+                        college=user.college if user.role == 'DEPT_SEC' else None,
                     )
                     from django.contrib import messages
                     messages.success(request, f'Budget source "{budget_name}" created for FY {fiscal_year}.')
