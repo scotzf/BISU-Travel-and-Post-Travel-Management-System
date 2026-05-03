@@ -116,6 +116,46 @@ def dept_secretary_dashboard(request, user=None):
     untagged          = college_travels.filter(budget_source__isnull=True)
     budget_sources    = get_sources_for_secretary(user, year=year)
     total_budget_used = sum(item.get('used', 0) for item in budget_sources)
+    from django.db.models import Count
+    from django.db.models.functions import TruncMonth
+    
+    travels_year = college_travels.filter(start_date__year=year)
+    total_travelers_year = TravelParticipant.objects.filter(
+        travel_record__in=travels_year
+    ).values('user').distinct().count()
+    out_of_province = travels_year.filter(is_out_of_province=True).count()
+    
+    # Scope data
+    scope_college = travels_year.filter(scope='COLLEGE').count()
+    scope_campus  = travels_year.filter(scope='CAMPUS').count()
+    
+    # Monthly data
+    monthly_raw = (
+        travels_year
+        .annotate(month=TruncMonth('start_date'))
+        .values('month')
+        .annotate(count=Count('id'))
+        .order_by('month')
+    )
+    monthly_counts = {i: 0 for i in range(1, 13)}
+    for row in monthly_raw:
+        monthly_counts[row['month'].month] = row['count']
+    monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    monthly_data   = [monthly_counts[i] for i in range(1, 13)]
+    
+    # Top destinations
+    top_destinations = (
+        travels_year
+        .values('destination')
+        .annotate(count=Count('id'))
+        .order_by('-count')[:5]
+    )
+    # Normalize budget sources for template
+    for src in budget_sources:
+        allocated = float(src.get('allocated', 0))
+        used = float(src.get('used', 0))
+        src['percent'] = round((used / allocated * 100), 1) if allocated > 0 else 0
+        src['total'] = allocated
 
     context = {
         'user':              user,
@@ -128,6 +168,14 @@ def dept_secretary_dashboard(request, user=None):
         'total_travelers':   sum(t.participant_count for t in college_travels),
         'total_budget_used': total_budget_used,
         'budget_sources':    budget_sources,
+        'total_travels_year':    travels_year.count(),
+        'total_travelers_year':  total_travelers_year,
+        'out_of_province':       out_of_province,
+        'scope_college':         scope_college,
+        'scope_campus':          scope_campus,
+        'monthly_labels':        monthly_labels,
+        'monthly_data':          monthly_data,
+        'top_destinations':      top_destinations,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -149,6 +197,46 @@ def campus_secretary_dashboard(request, user=None):
     untagged          = campus_travels.filter(budget_source__isnull=True)
     budget_sources    = get_sources_for_secretary(user, year=year)
     total_budget_used = sum(item.get('used', 0) for item in budget_sources)
+    from django.db.models import Count
+    from django.db.models.functions import TruncMonth
+    
+    travels_year = campus_travels.filter(start_date__year=year)
+    total_travelers_year = TravelParticipant.objects.filter(
+        travel_record__in=travels_year
+    ).values('user').distinct().count()
+    out_of_province = travels_year.filter(is_out_of_province=True).count()
+    
+    # Scope data
+    scope_college = travels_year.filter(scope='COLLEGE').count()
+    scope_campus  = travels_year.filter(scope='CAMPUS').count()
+    
+    # Monthly data
+    monthly_raw = (
+        travels_year
+        .annotate(month=TruncMonth('start_date'))
+        .values('month')
+        .annotate(count=Count('id'))
+        .order_by('month')
+    )
+    monthly_counts = {i: 0 for i in range(1, 13)}
+    for row in monthly_raw:
+        monthly_counts[row['month'].month] = row['count']
+    monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    monthly_data   = [monthly_counts[i] for i in range(1, 13)]
+    
+    # Top destinations
+    top_destinations = (
+        travels_year
+        .values('destination')
+        .annotate(count=Count('id'))
+        .order_by('-count')[:5]
+    )
+    # Normalize budget sources for template
+    for src in budget_sources:
+        allocated = float(src.get('allocated', 0))
+        used = float(src.get('used', 0))
+        src['percent'] = round((used / allocated * 100), 1) if allocated > 0 else 0
+        src['total'] = allocated
 
     context = {
         'user':              user,
@@ -161,6 +249,14 @@ def campus_secretary_dashboard(request, user=None):
         'total_travelers':   sum(t.participant_count for t in campus_travels),
         'total_budget_used': total_budget_used,
         'budget_sources':    budget_sources,
+        'total_travels_year':    travels_year.count(),
+        'total_travelers_year':  total_travelers_year,
+        'out_of_province':       out_of_province,
+        'scope_college':         scope_college,
+        'scope_campus':          scope_campus,
+        'monthly_labels':        monthly_labels,
+        'monthly_data':          monthly_data,
+        'top_destinations':      top_destinations,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
