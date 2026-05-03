@@ -5,6 +5,11 @@
 
   <p style="font-size:22px;font-weight:500;margin:0 0 24px">Dashboard</p>
 
+  <!-- Hidden budget names for JS -->
+  {% for src in budget_sources %}
+  <span class="budget-name" style="display:none">{{ src.name }}</span>
+  {% endfor %}
+
   <!-- Summary Cards -->
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px">
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1rem">
@@ -19,11 +24,10 @@
     </div>
     <!-- Budget ticker card -->
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1rem;min-height:90px">
-      <p style="font-size:13px;color:var(--text-muted);margin:0 0 6px" id="budgetLabel">Budget Used</p>
+      <p style="font-size:13px;color:var(--text-muted);margin:0 0 6px" id="budgetLabel">—</p>
       <div id="budgetTicker">
         {% for src in budget_sources %}
         <div class="budget-slide" style="display:none">
-          <span class="budget-name" style="display:none">{{ src.name }}</span>
           <p style="font-size:18px;font-weight:500;margin:0">{{ src.percent|floatformat:0 }}%</p>
           <p style="font-size:11px;color:var(--text-muted);margin:2px 0 0">₱{{ src.used|floatformat:0 }} / ₱{{ src.allocated|floatformat:0 }}</p>
         </div>
@@ -37,12 +41,10 @@
 
   <!-- Charts Row -->
   <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px;margin-bottom:24px">
-    <!-- Monthly Volume -->
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
       <p style="font-size:14px;font-weight:500;margin:0 0 1rem">Monthly travel volume — {{ current_year }}</p>
       <canvas id="monthlyChart" height="100"></canvas>
     </div>
-    <!-- Scope Donut -->
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
       <p style="font-size:14px;font-weight:500;margin:0 0 1rem">Travel by scope</p>
       <canvas id="scopeChart" height="160"></canvas>
@@ -63,7 +65,6 @@
 
   <!-- Bottom Row -->
   <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px">
-    <!-- Top Destinations -->
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
       <p style="font-size:14px;font-weight:500;margin:0 0 1rem">Top destinations</p>
       {% for d in top_destinations %}
@@ -81,7 +82,6 @@
       {% endfor %}
     </div>
 
-    <!-- Budget Sources -->
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
       <p style="font-size:14px;font-weight:500;margin:0 0 1rem">Budget sources</p>
       {% for src in budget_sources %}
@@ -110,10 +110,7 @@ new Chart(document.getElementById('monthlyChart'), {
     labels: {{ monthly_labels|safe }},
     datasets: [{ data: {{ monthly_data|safe }}, backgroundColor: '#7F77DD', borderRadius: 4 }]
   },
-  options: {
-    plugins: { legend: { display: false } },
-    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-  }
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
 });
 
 new Chart(document.getElementById('scopeChart'), {
@@ -133,7 +130,7 @@ if (slides.length > 0) {
   let current = 0;
   slides[0].style.display = 'block';
   if (budgetLabel && budgetNames[0]) {
-    budgetLabel.textContent = budgetNames[0].textContent;
+    budgetLabel.textContent = budgetNames[0].textContent.trim();
   }
   if (slides.length > 1) {
     setInterval(() => {
@@ -141,7 +138,7 @@ if (slides.length > 0) {
       current = (current + 1) % slides.length;
       slides[current].style.display = 'block';
       if (budgetLabel && budgetNames[current]) {
-        budgetLabel.textContent = budgetNames[current].textContent;
+        budgetLabel.textContent = budgetNames[current].textContent.trim();
       }
     }, 5000);
   }

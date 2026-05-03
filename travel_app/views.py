@@ -154,8 +154,9 @@ def dept_secretary_dashboard(request, user=None):
     for src in budget_sources:
         allocated = float(src.get('allocated', 0))
         used = float(src.get('used', 0))
-        src['percent'] = round((used / allocated * 100), 1) if allocated > 0 else 0
+        src['percent'] = src.get('percentage', 0)
         src['total'] = allocated
+        src['name'] = src['source'].budget_name
 
     context = {
         'user':              user,
@@ -235,8 +236,9 @@ def campus_secretary_dashboard(request, user=None):
     for src in budget_sources:
         allocated = float(src.get('allocated', 0))
         used = float(src.get('used', 0))
-        src['percent'] = round((used / allocated * 100), 1) if allocated > 0 else 0
+        src['percent'] = src.get('percentage', 0)
         src['total'] = allocated
+        src['name'] = src['source'].budget_name
 
     context = {
         'user':              user,
