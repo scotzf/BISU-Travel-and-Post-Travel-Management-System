@@ -437,7 +437,22 @@ textarea.form-control { resize:vertical; min-height:90px; }
                 <span>Budget source will be assigned by the secretary after creation.</span>
               </div>
             </div>
-
+          {% if overlap_warnings %}
+          {% for pid in post.participants %}<input type="hidden" name="participants" value="{{ pid }}">{% endfor %}
+          {% for pid in post.matched_travelers %}<input type="hidden" name="matched_travelers" value="{{ pid }}">{% endfor %}
+          <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:16px;margin-bottom:16px">
+            <strong><i class="bi bi-exclamation-triangle-fill"></i> Overlapping travel detected</strong>
+            <ul style="margin:8px 0 12px 16px">
+              {% for w in overlap_warnings %}
+              <li>{{ w.name }} already has travel to <strong>{{ w.destination }}</strong> on {{ w.start_date }}</li>
+              {% endfor %}
+            </ul>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" name="overlap_confirmed" value="yes">
+              I understand and want to proceed anyway
+            </label>
+          </div>
+          {% endif %}
             <button type="submit" class="btn-primary-custom"
                     style="width:100%;margin-top:16px;justify-content:center">
               <i class="bi bi-plus-lg"></i> Create Travel Record

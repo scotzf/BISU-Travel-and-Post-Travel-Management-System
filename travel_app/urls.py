@@ -40,6 +40,10 @@ urlpatterns = [
     path('budget/',                 views.budget_overview,            name='budget_overview'),
     path('liquidation/',            views.liquidation_calculator,     name='liquidation_calculator'),
 
+    path('reports/',                  views.reports_view,               name='reports'),
+    path('reports/budget-pdf/',         views.generate_budget_report,   name='generate_budget_report'),
+    path('reports/travel-records-pdf/',  views.generate_travel_records,  name='generate_travel_records'),
+    path('reports/budget/',              views.budget_report_view,          name='budget_report'),
     # ── Reports ───────────────────────────────────────────────────────
 
 

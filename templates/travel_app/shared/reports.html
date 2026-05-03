@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div style="padding:24px;max-width:1200px;margin:0 auto">
+  <h1 style="font-size:22px;font-weight:700;margin-bottom:24px">Reports</h1>
+
+  {% if user.role == 'EMPLOYEE' %}
+  <!-- ── EMPLOYEE VIEW ── -->
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:24px">
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label style="font-size:12px;color:var(--text-muted)">Start Date</label>
+      <input type="date" name="start_date" value="{{ request.GET.start_date }}"
+        style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label style="font-size:12px;color:var(--text-muted)">End Date</label>
+      <input type="date" name="end_date" value="{{ request.GET.end_date }}"
+        style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding-bottom:2px">
+      <input type="checkbox" name="show_amounts" value="yes" {% if request.GET.show_amounts %}checked{% endif %}>
+      Include amounts
+    </label>
+    <button type="submit" style="padding:8px 16px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">
+      <i class="bi bi-search"></i> Filter
+    </button>
+  </form>
+
+  <!-- Employee travel table -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px">
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:var(--role-color);color:white">
+          <th style="padding:10px 12px;text-align:left;font-size:13px">No.</th>
+          <th style="padding:10px 12px;text-align:left;font-size:13px">Purpose / Title</th>
+          <th style="padding:10px 12px;text-align:left;font-size:13px">Date of Travel</th>
+          <th style="padding:10px 12px;text-align:left;font-size:13px">Destination</th>
+          {% if request.GET.show_amounts %}
+          <th style="padding:10px 12px;text-align:right;font-size:13px">Amount (₱)</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in employee_travels %}
+        <tr style="border-bottom:1px solid var(--border);{% cycle '' 'background:var(--hover);' %}">
+          <td style="padding:10px 12px;font-size:13px">{{ forloop.counter }}</td>
+          <td style="padding:10px 12px;font-size:13px">{{ row.purpose|truncatechars:60 }}</td>
+          <td style="padding:10px 12px;font-size:13px">{{ row.start_date }}{% if row.end_date %} – {{ row.end_date }}{% endif %}</td>
+          <td style="padding:10px 12px;font-size:13px">{{ row.destination }}</td>
+          {% if request.GET.show_amounts %}
+          <td style="padding:10px 12px;font-size:13px;text-align:right">{{ row.amount_deducted|default:"0.00" }}</td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">No travels found</td></tr>
+        {% endfor %}
+        {% if request.GET.show_amounts and employee_total %}
+        <tr style="font-weight:700;border-top:2px solid var(--role-color)">
+          <td colspan="4" style="padding:10px 12px;text-align:right;font-size:13px">Total Spent</td>
+          <td style="padding:10px 12px;text-align:right;font-size:13px">₱{{ employee_total|floatformat:2 }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="get" action="{% url 'travel_app:generate_travel_records' %}">
+    <input type="hidden" name="start_date" value="{{ request.GET.start_date }}">
+    <input type="hidden" name="end_date" value="{{ request.GET.end_date }}">
+    {% if request.GET.show_amounts %}<input type="hidden" name="show_amounts" value="yes">{% endif %}
+    <button type="submit" style="padding:10px 24px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">
+      <i class="bi bi-file-earmark-pdf"></i> Generate PDF
+    </button>
+  </form>
+
+  {% else %}
+  <!-- ── SECRETARY / ADMIN VIEW ── -->
+
+  <!-- Travel Records Section -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:32px">
+    <h2 style="font-size:16px;font-weight:700;margin:0 0 16px"><i class="bi bi-file-earmark-text"></i> Travel Records</h2>
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:20px">
+      <input type="hidden" name="section" value="records">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">Faculty</label>
+        <select name="faculty" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+          <option value="all">All Faculty</option>
+          {% for f in available_faculty %}
+          <option value="{{ f.id }}" {% if request.GET.faculty == f.id|stringformat:"s" %}selected{% endif %}>{{ f.get_full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">Start Date</label>
+        <input type="date" name="rec_start" value="{{ request.GET.rec_start }}"
+          style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">End Date</label>
+        <input type="date" name="rec_end" value="{{ request.GET.rec_end }}"
+          style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+      </div>
+      <button type="submit" style="padding:8px 16px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">
+        <i class="bi bi-search"></i> Filter
+      </button>
+    </form>
+
+    {% for faculty_block in records_by_faculty %}
+    <div style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:var(--role-color)">Faculty: {{ faculty_block.name }}</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <thead>
+          <tr style="background:var(--role-color);color:white">
+            <th style="padding:8px 12px;text-align:left;font-size:12px">No.</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px">Purpose / Title</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px">Date of Travel</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px">Destination</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in faculty_block.travels %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px;font-size:12px">{{ forloop.counter }}</td>
+            <td style="padding:8px 12px;font-size:12px">{{ row.purpose|truncatechars:60 }}</td>
+            <td style="padding:8px 12px;font-size:12px">{{ row.start_date }}{% if row.end_date %} – {{ row.end_date }}{% endif %}</td>
+            <td style="padding:8px 12px;font-size:12px">{{ row.destination }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">No travels</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% empty %}
+    <p style="color:var(--text-muted)">No travel records found.</p>
+    {% endfor %}
+
+    <form method="get" action="{% url 'travel_app:generate_travel_records' %}" style="margin-top:16px">
+      <input type="hidden" name="faculty" value="{{ request.GET.faculty|default:'all' }}">
+      <input type="hidden" name="start_date" value="{{ request.GET.rec_start }}">
+      <input type="hidden" name="end_date" value="{{ request.GET.rec_end }}">
+      <button type="submit" style="padding:10px 24px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">
+        <i class="bi bi-file-earmark-pdf"></i> Generate PDF
+      </button>
+    </form>
+  </div>
+
+  <!-- Budget Report Section -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:32px">
+    <h2 style="font-size:16px;font-weight:700;margin:0 0 16px"><i class="bi bi-wallet2"></i> Budget Report</h2>
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:20px">
+      <input type="hidden" name="section" value="budget">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">Budget Source</label>
+        <select name="budget_source" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+          <option value="all">All Sources</option>
+          {% for src in available_sources %}
+          <option value="{{ src.id }}" {% if request.GET.budget_source == src.id|stringformat:"s" %}selected{% endif %}>{{ src.budget_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">Month</label>
+        <select name="month" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+          {% for m in months %}
+          <option value="{{ m.num }}" {% if request.GET.month == m.num|stringformat:"s" or not request.GET.month and m.num == current_month %}selected{% endif %}>{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">Year</label>
+        <select name="year" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+          {% for y in available_years %}
+          <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" style="padding:8px 16px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">
+        <i class="bi bi-search"></i> Filter
+      </button>
+    </form>
+
+    {% for src_block in budget_blocks %}
+    <div style="margin-bottom:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-weight:700;font-size:13px;color:var(--role-color)">{{ src_block.name }}</span>
+        <span style="font-size:12px;color:var(--text-muted)">Budget: ₱{{ src_block.budget|floatformat:2 }}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <thead>
+          <tr style="background:var(--role-color);color:white">
+            <th style="padding:8px 12px;text-align:left;font-size:12px">No.</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px">Name of Traveler</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px">Date of Travel</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px">Destination</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px">Purpose / Title</th>
+            <th style="padding:8px 12px;text-align:right;font-size:12px">Amount Used (₱)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in src_block.rows %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px;font-size:12px">{{ forloop.counter }}</td>
+            <td style="padding:8px 12px;font-size:12px">{{ row.name }}</td>
+            <td style="padding:8px 12px;font-size:12px">{{ row.dates }}</td>
+            <td style="padding:8px 12px;font-size:12px">{{ row.destination }}</td>
+            <td style="padding:8px 12px;font-size:12px">{{ row.purpose }}</td>
+            <td style="padding:8px 12px;font-size:12px;text-align:right">{{ row.amount }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">No records</td></tr>
+          {% endfor %}
+          <tr style="font-weight:700;border-top:2px solid var(--role-color)">
+            <td colspan="5" style="padding:8px 12px;text-align:right;font-size:12px">Total Used</td>
+            <td style="padding:8px 12px;text-align:right;font-size:12px">₱{{ src_block.total|floatformat:2 }}</td>
+          </tr>
+          <tr style="font-weight:700">
+            <td colspan="5" style="padding:8px 12px;text-align:right;font-size:12px">Remaining Balance</td>
+            <td style="padding:8px 12px;text-align:right;font-size:12px">₱{{ src_block.balance|floatformat:2 }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    {% empty %}
+    <p style="color:var(--text-muted)">No budget data found.</p>
+    {% endfor %}
+
+    <form method="get" action="{% url 'travel_app:generate_budget_report' %}" style="margin-top:16px">
+      <input type="hidden" name="budget_source" value="{{ request.GET.budget_source|default:'all' }}">
+      <input type="hidden" name="month" value="{{ request.GET.month|default:current_month }}">
+      <input type="hidden" name="year" value="{{ selected_year }}">
+      <button type="submit" style="padding:10px 24px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">
+        <i class="bi bi-file-earmark-pdf"></i> Generate PDF
+      </button>
+    </form>
+  </div>
+
+  <!-- Summary Cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Total Travels</div>
+      <div style="font-size:28px;font-weight:700">{{ total_travels }}</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">This Month</div>
+      <div style="font-size:28px;font-weight:700">{{ total_this_month }}</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Out of Province</div>
+      <div style="font-size:28px;font-weight:700">{{ out_of_province }}</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Untagged Budget</div>
+      <div style="font-size:28px;font-weight:700;color:{% if untagged_count %}#f59e0b{% else %}inherit{% endif %}">{{ untagged_count }}</div>
+    </div>
+  </div>
+
+  <!-- Monthly Chart -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
+    <h2 style="font-size:15px;font-weight:600;margin:0 0 16px">Monthly Travel Volume — {{ selected_year }}</h2>
+    <canvas id="monthlyChart" height="80"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+  new Chart(document.getElementById('monthlyChart'), {
+    type: 'bar',
+    data: {
+      labels: {{ monthly_labels|safe }},
+      datasets: [{ label: 'Travels', data: {{ monthly_data|safe }}, backgroundColor: 'rgba(99,102,241,0.7)', borderRadius: 6 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+  </script>
+  {% endif %}
+
+</div>
+{% endblock %}
