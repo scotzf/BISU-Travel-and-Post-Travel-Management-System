@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Budget Report{% endblock %}
+{% block content %}
+<div style="padding:24px;max-width:1200px;margin:0 auto">
+
+  <h1 style="font-size:22px;font-weight:700;margin-bottom:16px">Reports</h1>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:4px;margin-bottom:24px;border-bottom:2px solid var(--border)">
+    <a href="{% url 'travel_app:reports' %}" style="padding:10px 20px;font-weight:600;font-size:14px;text-decoration:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">
+      Travel Records
+    </a>
+    <a href="{% url 'travel_app:budget_report' %}" style="padding:10px 20px;font-weight:600;font-size:14px;text-decoration:none;color:var(--role-color);border-bottom:2px solid var(--role-color);margin-bottom:-2px">
+      Budget Report
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:24px">
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label style="font-size:12px;color:var(--text-muted)">Budget Source</label>
+      <select name="budget_source" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+        <option value="all">All Sources</option>
+        {% for src in available_sources %}
+        <option value="{{ src.id }}" {% if bud_source_id == src.id|stringformat:"s" %}selected{% endif %}>{{ src.budget_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label style="font-size:12px;color:var(--text-muted)">Month</label>
+      <select name="month" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+        {% for m in months %}
+        <option value="{{ m.num }}" {% if m.num == bud_month %}selected{% endif %}>{{ m.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label style="font-size:12px;color:var(--text-muted)">Year</label>
+      <select name="year" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+        {% for y in available_years %}
+        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" style="padding:8px 16px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">
+      <i class="bi bi-search"></i> Filter
+    </button>
+  </form>
+
+  <!-- Budget Blocks -->
+  {% for block in budget_blocks %}
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-weight:700;font-size:15px;color:var(--role-color)">{{ block.name }}</span>
+      <span style="font-size:13px;color:var(--text-muted)">Budget: ₱{{ block.budget|floatformat:2 }}</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:var(--role-color);color:white">
+          <th style="padding:8px 12px;text-align:left;font-size:12px">No.</th>
+          <th style="padding:8px 12px;text-align:left;font-size:12px">Name of Traveler</th>
+          <th style="padding:8px 12px;text-align:left;font-size:12px">Date of Travel</th>
+          <th style="padding:8px 12px;text-align:left;font-size:12px">Destination</th>
+          <th style="padding:8px 12px;text-align:left;font-size:12px">Purpose / Title</th>
+          <th style="padding:8px 12px;text-align:right;font-size:12px">Amount Used (₱)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in block.rows %}
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 12px;font-size:12px">{{ forloop.counter }}</td>
+          <td style="padding:8px 12px;font-size:12px">{{ row.name }}</td>
+          <td style="padding:8px 12px;font-size:12px">{{ row.dates }}</td>
+          <td style="padding:8px 12px;font-size:12px">{{ row.destination }}</td>
+          <td style="padding:8px 12px;font-size:12px">{{ row.purpose }}</td>
+          <td style="padding:8px 12px;font-size:12px;text-align:right">{{ row.amount }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">No records for this period</td></tr>
+        {% endfor %}
+        {% if block.rows %}
+        <tr style="font-weight:700;border-top:2px solid var(--role-color)">
+          <td colspan="5" style="padding:8px 12px;text-align:right;font-size:12px">Total Used</td>
+          <td style="padding:8px 12px;text-align:right;font-size:12px">₱{{ block.total|floatformat:2 }}</td>
+        </tr>
+        <tr style="font-weight:700">
+          <td colspan="5" style="padding:8px 12px;text-align:right;font-size:12px">Remaining Balance</td>
+          <td style="padding:8px 12px;text-align:right;font-size:12px">₱{{ block.balance|floatformat:2 }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if block.paginator.num_pages > 1 %}
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+      {% for i in block.paginator.page_range %}
+      <a href="?budget_source={{ bud_source_id }}&month={{ bud_month }}&year={{ selected_year }}&page={{ i }}"
+         style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);text-decoration:none;font-size:12px;
+         background:{% if block.rows.number == i %}var(--role-color){% else %}var(--card){% endif %};
+         color:{% if block.rows.number == i %}white{% else %}var(--text){% endif %}">
+        {{ i }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;color:var(--text-muted)">
+    No budget data found for this period.
+  </div>
+  {% endfor %}
+
+  <!-- Generate PDF -->
+  <form method="get" action="{% url 'travel_app:generate_budget_report' %}">
+    <input type="hidden" name="budget_source" value="{{ bud_source_id }}">
+    <input type="hidden" name="month" value="{{ bud_month }}">
+    <input type="hidden" name="year" value="{{ selected_year }}">
+    <button type="submit" style="padding:10px 24px;background:var(--role-color);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">
+      <i class="bi bi-file-earmark-pdf"></i> Generate PDF
+    </button>
+  </form>
+
+</div>
+{% endblock %}

@@ -1968,18 +1968,25 @@ def reports_view(request):
     months = [{'num': i+1, 'name': MONTH_NAMES[i]} for i in range(12)]
     current_month = today.month
 
-    # --- Employee travels ---
     employee_travels = []
     employee_total = 0
+    employee_paginator = None
     if user.role == 'EMPLOYEE':
         emp_qs = travels
         if request.GET.get('start_date'):
             emp_qs = emp_qs.filter(start_date__gte=request.GET.get('start_date'))
         if request.GET.get('end_date'):
             emp_qs = emp_qs.filter(start_date__lte=request.GET.get('end_date'))
-        employee_travels = emp_qs.order_by('start_date')
+        from django.core.paginator import Paginator
+        emp_ordered = emp_qs.order_by('start_date')
         if request.GET.get('show_amounts'):
-            employee_total = sum(float(t.amount_deducted or 0) for t in employee_travels)
+            employee_total = sum(float(t.amount_deducted or 0) for t in emp_ordered)
+        emp_paginator = Paginator(list(emp_ordered), 10)
+        try:
+            employee_travels = emp_paginator.page(request.GET.get('page', 1))
+        except Exception:
+            employee_travels = emp_paginator.page(1)
+        employee_paginator = emp_paginator
 
     # --- Records by faculty ---
     records_by_faculty = []
@@ -1996,9 +2003,17 @@ def reports_view(request):
             if rec_end:
                 fq = fq.filter(start_date__lte=rec_end)
             if fq.exists():
+                from django.core.paginator import Paginator
+                paged = Paginator(list(fq), 10)
+                try:
+                    page_obj = paged.page(request.GET.get(f'page_{f.id}', 1))
+                except Exception:
+                    page_obj = paged.page(1)
                 records_by_faculty.append({
-                    'name':    f.get_full_name(),
-                    'travels': fq,
+                    'name':      f.get_full_name(),
+                    'travels':   page_obj,
+                    'paginator': paged,
+                    'fid':       f.id,
                 })
 
     # --- Budget blocks ---
@@ -2060,6 +2075,7 @@ def reports_view(request):
         'employee_total':      employee_total,
         'records_by_faculty':  records_by_faculty,
         'budget_blocks':       budget_blocks,
+        'employee_paginator': employee_paginator,
     }
     return render(request, 'travel_app/shared/reports.html', context)
 
@@ -2437,3 +2453,109 @@ def generate_travel_records(request):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="travel_records.pdf"'
     return response
+
+# ══════════════════════════════════════════════════════════════════════
+# BUDGET REPORT VIEW
+# ══════════════════════════════════════════════════════════════════════
+@never_cache
+def budget_report_view(request):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+    if user.role == 'EMPLOYEE':
+        return redirect('travel_app:reports')
+
+    from django.db.models import Count
+    from django.core.paginator import Paginator
+
+    today = timezone.now().date()
+    year  = int(request.GET.get('year', today.year))
+    bud_month     = int(request.GET.get('month', today.month))
+    bud_source_id = request.GET.get('budget_source', 'all')
+    page_num      = request.GET.get('page', 1)
+
+    # Scope travels by role
+    if user.role == 'DEPT_SEC':
+        travels = TravelRecord.objects.filter(
+            participants__college_name=user.college.name if user.college else ''
+        ).distinct()
+    elif user.role == 'CAMPUS_SEC':
+        travels = TravelRecord.objects.filter(
+            participants__campus_name=user.campus.name if user.campus else ''
+        ).distinct()
+    else:
+        travels = TravelRecord.objects.all()
+
+    # Available sources
+    if user.role == 'DEPT_SEC':
+        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE')
+    elif user.role == 'CAMPUS_SEC':
+        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope__in=['COLLEGE','CAMPUS'])
+    else:
+        available_sources = BudgetSource.objects.filter(fiscal_year=year)
+
+    src_qs = available_sources
+    if bud_source_id != 'all':
+        src_qs = src_qs.filter(id=bud_source_id)
+
+    MONTH_NAMES = ['','January','February','March','April','May','June',
+                   'July','August','September','October','November','December']
+    months = [{'num': i+1, 'name': MONTH_NAMES[i+1]} for i in range(12)]
+
+    available_years = sorted(
+        TravelRecord.objects.dates('start_date', 'year', order='DESC')
+        .values_list('start_date__year', flat=True).distinct(),
+        reverse=True
+    ) or [today.year]
+
+    budget_blocks = []
+    for source in src_qs:
+        src_travels = travels.filter(
+            budget_source=source,
+            start_date__year=year,
+            start_date__month=bud_month,
+        )
+        rows = []
+        total = 0
+        for t in src_travels:
+            for p in t.participants.filter(user__isnull=False):
+                amount = float(t.amount_deducted or 0)
+                total += amount
+                rows.append({
+                    'name':        p.get_display_name(),
+                    'dates':       f"{t.start_date}" if not t.end_date else f"{t.start_date} – {t.end_date}",
+                    'destination': t.destination,
+                    'purpose':     t.purpose[:60],
+                    'amount':      f'{amount:,.2f}',
+                })
+
+        # Paginate rows
+        paginator = Paginator(rows, 10)
+        try:
+            page_rows = paginator.page(page_num)
+        except Exception:
+            page_rows = paginator.page(1)
+
+        budget_blocks.append({
+            'name':      source.budget_name,
+            'budget':    float(source.budget_amount),
+            'total':     total,
+            'balance':   float(source.budget_amount) - total,
+            'rows':      page_rows,
+            'paginator': paginator,
+            'source_id': source.id,
+        })
+
+    context = {
+        'user':              user,
+        'today':             today,
+        'selected_year':     year,
+        'available_years':   available_years,
+        'current_month':     today.month,
+        'months':            months,
+        'available_sources': available_sources,
+        'budget_blocks':     budget_blocks,
+        'bud_month':         bud_month,
+        'bud_source_id':     bud_source_id,
+    }
+    return render(request, 'travel_app/shared/budget_report.html', context)
