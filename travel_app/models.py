@@ -51,7 +51,7 @@ class BudgetSource(models.Model):
 
     class Meta:
         ordering = ['-fiscal_year', 'budget_name']
-        unique_together = [['budget_name', 'fiscal_year', 'budget_scope']]
+        unique_together = [['budget_name', 'fiscal_year', 'budget_scope', 'college']]
         verbose_name = 'Budget Source'
         verbose_name_plural = 'Budget Sources'
 

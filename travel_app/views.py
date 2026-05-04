@@ -1008,7 +1008,140 @@ def my_travels(request, user=None):
     return redirect('travel_app:all_travels')
 
 
+# ══════════════════════════════════════════════════════════════════════
+# BUDGET (MERGED VIEW)
+# ══════════════════════════════════════════════════════════════════════
+@never_cache
+def budget_view(request):
+    user = get_authenticated_user(request)
+    if not user:
+        return redirect('accounts:login')
+    if user.role not in ['ADMIN', 'DEPT_SEC', 'CAMPUS_SEC']:
+        from django.contrib import messages
+        messages.error(request, 'Access denied.')
+        return redirect('accounts:dashboard')
 
+    from accounts.models import College
+    today = timezone.now().date()
+    year  = int(request.GET.get('year', today.year))
+    fiscal_year_choices = [today.year, today.year + 1]
+
+    if request.method == 'POST' and user.role != 'ADMIN':
+        action = request.POST.get('action')
+
+        if action == 'create':
+            budget_name   = request.POST.get('name', '').strip()
+            budget_scope  = 'CAMPUS' if user.role == 'CAMPUS_SEC' else 'COLLEGE'
+            budget_amount = request.POST.get('budget_amount', 0) or 0
+            description   = request.POST.get('description', '').strip()
+            fiscal_year   = int(request.POST.get('year', today.year))
+            if not budget_name:
+                from django.contrib import messages
+                messages.error(request, 'Budget name is required.')
+            elif fiscal_year not in fiscal_year_choices:
+                from django.contrib import messages
+                messages.error(request, 'Invalid fiscal year selected.')
+            else:
+                try:
+                    BudgetSource.objects.create(
+                        budget_name=budget_name,
+                        budget_scope=budget_scope,
+                        fiscal_year=fiscal_year,
+                        budget_amount=budget_amount,
+                        description=description,
+                        college=user.college if user.role == 'DEPT_SEC' else None,
+                    )
+                    from django.contrib import messages
+                    messages.success(request, f'Budget source "{budget_name}" created for FY {fiscal_year}.')
+                except Exception as e:
+                    from django.contrib import messages
+                    messages.error(request, f'Error: {str(e)}')
+
+        elif action == 'toggle':
+            source_id = request.POST.get('source_id')
+            try:
+                source = BudgetSource.objects.get(id=source_id)
+                source.is_active = not source.is_active
+                source.save(update_fields=['is_active'])
+                from django.contrib import messages
+                status = 'activated' if source.is_active else 'deactivated'
+                messages.success(request, f'"{source.budget_name}" {status}.')
+            except BudgetSource.DoesNotExist:
+                from django.contrib import messages
+                messages.error(request, 'Budget source not found.')
+
+        elif action == 'delete':
+            source_id = request.POST.get('source_id')
+            try:
+                source = BudgetSource.objects.get(id=source_id)
+                if source.travel_records.exists():
+                    from django.contrib import messages
+                    messages.error(request, f'Cannot delete "{source.budget_name}" — travels are using it.')
+                else:
+                    name = source.budget_name
+                    source.delete()
+                    from django.contrib import messages
+                    messages.success(request, f'"{name}" deleted.')
+            except BudgetSource.DoesNotExist:
+                from django.contrib import messages
+                messages.error(request, 'Budget source not found.')
+
+        return redirect(f"{request.path}?year={year}")
+
+    # Build source list
+    if user.role == 'ADMIN':
+        sources = BudgetSource.objects.filter(fiscal_year=year).order_by('budget_scope', 'budget_name')
+    elif user.role == 'DEPT_SEC':
+        sources = BudgetSource.objects.filter(
+            fiscal_year=year, budget_scope='COLLEGE', college=user.college
+        ).order_by('budget_name')
+    else:
+        sources = BudgetSource.objects.filter(
+            fiscal_year=year, budget_scope='CAMPUS'
+        ).order_by('budget_name')
+
+    overview = []
+    for source in sources:
+        if user.role == 'ADMIN':
+            usages = BudgetUsage.objects.filter(budget_source=source, year=year).select_related('user__college', 'user__campus')
+            rows = [{
+                'label':      u.user.college.name if u.user.college else (u.user.campus.name if u.user.campus else 'Unknown'),
+                'user':       u.user.get_full_name(),
+                'allocated':  u.allocated_amount,
+                'used':       u.used_amount,
+                'remaining':  u.remaining_amount,
+                'percentage': u.usage_percentage,
+                'status':     u.status,
+            } for u in usages]
+        else:
+            usages = BudgetUsage.objects.filter(budget_source=source, year=year)
+            rows = []
+
+        total_used   = sum(u.used_amount for u in usages)
+        total_alloc  = source.budget_amount
+        tagged_count = source.travel_records.count()
+        pct          = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
+        overview.append({
+            'source':          source,
+            'rows':            rows,
+            'total_allocated': total_alloc,
+            'total_used':      total_used,
+            'total_remaining': total_alloc - total_used,
+            'percentage':      pct,
+            'tagged_count':    tagged_count,
+            'status': 'exhausted' if pct >= 100 else 'critical' if pct >= 80 else 'warning' if pct >= 60 else 'healthy',
+        })
+
+    context = {
+        'user':                user,
+        'today':               today,
+        'current_year':        year,
+        'year_range':          range(today.year - 1, today.year + 3),
+        'fiscal_year_choices': fiscal_year_choices,
+        'overview':            overview,
+        'college_count':       College.objects.count(),
+    }
+    return render(request, 'travel_app/shared/budget.html', context)
 
 # ══════════════════════════════════════════════════════════════════════
 # MANAGE BUDGET SOURCES (Admin)

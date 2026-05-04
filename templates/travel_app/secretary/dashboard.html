@@ -13,18 +13,18 @@
   <!-- Summary Cards -->
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px">
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1rem">
-      <p style="font-size:13px;color:var(--text-muted);margin:0 0 6px">Total Travels</p>
+      <p style="font-size:13px;color:var(--text-primary);margin:0 0 6px">Total Travels</p>
       <p style="font-size:24px;font-weight:500;margin:0">{{ total_travels_year }}</p>
-      <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">This year</p>
+      <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0">This year</p>
     </div>
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1rem">
-      <p style="font-size:13px;color:var(--text-muted);margin:0 0 6px">Out of Province</p>
+      <p style="font-size:13px;color:var(--text-primary);margin:0 0 6px">Out of Province</p>
       <p style="font-size:24px;font-weight:500;margin:0">{{ out_of_province }}</p>
-      <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">This year</p>
+      <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0">This year</p>
     </div>
     <!-- Budget ticker card -->
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1rem;min-height:90px">
-      <p style="font-size:13px;color:var(--text-muted);margin:0 0 6px" id="budgetLabel">—</p>
+      <p style="font-size:13px;color:var(--text-primary);margin:0 0 6px" id="budgetLabel">—</p>
       <div id="budgetTicker">
         {% for src in budget_sources %}
         <div class="budget-slide" style="display:none">
@@ -33,7 +33,7 @@
         </div>
         {% empty %}
         <p style="font-size:18px;font-weight:500;margin:0">—</p>
-        <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">No budget sources</p>
+        <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0">No budget sources</p>
         {% endfor %}
       </div>
     </div>
@@ -50,7 +50,7 @@
       <canvas id="scopeChart" height="160"></canvas>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
         <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <div style="width:10px;height:10px;border-radius:50%;background:#7F77DD;flex-shrink:0"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--role-color);flex-shrink:0"></div>
           <span style="color:var(--text-muted)">College</span>
           <span style="margin-left:auto;font-weight:500">{{ scope_college }}</span>
         </div>
@@ -74,7 +74,7 @@
           <span style="color:var(--text-muted)">{{ d.count }}</span>
         </div>
         <div style="background:var(--border);border-radius:4px;height:6px">
-          <div style="background:#7F77DD;width:{% widthratio d.count top_destinations.0.count 100 %}%;height:6px;border-radius:4px"></div>
+          <div style="background:var(--role-color);width:{% widthratio d.count top_destinations.0.count 100 %}%;height:6px;border-radius:4px"></div>
         </div>
       </div>
       {% empty %}
@@ -108,7 +108,7 @@ new Chart(document.getElementById('monthlyChart'), {
   type: 'bar',
   data: {
     labels: {{ monthly_labels|safe }},
-    datasets: [{ data: {{ monthly_data|safe }}, backgroundColor: '#7F77DD', borderRadius: 4 }]
+    datasets: [{ data: {{ monthly_data|safe }}, backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--role-color').trim(), borderRadius: 4 }]
   },
   options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
 });
@@ -117,7 +117,7 @@ new Chart(document.getElementById('scopeChart'), {
   type: 'doughnut',
   data: {
     labels: ['College', 'Campus'],
-    datasets: [{ data: [{{ scope_college }}, {{ scope_campus }}], backgroundColor: ['#7F77DD', '#1D9E75'], borderWidth: 0 }]
+    datasets: [{ data: [{{ scope_college }}, {{ scope_campus }}], backgroundColor: [getComputedStyle(document.documentElement).getPropertyValue('--role-color').trim(), '#1D9E75'], borderWidth: 0 }]
   },
   options: { plugins: { legend: { display: false } }, cutout: '65%' }
 });

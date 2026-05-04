@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load travel_tags %}
+{% block title %}Budget — BISU Travel Hub{% endblock %}
+
+{% block extra_css %}
+:root {
+  --role-color: {% if user.role == 'ADMIN' %}#92400e{% elif user.role == 'CAMPUS_SEC' %}#6b21a8{% else %}#0f766e{% endif %};
+  --role-faint: {% if user.role == 'ADMIN' %}#fef3c7{% elif user.role == 'CAMPUS_SEC' %}#f3e8ff{% else %}#f0fdfa{% endif %};
+}
+.form-label { font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block; }
+.form-control,.form-select {
+  font-size:13.5px;border:1px solid var(--border);border-radius:var(--radius);
+  padding:9px 12px;color:var(--text-primary);background:var(--surface);width:100%;transition:border-color .15s;
+}
+.form-control:focus,.form-select:focus {
+  outline:none;border-color:var(--role-color);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--role-color) 12%,transparent);
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <div class="page-title">Budget</div>
+      <div class="page-subtitle">
+        Fiscal Year {{ current_year }}
+        {% if user.role == 'DEPT_SEC' %} — {{ user.college.name }}{% endif %}
+        {% if user.role == 'CAMPUS_SEC' %} — {{ user.campus.name }}{% endif %}
+      </div>
+    </div>
+    <form method="get" style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:12px;color:var(--text-muted)">Year</label>
+      <select name="year" onchange="this.form.submit()"
+              style="font-size:13px;padding:6px 10px;border:1px solid var(--border);
+                     border-radius:var(--radius);background:var(--surface);color:var(--text-primary)">
+        {% for y in year_range %}
+        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>FY {{ y }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  {% if user.role != 'ADMIN' %}
+  <!-- Create new budget source -->
+  <div class="col-lg-4">
+    <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
+      <div class="card-header-custom">
+        <div class="card-title"><i class="bi bi-plus-circle"></i> New Budget Source</div>
+      </div>
+      <div class="card-body-custom">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create"/>
+          <div style="margin-bottom:14px">
+            <label class="form-label">Budget Name *</label>
+            <input type="text" name="name" class="form-control" placeholder="e.g. MOOE Research Travel"/>
+          </div>
+          <div style="margin-bottom:14px">
+            <label class="form-label">Fiscal Year *</label>
+            <select name="year" class="form-select">
+              {% for y in fiscal_year_choices %}
+              <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>FY {{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <input type="hidden" name="scope" value="{% if user.role == 'CAMPUS_SEC' %}CAMPUS{% else %}COLLEGE{% endif %}"/>
+          <div style="margin-bottom:14px">
+            <label class="form-label">
+              {% if user.role == 'CAMPUS_SEC' %}Campus Pool Amount (₱) *
+              {% else %}Budget Amount for {{ user.college.name }} (₱) *{% endif %}
+            </label>
+            <input type="number" name="budget_amount" class="form-control" placeholder="e.g. 90000" min="0" step="1000"/>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              {% if user.role == 'CAMPUS_SEC' %}Total shared pool for campus-wide travel.
+              {% else %}Total budget allocated to your college for this fiscal year.{% endif %}
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <label class="form-label">Description <span style="color:var(--text-muted)">(optional)</span></label>
+            <textarea name="description" class="form-control" style="min-height:60px;resize:vertical"
+                      placeholder="What is this budget for?"></textarea>
+          </div>
+          <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center">
+            <i class="bi bi-plus-lg"></i> Create Budget Source
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Budget overview -->
+  <div class="{% if user.role != 'ADMIN' %}col-lg-8{% else %}col-lg-12{% endif %}">
+
+    {% if overview %}
+      {% for item in overview %}
+      <div class="card mb-3">
+        <div class="card-header-custom">
+          <div>
+            <div class="card-title" style="font-size:15px">
+              {{ item.source.budget_name }}
+              <span style="font-size:10px;color:var(--text-muted);background:var(--surface-2);
+                           padding:2px 7px;border-radius:10px;border:1px solid var(--border);margin-left:4px">
+                FY {{ item.source.fiscal_year }}
+              </span>
+              <span class="badge-status badge-{% if item.source.budget_scope == 'CAMPUS' %}campus{% else %}college{% endif %}"
+                    style="font-size:10px;margin-left:4px">
+                {{ item.source.get_budget_scope_display }}
+              </span>
+              {% if not item.source.is_active %}
+              <span class="badge-status" style="background:var(--surface-3);color:var(--text-muted);font-size:10px;margin-left:4px">
+                Inactive
+              </span>
+              {% endif %}
+            </div>
+            <div class="card-subtitle">
+              {% if item.source.description %}{{ item.source.description }} &nbsp;·&nbsp; {% endif %}
+              {% if item.source.budget_scope == 'COLLEGE' %}{{ item.source.budget_amount|peso }} allocated
+              {% else %}{{ item.source.budget_amount|peso }} campus pool{% endif %}
+              &nbsp;·&nbsp; {{ item.tagged_count }} travel{{ item.tagged_count|pluralize }} tagged
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="text-align:right">
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--text-primary);letter-spacing:-0.5px">
+                {{ item.percentage }}%
+              </div>
+              <div style="font-size:11px;color:var(--text-muted)">utilized</div>
+            </div>
+            {% if user.role != 'ADMIN' %}
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <form method="post" style="display:inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="toggle"/>
+                <input type="hidden" name="source_id" value="{{ item.source.id }}"/>
+                <button type="submit" class="btn-secondary-custom" style="padding:4px 10px;font-size:11px">
+                  {% if item.source.is_active %}<i class="bi bi-pause"></i> Deactivate
+                  {% else %}<i class="bi bi-play"></i> Activate{% endif %}
+                </button>
+              </form>
+              {% if item.tagged_count == 0 %}
+              <form method="post" style="display:inline"
+                    onsubmit="return confirm('Delete {{ item.source.budget_name }}?')">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete"/>
+                <input type="hidden" name="source_id" value="{{ item.source.id }}"/>
+                <button type="submit" class="btn-secondary-custom"
+                        style="padding:4px 10px;font-size:11px;color:#922b21;border-color:#f5b7b1">
+                  <i class="bi bi-trash"></i> Delete
+                </button>
+              </form>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="card-body-custom">
+          <div class="budget-bar-track" style="height:10px;margin-bottom:10px">
+            <div class="budget-bar-fill fill-{{ item.status }}"
+                 style="width:{% if item.percentage > 100 %}100{% else %}{{ item.percentage }}{% endif %}%">
+            </div>
+          </div>
+          <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:{% if item.rows %}16px{% else %}0{% endif %}">
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Allocated</div>
+              <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)">
+                {{ item.total_allocated|peso }}
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Used</div>
+              <div style="font-size:17px;font-weight:600;font-family:var(--font-display);
+                          color:{% if item.status == 'healthy' %}#1a5c38{% elif item.status == 'warning' %}#8a6400{% else %}#922b21{% endif %}">
+                {{ item.total_used|peso }}
+                {% if item.total_used == 0 and item.tagged_count > 0 %}
+                <span style="font-size:11px;color:var(--text-muted);font-weight:400;display:block;margin-top:2px">
+                  {{ item.tagged_count }} travel{{ item.tagged_count|pluralize }} tagged — pending doc confirmation
+                </span>
+                {% endif %}
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Remaining</div>
+              <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)">
+                {{ item.total_remaining|peso }}
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Tagged Travels</div>
+              <div style="font-size:17px;font-weight:600;font-family:var(--font-display);color:var(--role-color)">
+                {{ item.tagged_count }}
+              </div>
+            </div>
+          </div>
+
+          {% if item.rows %}
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+              Per-User Breakdown
+            </div>
+            {% for row in item.rows %}
+            <div class="budget-bar-wrap" style="padding:8px 0">
+              <div class="budget-bar-header">
+                <div>
+                  <span class="budget-bar-name" style="font-size:12.5px">{{ row.user }}</span>
+                  <span style="font-size:11px;color:var(--text-muted);margin-left:6px">{{ row.label }}</span>
+                </div>
+                <span class="budget-bar-amounts">{{ row.used|peso }} / {{ row.allocated|peso }}</span>
+              </div>
+              <div class="budget-bar-track" style="height:5px">
+                <div class="budget-bar-fill fill-{{ row.status }}"
+                     style="width:{% if row.percentage > 100 %}100{% else %}{{ row.percentage }}{% endif %}%">
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+    {% else %}
+      <div class="card">
+        <div class="empty-state">
+          <i class="bi bi-wallet2"></i>
+          <p>No budget sources configured for FY {{ current_year }}.</p>
+          {% if user.role != 'ADMIN' %}
+          <div style="font-size:12.5px;color:var(--text-muted)">Use the form on the left to create your first one.</div>
+          {% else %}
+          <div style="font-size:12.5px;color:var(--text-muted)">Secretaries create and manage budget sources for their college or campus.</div>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

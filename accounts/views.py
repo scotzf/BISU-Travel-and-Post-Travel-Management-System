@@ -283,6 +283,7 @@ def login(request):
                         request.session['username']   = user.username
                         request.session['email']      = user.email
                         request.session['role']       = user.role
+                        request.session['college_id']  = user.college.id if user.college else None
                         request.session['full_name']  = f"{user.first_name} {user.last_name}"
                         request.session['first_name'] = user.first_name
 

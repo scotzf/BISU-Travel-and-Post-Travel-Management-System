@@ -16,7 +16,7 @@
       <div class="page-title">University Overview</div>
       <div class="page-subtitle">BISU Travel Hub &mdash; {{ today|date:"F j, Y" }}</div>
     </div>
-    <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom">
+    <a href="{% url 'travel_app:budget' %}" class="btn-primary-custom">
       <i class="bi bi-wallet2"></i> Manage Budget
     </a>
   </div>
@@ -83,7 +83,7 @@
           <div class="card-title">Budget Sources — {{ current_year }}</div>
           <div class="card-subtitle">University-wide utilization</div>
         </div>
-        <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom" style="padding:6px 14px;font-size:12px">
+        <a href="{% url 'travel_app:budget' %}" class="btn-primary-custom" style="padding:6px 14px;font-size:12px">
           <i class="bi bi-gear"></i> Manage
         </a>
       </div>
@@ -110,7 +110,7 @@
         <div class="empty-state" style="padding:32px">
           <i class="bi bi-wallet2"></i>
           <p>No budget sources yet.</p>
-          <a href="{% url 'travel_app:manage_budget_sources' %}" class="btn-primary-custom">
+          <a href="{% url 'travel_app:budget' %}" class="btn-primary-custom">
             <i class="bi bi-plus-lg"></i> Add Budget Source
           </a>
         </div>

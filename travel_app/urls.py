@@ -17,7 +17,7 @@ urlpatterns = [
     path('admin-panel/',            views.admin_dashboard,            name='admin_dashboard'),
 
     # ── Budget sources (admin + secretaries) ──────────────────────────
-    path('budget/sources/',         views.manage_budget_sources,      name='manage_budget_sources'),
+    path('budget/',                 views.budget_view,                name='budget'),
 
     # ── Travel records ────────────────────────────────────────────────
     path('travels/',                views.all_travels,                name='all_travels'),
@@ -37,7 +37,6 @@ urlpatterns = [
     path('documents/<int:doc_id>/set-amount/', views.set_document_amount,  name='set_document_amount'),
 
     # ── Budget & overview ─────────────────────────────────────────────
-    path('budget/',                 views.budget_overview,            name='budget_overview'),
     path('liquidation/',            views.liquidation_calculator,     name='liquidation_calculator'),
 
     path('reports/',                  views.reports_view,               name='reports'),

@@ -650,6 +650,19 @@
     }
 
     {% block extra_css %}{% endblock %}
+  {% if request.session.college_id == 5 %}
+  :root { --role-color: #16a34a; --role-faint: #dcfce7; }
+  {% elif request.session.college_id == 2 %}
+  :root { --role-color: #7c3aed; --role-faint: #ede9fe; }
+  {% elif request.session.college_id == 3 %}
+  :root { --role-color: #0ea5e9; --role-faint: #e0f2fe; }
+  {% elif request.session.college_id == 4 %}
+  :root { --role-color: #ea580c; --role-faint: #ffedd5; }
+  {% elif request.session.college_id == 1 %}
+  :root { --role-color: #0f766e; --role-faint: #f0fdfa; }
+  {% elif request.session.role == 'CAMPUS_SEC' %}
+  :root { --role-color: #6366f1; --role-faint: #eef2ff; }
+  {% endif %}
   </style>
 </head>
 
