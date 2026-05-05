@@ -240,14 +240,45 @@
             <span style="color:var(--text-muted)">Out of province</span>
             <span>{% if travel.is_out_of_province %}Yes{% else %}No{% endif %}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
-            <span style="color:var(--text-muted)">Amount</span>
-            {% if travel.amount_deducted %}
-              <span style="font-weight:600;color:var(--text-primary)">{{ travel.amount_deducted|peso }}</span>
-            {% else %}
-              <span style="color:var(--text-muted);font-size:12px;font-style:italic">Not set</span>
+          <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+            {% for item in liquidation_summary %}
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
+              <span style="color:var(--text-muted)">Planned</span>
+              <span style="font-weight:500">{% if item.planned %}{{ item.planned|peso }}{% else %}—{% endif %}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
+              <span style="color:var(--text-muted)">Actual</span>
+              <span style="font-weight:500">{% if item.actual %}{{ item.actual|peso }}{% else %}<span style="color:var(--text-muted);font-style:italic">Pending</span>{% endif %}</span>
+            </div>
+            {% if item.planned and item.actual %}
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
+              <span style="color:var(--text-muted)">Difference</span>
+              {% if item.difference < 0 %}
+              <span style="background:#dcfce7;color:#166534;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600">↓ {{ item.difference_abs|peso }} returned</span>
+              {% elif item.difference > 0 %}
+              <span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600">↑ {{ item.difference_abs|peso }} extra</span>
+              {% else %}
+              <span style="background:#f3f4f6;color:#374151;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600">Matched</span>
+              {% endif %}
+            </div>
             {% endif %}
+            {% empty %}
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
+              <span style="color:var(--text-muted)">Amount</span>
+              {% if travel.amount_deducted %}
+              <span style="font-weight:600">{{ travel.amount_deducted|peso }}</span>
+              {% else %}
+              <span style="color:var(--text-muted);font-style:italic;font-size:12px">Not set</span>
+              {% endif %}
+            </div>
+            {% endfor %}
           </div>
+          {% if liquidation_summary %}
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <span style="color:var(--text-muted)">Status</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;background:#dcfce7;color:#166534;font-size:11px;font-weight:600"><i class="bi bi-check-circle-fill"></i> Liquidated</span>
+          </div>
+          {% endif %}
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span style="color:var(--text-muted)">Scope</span>
             <div style="display:flex;align-items:center;gap:6px">
@@ -304,39 +335,6 @@
       {% endfor %}
 
       {# ── Liquidation comparison table (shown when actual itinerary exists) ── #}
-      {% if travel.is_budget_tagged and liquidation_summary %}
-      <div style="padding:12px 16px;background:#faf5ff;border-top:2px solid #e9d5ff">
-        <div style="font-size:11px;font-weight:600;color:#6b21a8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:5px">
-          <i class="bi bi-lightning-charge-fill"></i> Liquidation Summary
-        </div>
-        {% for item in liquidation_summary %}
-        <div class="liquidation-compare-row">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:500;color:var(--text-primary);font-size:12px">{{ item.name }}</div>
-            <div style="font-size:10.5px;color:var(--text-muted);margin-top:1px">
-              Planned: {% if item.planned %}{{ item.planned|peso }}{% else %}—{% endif %}
-              &nbsp;·&nbsp;
-              Actual: {% if item.actual %}{{ item.actual|peso }}{% else %}—{% endif %}
-            </div>
-          </div>
-          {% if item.planned and item.actual %}
-            {% if item.difference < 0 %}
-              <span class="liquidation-badge-returned"><i class="bi bi-arrow-down-circle-fill"></i> {{ item.difference_abs|peso }} returned</span>
-            {% elif item.difference > 0 %}
-              <span class="liquidation-badge-deducted"><i class="bi bi-arrow-up-circle-fill"></i> {{ item.difference_abs|peso }} extra</span>
-            {% else %}
-              <span class="liquidation-badge-match"><i class="bi bi-check-circle-fill"></i> Matched</span>
-            {% endif %}
-          {% elif item.actual %}
-            <span style="font-size:11px;color:#6b21a8;font-style:italic">No planned amount</span>
-          {% else %}
-            <span style="font-size:11px;color:var(--text-muted);font-style:italic">Pending</span>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
-
       {% if participant_expense_summary and is_secretary or participant_expense_summary and is_admin %}
       <div style="padding:12px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
         <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
@@ -448,7 +446,7 @@
           </div>
           {% endfor %}
           <div style="display:flex;justify-content:space-between;padding-top:8px;font-size:13px;font-weight:600">
-            <span>Total Tagged</span><span style="color:var(--role-color)">{{ travel.amount_deducted|peso }}</span>
+            <span>Total</span><span style="color:var(--role-color)">{{ travel.amount_deducted|peso }}</span>
           </div>
         </div>
         {% endif %}

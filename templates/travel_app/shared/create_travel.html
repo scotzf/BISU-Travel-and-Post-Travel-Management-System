@@ -19,45 +19,20 @@
 textarea.form-control { resize:vertical; min-height:90px; }
 
 .upload-zone {
-  border: 2px dashed var(--border);
-  border-radius: 12px;
-  padding: 32px 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: all .2s;
-  background: var(--surface);
+  border: 2px dashed var(--border); border-radius: 12px; padding: 32px 24px;
+  text-align: center; cursor: pointer; transition: all .2s; background: var(--surface);
 }
-.upload-zone:hover, .upload-zone.dragover {
-  border-color: var(--role-color);
-  background: var(--role-faint);
-}
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--role-color); background: var(--role-faint); }
 .upload-zone.uploading { pointer-events: none; opacity: .7; }
-
-.extraction-bar {
-  height: 4px; background: var(--border); border-radius: 2px;
-  overflow: hidden; margin-top: 12px;
-}
-.extraction-bar-fill {
-  height: 100%; background: var(--role-color);
-  width: 0%; transition: width .4s; border-radius: 2px;
-}
-
-.extraction-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
-}
+.extraction-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 12px; }
+.extraction-bar-fill { height: 100%; background: var(--role-color); width: 0%; transition: width .4s; border-radius: 2px; }
+.extraction-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .extraction-badge.high   { background: #dcfce7; color: #166534; }
 .extraction-badge.medium { background: #fef9c3; color: #854d0e; }
 .extraction-badge.low    { background: #fee2e2; color: #991b1b; }
-
-.traveler-tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  border-radius: 20px; padding: 6px 12px;
-  font-size: 12.5px; font-weight: 500;
-}
+.traveler-tag { display: inline-flex; align-items: center; gap: 6px; border-radius: 20px; padding: 6px 12px; font-size: 12.5px; font-weight: 500; }
 .traveler-tag.matched   { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
 .traveler-tag.unmatched { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
-
 .participant-tag {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--role-faint); color: var(--role-color);
@@ -67,18 +42,8 @@ textarea.form-control { resize:vertical; min-height:90px; }
 }
 .participant-tag:hover    { background: color-mix(in srgb, var(--role-color) 20%, transparent); }
 .participant-tag.selected { background: var(--role-color); color: white; }
-
-.scope-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; border-radius: 20px;
-  font-size: 12px; font-weight: 600; transition: all .3s;
-}
-
-.autofill-toggle {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: var(--role-color); cursor: pointer;
-  padding: 8px 0; border: none; background: none; font-weight: 500;
-}
+.scope-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; transition: all .3s; }
+.autofill-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--role-color); cursor: pointer; padding: 8px 0; border: none; background: none; font-weight: 500; }
 .autofill-toggle:hover { opacity: .8; }
 {% endblock %}
 
@@ -97,7 +62,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
 
 <div id="formSection">
 
-  <!-- Extraction Banner (shown after upload) -->
+  <!-- Extraction Banner -->
   <div id="extractionBanner" style="display:none;margin-bottom:16px">
     <div class="card" style="border-left:4px solid var(--role-color)">
       <div class="card-body-custom" style="padding:12px 16px">
@@ -115,7 +80,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
     </div>
   </div>
 
-  <!-- Extracted Travelers Card (shown after upload) -->
+  <!-- Extracted Travelers Card -->
   <div id="extractedTravelersCard" style="display:none;margin-bottom:16px">
     <div class="card">
       <div class="card-header-custom">
@@ -127,26 +92,9 @@ textarea.form-control { resize:vertical; min-height:90px; }
       </div>
       <div class="card-body-custom">
         <div id="unmatchedWarning" style="display:none;margin-bottom:12px" class="alert-custom alert-warning">
-          <i class="bi bi-exclamation-triangle"></i>
-          <span id="unmatchedText"></span>
+          <i class="bi bi-exclamation-triangle"></i><span id="unmatchedText"></span>
         </div>
         <div id="travelerTagsList" style="display:flex;flex-wrap:wrap;gap:10px"></div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Add extra traveler</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="text" id="extraTravelerInput" class="form-control"
-                   placeholder="Type full name and press Enter or click Add" style="flex:1"
-                   onkeydown="if(event.key==='Enter'){event.preventDefault();addExtraTraveler();}"/>
-            <button type="button" onclick="addExtraTraveler()" class="btn-secondary-custom" style="white-space:nowrap">
-              <i class="bi bi-plus-lg"></i> Add
-            </button>
-          </div>
-          <div id="extraTravelersList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
-        </div>
-        <div style="font-size:11.5px;color:var(--text-muted);margin-top:12px">
-          <i class="bi bi-info-circle"></i>
-          Green = found in system. Orange = not registered.
-        </div>
       </div>
     </div>
   </div>
@@ -155,10 +103,112 @@ textarea.form-control { resize:vertical; min-height:90px; }
     {% csrf_token %}
     <div id="allTravelerNamesInputs"></div>
 
+    {% if user.role == 'EMPLOYEE' %}
+    <!-- ── EMPLOYEE LAYOUT: Single column, no summary sidebar ── -->
+    <div style="max-width:760px;margin:0 auto">
+
+      {% if overlap_warnings %}
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:16px;margin-bottom:16px">
+        <strong><i class="bi bi-exclamation-triangle-fill"></i> Overlapping travel detected</strong>
+        <ul style="margin:8px 0 12px 16px">
+          {% for w in overlap_warnings %}
+          <li>You already have travel to <strong>{{ w.destination }}</strong> on {{ w.start_date }}</li>
+          {% endfor %}
+        </ul>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="overlap_confirmed" value="yes">
+          I understand and want to proceed anyway
+        </label>
+      </div>
+      {% endif %}
+
+      <div class="card mb-3">
+        <div class="card-header-custom">
+          <div class="card-title"><i class="bi bi-geo-alt"></i> Travel Details</div>
+        </div>
+        <div class="card-body-custom">
+          <div class="row g-3">
+
+            <!-- Province -->
+            <div class="col-md-6">
+              <label class="form-label">Province *</label>
+              <select id="provinceSelect" class="form-select" onchange="loadCities(this.value)" required>
+                <option value="">Select Province</option>
+              </select>
+            </div>
+
+            <!-- City/Municipality -->
+            <div class="col-md-6">
+              <label class="form-label">City / Municipality *</label>
+              <select id="citySelect" class="form-select" name="destination" onchange="updateDestination()" required disabled>
+                <option value="">Select Province first</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Start Date *</label>
+              <input type="date" name="start_date" id="fieldStartDate" class="form-control"
+                     value="{{ post.start_date|default:'' }}" required onchange="validateDates()"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">End Date</label>
+              <input type="date" name="end_date" id="fieldEndDate" class="form-control"
+                     value="{{ post.end_date|default:'' }}" onchange="validateDates()"/>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Purpose *</label>
+              <textarea name="purpose" id="fieldPurpose" class="form-control"
+                        placeholder="Describe the purpose of this travel...">{{ post.purpose|default:'' }}</textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Notes <span style="color:var(--text-muted)">(optional)</span></label>
+              <textarea name="notes" class="form-control" style="min-height:60px"
+                        placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
+            </div>
+            <div class="col-12">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px">
+                <input type="checkbox" name="is_out_of_province"
+                       {% if post.is_out_of_province %}checked{% endif %}
+                       style="width:16px;height:16px;accent-color:var(--role-color)"/>
+                This travel is out of province
+              </label>
+            </div>
+            <div class="col-12" style="margin-top:4px">
+              <label class="form-label">Travel Scope</label>
+              <div style="display:flex;gap:12px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px">
+                  <input type="radio" name="scope_override" value="COLLEGE"
+                        checked style="accent-color:var(--role-color)"/>
+                  College-level
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px">
+                  <input type="radio" name="scope_override" value="CAMPUS"
+                        style="accent-color:var(--role-color)"/>
+                  Campus-level
+                </label>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+                College = budget tagged by Dept Secretary · Campus = budget tagged by Campus Secretary
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end">
+        <button type="submit" class="btn-primary-custom" style="padding:10px 32px">
+          <i class="bi bi-plus-lg"></i> Create Travel Record
+        </button>
+      </div>
+
+    </div>
+
+    {% else %}
+    <!-- ── SECRETARY LAYOUT: Two column with sidebar ── -->
     <div class="row g-3">
       <div class="col-lg-8">
 
-        <!-- Optional Auto-fill from Travel Order -->
+        <!-- Auto-fill from Travel Order -->
         <div class="card mb-3">
           <div class="card-body-custom" style="padding:14px 20px">
             <button type="button" class="autofill-toggle" onclick="toggleUploadSection()">
@@ -169,9 +219,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
             <div id="uploadSection" style="display:none;margin-top:12px">
               <div class="upload-zone" id="uploadZone"
                    onclick="document.getElementById('travelOrderFile').click()"
-                   ondragover="handleDragOver(event)"
-                   ondragleave="handleDragLeave(event)"
-                   ondrop="handleDrop(event)">
+                   ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
                 <div style="font-size:32px;color:var(--text-muted);margin-bottom:8px"><i class="bi bi-cloud-arrow-up"></i></div>
                 <div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:4px">Drop your Travel Order here</div>
                 <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">PDF, DOCX, JPG, PNG or XLSX</div>
@@ -190,8 +238,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
                 <div class="extraction-bar"><div class="extraction-bar-fill" id="extractionBarFill"></div></div>
               </div>
               <div id="uploadError" style="display:none;margin-top:12px" class="alert-custom alert-danger">
-                <i class="bi bi-exclamation-circle"></i>
-                <span id="uploadErrorText"></span>
+                <i class="bi bi-exclamation-circle"></i><span id="uploadErrorText"></span>
               </div>
             </div>
           </div>
@@ -242,7 +289,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
         </div>
 
-        <!-- Participants (secretary only) -->
+        <!-- Participants -->
         {% if user.role in 'DEPT_SEC,CAMPUS_SEC' and available_participants %}
         <div class="card mb-3">
           <div class="card-header-custom">
@@ -273,7 +320,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
               </label>
             </div>
             <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">All employees</div>
-            <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px;max-height:300px;overflow-y:auto;padding:4px 2px;border:1px solid var(--border);border-radius:8px;padding:10px;">
+            <div id="participantList" style="display:flex;flex-wrap:wrap;gap:8px;max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:10px;">
               {% regroup available_participants by college as college_groups %}
               {% for group in college_groups %}
                 {% if user.role == 'CAMPUS_SEC' %}
@@ -308,11 +355,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Created by</div>
               <div style="font-size:13.5px;font-weight:500;color:var(--text-primary)">{{ user.get_full_name }}</div>
               <div style="font-size:12px;color:var(--text-muted)">{{ user.college.name|default:user.campus.name|default:"BISU" }}</div>
-              {% if user.role == 'EMPLOYEE' %}
-              <div style="font-size:11px;color:var(--primary);margin-top:4px;display:flex;align-items:center;gap:4px">
-                <i class="bi bi-person-check-fill"></i> You will be added as a participant
-              </div>
-              {% endif %}
             </div>
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Travel scope</div>
@@ -331,7 +373,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
             </div>
             <div style="margin-bottom:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Travelers</div>
-              <div style="font-size:22px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)" id="summaryCount">{% if user.role == 'EMPLOYEE' %}1{% else %}0{% endif %}</div>
+              <div style="font-size:22px;font-weight:600;font-family:var(--font-display);color:var(--text-primary)" id="summaryCount">0</div>
             </div>
             <div style="padding-top:14px;border-top:1px solid var(--border)">
               <div class="alert-custom alert-info" style="padding:10px 12px;font-size:12px">
@@ -361,8 +403,9 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
         </div>
       </div>
-
     </div>
+    {% endif %}
+
   </form>
 </div>
 {% endblock %}
@@ -381,42 +424,86 @@ document.querySelectorAll('.participant-tag').forEach(tag => {
   collegeMap[tag.dataset.id] = tag.dataset.college;
 });
 
+// ── PSGC Location Dropdowns (Employee only) ──────────────────────────
+{% if user.role == 'EMPLOYEE' %}
+async function loadProvinces() {
+  const select = document.getElementById('provinceSelect');
+  try {
+    const res = await fetch('https://psgc.cloud/api/provinces');
+    const data = await res.json();
+    data.sort((a, b) => a.name.localeCompare(b.name));
+    data.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.code;
+      opt.textContent = p.name;
+      select.appendChild(opt);
+    });
+  } catch(e) {
+    console.error('Failed to load provinces', e);
+  }
+}
+
+async function loadCities(provinceCode) {
+  const citySelect = document.getElementById('citySelect');
+  citySelect.disabled = true;
+  citySelect.innerHTML = '<option value="">Loading...</option>';
+  if (!provinceCode) {
+    citySelect.innerHTML = '<option value="">Select Province first</option>';
+    return;
+  }
+  try {
+    const res = await fetch(`https://psgc.cloud/api/provinces/${provinceCode}/cities-municipalities`);
+    const data = await res.json();
+    data.sort((a, b) => a.name.localeCompare(b.name));
+    citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
+    const provinceName = document.getElementById('provinceSelect').options[document.getElementById('provinceSelect').selectedIndex].text;
+    data.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = `${c.name}, ${provinceName}`;
+      opt.textContent = c.name;
+      citySelect.appendChild(opt);
+    });
+    citySelect.disabled = false;
+  } catch(e) {
+    citySelect.innerHTML = '<option value="">Failed to load</option>';
+    console.error(e);
+  }
+}
+
+function updateDestination() {
+  // destination is already set via the city select name="destination"
+}
+
+loadProvinces();
+{% endif %}
+
+// ── Upload/Extract (Secretary only) ─────────────────────────────────
+{% if user.role != 'EMPLOYEE' %}
 function toggleUploadSection() {
   const section  = document.getElementById('uploadSection');
   const chevron  = document.getElementById('uploadChevron');
   const isHidden = section.style.display === 'none';
   section.style.display = isHidden ? 'block' : 'none';
   chevron.className = isHidden ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
-  chevron.style.marginLeft = 'auto';
-  chevron.style.fontSize = '11px';
+  chevron.style.marginLeft = 'auto'; chevron.style.fontSize = '11px';
 }
 
-function handleDragOver(e) {
-  e.preventDefault();
-  document.getElementById('uploadZone').classList.add('dragover');
-}
-function handleDragLeave(e) {
-  document.getElementById('uploadZone').classList.remove('dragover');
-}
+function handleDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('dragover'); }
+function handleDragLeave(e) { document.getElementById('uploadZone').classList.remove('dragover'); }
 function handleDrop(e) {
-  e.preventDefault();
-  document.getElementById('uploadZone').classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if (file) handleFileSelect(file);
+  e.preventDefault(); document.getElementById('uploadZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0]; if (file) handleFileSelect(file);
 }
 
 function handleFileSelect(file) {
   if (!file) return;
-  const zone     = document.getElementById('uploadZone');
+  const zone = document.getElementById('uploadZone');
   const progress = document.getElementById('uploadProgress');
   const errorDiv = document.getElementById('uploadError');
-  const bar      = document.getElementById('extractionBarFill');
+  const bar = document.getElementById('extractionBarFill');
   const progText = document.getElementById('progressText');
 
-  zone.classList.add('uploading');
-  progress.style.display = 'block';
-  errorDiv.style.display = 'none';
-
+  zone.classList.add('uploading'); progress.style.display = 'block'; errorDiv.style.display = 'none';
   let pct = 0;
   const ticker = setInterval(() => { pct = Math.min(pct + 4, 85); bar.style.width = pct + '%'; }, 200);
   const steps = ['Reading document...','Extracting text...','Identifying fields...','Matching travelers...'];
@@ -424,31 +511,24 @@ function handleFileSelect(file) {
   const stepTicker = setInterval(() => { if (stepIdx < steps.length) progText.textContent = steps[stepIdx++]; }, 1800);
 
   const formData = new FormData();
-  formData.append('file', file);
-  formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
+  formData.append('file', file); formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
 
   fetch(EXTRACT_URL, { method: 'POST', body: formData })
     .then(r => r.json())
     .then(data => {
-      clearInterval(ticker); clearInterval(stepTicker);
-      bar.style.width = '100%';
+      clearInterval(ticker); clearInterval(stepTicker); bar.style.width = '100%';
       setTimeout(() => {
-        zone.classList.remove('uploading');
-        progress.style.display = 'none';
-        bar.style.width = '0%';
-        if (data.error)    { showUploadError(data.error); return; }
+        zone.classList.remove('uploading'); progress.style.display = 'none'; bar.style.width = '0%';
+        if (data.error) { showUploadError(data.error); return; }
         if (!data.success) { showUploadError(data.error || 'Extraction failed.'); return; }
-        prefillForm(data);
-        showExtractionResults(data);
-        // Collapse upload section after success
+        prefillForm(data); showExtractionResults(data);
         document.getElementById('uploadSection').style.display = 'none';
         document.getElementById('uploadChevron').className = 'bi bi-chevron-down';
       }, 400);
     })
     .catch(() => {
       clearInterval(ticker); clearInterval(stepTicker);
-      zone.classList.remove('uploading');
-      progress.style.display = 'none';
+      zone.classList.remove('uploading'); progress.style.display = 'none';
       showUploadError('Network error. Please try again.');
     });
 }
@@ -470,26 +550,21 @@ function showExtractionResults(data) {
   document.getElementById('extractionBanner').style.display = 'block';
   const badge = document.getElementById('confidenceBadge');
   const conf  = data.confidence || 'low';
-  badge.textContent = conf + ' confidence';
-  badge.className   = 'extraction-badge ' + conf;
+  badge.textContent = conf + ' confidence'; badge.className = 'extraction-badge ' + conf;
 
   const allTravelers = [...(data.matched_travelers || []), ...(data.unmatched_travelers || [])];
   if (allTravelers.length > 0) {
-    const card    = document.getElementById('extractedTravelersCard');
-    const list    = document.getElementById('travelerTagsList');
+    const card = document.getElementById('extractedTravelersCard');
+    const list = document.getElementById('travelerTagsList');
     const badgeEl = document.getElementById('travelerSummaryBadge');
     const matched = data.matched_travelers.length;
     const unmatched = data.unmatched_count || 0;
-
-    card.style.display = 'block';
-    list.innerHTML = '';
+    card.style.display = 'block'; list.innerHTML = '';
     badgeEl.innerHTML = `<span style="color:#166534;font-weight:600">${matched} matched</span>${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}`;
 
     const hasPicker = document.getElementById('participantList') !== null;
     let pickerMissCount = 0;
-    if (hasPicker) {
-      data.matched_travelers.forEach(t => { if (!document.querySelector(`.participant-tag[data-id="${t.id}"]`)) pickerMissCount++; });
-    }
+    if (hasPicker) data.matched_travelers.forEach(t => { if (!document.querySelector(`.participant-tag[data-id="${t.id}"]`)) pickerMissCount++; });
     unmatchedTravelerCount = hasPicker ? (unmatched + pickerMissCount) : allTravelers.length;
 
     allTravelers.forEach(t => {
@@ -520,16 +595,12 @@ function showExtractionResults(data) {
   }
   updateSummary();
 }
+{% endif %}
 
-function manualScopeOverride(value) {
-  scopeManualOverride = value || null;
-  updateSummary();
-}
+function manualScopeOverride(value) { scopeManualOverride = value || null; updateSummary(); }
 
 function toggleParticipant(el) {
-  const id  = el.dataset.id;
-  const cb  = el.querySelector('.participant-checkbox');
-  const rem = el.querySelector('.tag-remove');
+  const id = el.dataset.id; const cb = el.querySelector('.participant-checkbox'); const rem = el.querySelector('.tag-remove');
   if (selectedIds.has(id)) {
     selectedIds.delete(id); el.classList.remove('selected');
     if (cb) cb.checked = false; if (rem) rem.textContent = '+';
@@ -541,24 +612,22 @@ function toggleParticipant(el) {
 }
 
 function updateSummary() {
+  if (isEmployee) return;
   const includeCreator = document.getElementById('includeCreator');
-  const creatorCount = isEmployee ? 1 : (includeCreator && includeCreator.checked ? 1 : 0);
+  const creatorCount = includeCreator && includeCreator.checked ? 1 : 0;
   const count = selectedIds.size + creatorCount + unmatchedTravelerCount;
   const countEl = document.getElementById('selectedCount');
   if (countEl) countEl.textContent = selectedIds.size + ' selected';
-  document.getElementById('summaryCount').textContent = count;
+  const summCountEl = document.getElementById('summaryCount');
+  if (summCountEl) summCountEl.textContent = count;
 
   let isMultiCollege;
-  if (scopeManualOverride) {
-    isMultiCollege = scopeManualOverride === 'CAMPUS';
-  } else {
-    const colleges = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean));
-    isMultiCollege = colleges.size > 1;
-  }
+  if (scopeManualOverride) { isMultiCollege = scopeManualOverride === 'CAMPUS'; }
+  else { const colleges = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean)); isMultiCollege = colleges.size > 1; }
 
-  const scopeEl   = document.getElementById('scopeIndicator');
+  const scopeEl = document.getElementById('scopeIndicator');
   const summScope = document.getElementById('summaryScope');
-  const hintEl    = document.getElementById('scopeHint');
+  const hintEl = document.getElementById('scopeHint');
   if (isMultiCollege) {
     const style = 'background:#f3e8ff;color:#6b21a8';
     if (scopeEl)   { scopeEl.setAttribute('style', style);   scopeEl.innerHTML   = '<i class="bi bi-diagram-3"></i> Campus scope'; }
@@ -572,55 +641,6 @@ function updateSummary() {
   }
 }
 
-const extraTravelers = [];
-function addExtraTraveler() {
-  const input = document.getElementById('extraTravelerInput');
-  const name  = input.value.trim();
-  if (!name) return;
-  if (extraTravelers.includes(name.toLowerCase())) { input.value = ''; return; }
-  extraTravelers.push(name.toLowerCase());
-  input.value = '';
-
-  const formData = new FormData();
-  formData.append('name', name);
-  formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
-
-  fetch("{% url 'travel_app:lookup_traveler_ajax' %}", { method: 'POST', body: formData })
-    .then(r => r.json())
-    .then(data => {
-      const list = document.getElementById('extraTravelersList');
-      const tag  = document.createElement('div');
-      const nameLower = name.toLowerCase();
-      if (data.found) {
-        tag.className = 'traveler-tag matched';
-        tag.innerHTML = `<i class="bi bi-person-check-fill" style="font-size:13px"></i><span>${data.name}</span>${data.college ? `<span style="font-size:11px;opacity:.7">· ${data.college}</span>` : ''}<span onclick="removeExtraTraveler(this,'${nameLower}')" style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>`;
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden'; hidden.name = 'matched_travelers'; hidden.value = data.id; hidden.dataset.name = nameLower;
-        document.getElementById('allTravelerNamesInputs').appendChild(hidden);
-      } else {
-        tag.className = 'traveler-tag unmatched';
-        tag.innerHTML = `<i class="bi bi-person-plus-fill" style="font-size:13px"></i><span>${name}</span><span style="font-size:11px;opacity:.7">· not in system</span><span onclick="removeExtraTraveler(this,'${nameLower}')" style="margin-left:4px;cursor:pointer;font-size:14px;opacity:.6">×</span>`;
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden'; hidden.name = 'unregistered_travelers'; hidden.value = name; hidden.dataset.name = nameLower;
-        document.getElementById('allTravelerNamesInputs').appendChild(hidden);
-      }
-      tag.dataset.name = nameLower;
-      list.appendChild(tag);
-      const countEl = document.getElementById('summaryCount');
-      countEl.textContent = parseInt(countEl.textContent || 0) + 1;
-    });
-}
-
-function removeExtraTraveler(el, nameLower) {
-  const idx = extraTravelers.indexOf(nameLower);
-  if (idx > -1) extraTravelers.splice(idx, 1);
-  el.closest('.traveler-tag').remove();
-  const hidden = document.querySelector(`#allTravelerNamesInputs input[data-name="${nameLower}"]`);
-  if (hidden) hidden.remove();
-  const countEl = document.getElementById('summaryCount');
-  countEl.textContent = Math.max(0, parseInt(countEl.textContent || 0) - 1);
-}
-
 function filterParticipants(query) {
   document.querySelectorAll('#participantList .participant-tag').forEach(tag => {
     tag.style.display = tag.dataset.name.includes(query.toLowerCase()) ? '' : 'none';
@@ -629,11 +649,11 @@ function filterParticipants(query) {
 
 function validateDates() {
   const start = document.getElementById('fieldStartDate').value;
-  const end   = document.getElementById('fieldEndDate').value;
+  const end   = document.getElementById('fieldEndDate') ? document.getElementById('fieldEndDate').value : '';
   if (start && end && end < start) {
     document.getElementById('fieldEndDate').setCustomValidity('End date cannot be before start date.');
     document.getElementById('fieldEndDate').reportValidity();
-  } else {
+  } else if (document.getElementById('fieldEndDate')) {
     document.getElementById('fieldEndDate').setCustomValidity('');
   }
 }

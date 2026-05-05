@@ -619,9 +619,16 @@ def travel_detail(request, pk):
     for p in expense_participants:
         amount_doc = ParticipantDocument.objects.filter(
             participant=p,
-            doc_type__in=['BURS', 'ITINERARY'],
-            extracted_amount__isnull=False
+            doc_type='ACTUAL_ITINERARY',
+            extracted_amount__isnull=False,
+            is_confirmed=True
         ).order_by('-uploaded_at').first()
+        if not amount_doc:
+            amount_doc = ParticipantDocument.objects.filter(
+                participant=p,
+                doc_type__in=['BURS', 'ITINERARY'],
+                extracted_amount__isnull=False
+            ).order_by('-uploaded_at').first()
 
         submitted_amount = amount_doc.extracted_amount if amount_doc else None
 
@@ -685,6 +692,28 @@ def travel_detail(request, pk):
 
     else:
         completeness_percentage = travel.completeness_percentage
+        # ── Liquidation summary ─────────────────────────────────────────
+    liquidation_summary = []
+    for p in expense_participants:
+        planned_doc = p.documents.filter(
+            doc_type='ITINERARY',
+            extracted_amount__isnull=False
+        ).order_by('-uploaded_at').first()
+        actual_doc = p.documents.filter(
+            doc_type='ACTUAL_ITINERARY',
+            extracted_amount__isnull=False
+        ).order_by('-uploaded_at').first()
+        if planned_doc or actual_doc:
+            planned = planned_doc.extracted_amount if planned_doc else None
+            actual  = actual_doc.extracted_amount if actual_doc else None
+            diff    = (actual - planned) if (planned and actual) else None
+            liquidation_summary.append({
+                'name':           p.user.get_full_name() if p.user else p.name,
+                'planned':        planned,
+                'actual':         actual,
+                'difference':     diff,
+                'difference_abs': abs(diff) if diff else None,
+            })
 
     context = {
         'user':             user,
@@ -704,6 +733,7 @@ def travel_detail(request, pk):
         'all_submitted':               all_submitted,
         'unregistered_travelers':      unregistered_travelers,
         'completeness_percentage':     completeness_percentage,
+        'liquidation_summary': liquidation_summary,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
@@ -1752,6 +1782,10 @@ def set_document_amount(request, doc_id):
 
         doc.extracted_amount = amount
         doc.save(update_fields=['extracted_amount'])
+        if doc.doc_type == 'ITINERARY':
+            from decimal import Decimal
+            travel.amount_deducted = Decimal(str(amount))
+            travel.save(update_fields=['amount_deducted'])
 
         from django.contrib import messages
 
@@ -1764,6 +1798,9 @@ def set_document_amount(request, doc_id):
                 doc.confirmed_by = user
                 doc.confirmed_at = timezone.now()
                 doc.save(update_fields=['is_confirmed', 'confirmed_by', 'confirmed_at'])
+                from decimal import Decimal
+                travel.amount_deducted = Decimal(str(result['actual_amount']))
+                travel.save(update_fields=['amount_deducted'])
                 messages.success(request, f'Amount saved. Liquidation: {result["message"]}')
             else:
                 messages.warning(request, f'Amount saved but liquidation skipped: {result["message"]}')
