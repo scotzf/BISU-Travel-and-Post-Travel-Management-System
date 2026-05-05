@@ -49,14 +49,16 @@
       <p style="font-size:14px;font-weight:500;margin:0 0 1rem">Travel by scope</p>
       <canvas id="scopeChart" height="160"></canvas>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+        {% for item in college_breakdown %}
         <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <div style="width:10px;height:10px;border-radius:50%;background:var(--role-color);flex-shrink:0"></div>
-          <span style="color:var(--text-muted)">College</span>
-          <span style="margin-left:auto;font-weight:500">{{ scope_college }}</span>
+          <div class="college-dot college-dot-{{ forloop.counter }}" style="width:10px;height:10px;border-radius:50%;flex-shrink:0"></div>
+          <span style="color:var(--text-muted)">{{ item.name }}</span>
+          <span style="margin-left:auto;font-weight:500">{{ item.count }}</span>
         </div>
+        {% endfor %}
         <div style="display:flex;align-items:center;gap:8px;font-size:12px">
           <div style="width:10px;height:10px;border-radius:50%;background:#1D9E75;flex-shrink:0"></div>
-          <span style="color:var(--text-muted)">Campus</span>
+          <span style="color:var(--text-muted)">Campus-scoped</span>
           <span style="margin-left:auto;font-weight:500">{{ scope_campus }}</span>
         </div>
       </div>
@@ -113,12 +115,17 @@ new Chart(document.getElementById('monthlyChart'), {
   options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
 });
 
+const collegeBreakdown = {{ college_breakdown|safe }};
+const collegeColors = ['#6366f1','#0ea5e9','#16a34a','#ea580c','#7c3aed','#0f766e'];
+const donutLabels = collegeBreakdown.map(c => c.name).concat(['Campus-scoped']);
+const donutData   = collegeBreakdown.map(c => c.count).concat([{{ scope_campus }}]);
+const donutColors = collegeBreakdown.map((_, i) => collegeColors[i % collegeColors.length]).concat(['#1D9E75']);
+collegeBreakdown.forEach((_, i) => {
+  document.querySelectorAll('.college-dot-' + (i+1)).forEach(d => d.style.background = collegeColors[i % collegeColors.length]);
+});
 new Chart(document.getElementById('scopeChart'), {
   type: 'doughnut',
-  data: {
-    labels: ['College', 'Campus'],
-    datasets: [{ data: [{{ scope_college }}, {{ scope_campus }}], backgroundColor: [getComputedStyle(document.documentElement).getPropertyValue('--role-color').trim(), '#1D9E75'], borderWidth: 0 }]
-  },
+  data: { labels: donutLabels, datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 0 }] },
   options: { plugins: { legend: { display: false } }, cutout: '65%' }
 });
 

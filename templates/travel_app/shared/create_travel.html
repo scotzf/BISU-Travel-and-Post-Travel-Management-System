@@ -104,7 +104,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
     <div id="allTravelerNamesInputs"></div>
 
     {% if user.role == 'EMPLOYEE' %}
-    <!-- ── EMPLOYEE LAYOUT: Single column, no summary sidebar ── -->
+    <!-- ── EMPLOYEE LAYOUT ── -->
     <div style="max-width:760px;margin:0 auto">
 
       {% if overlap_warnings %}
@@ -129,7 +129,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
         <div class="card-body-custom">
           <div class="row g-3">
 
-            <!-- Province -->
             <div class="col-md-6">
               <label class="form-label">Province *</label>
               <select id="provinceSelect" class="form-select" onchange="loadCities(this.value)" required>
@@ -137,7 +136,6 @@ textarea.form-control { resize:vertical; min-height:90px; }
               </select>
             </div>
 
-            <!-- City/Municipality -->
             <div class="col-md-6">
               <label class="form-label">City / Municipality *</label>
               <select id="citySelect" class="form-select" name="destination" onchange="updateDestination()" required disabled>
@@ -165,14 +163,8 @@ textarea.form-control { resize:vertical; min-height:90px; }
               <textarea name="notes" class="form-control" style="min-height:60px"
                         placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
             </div>
-            <div class="col-12">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px">
-                <input type="checkbox" name="is_out_of_province"
-                       {% if post.is_out_of_province %}checked{% endif %}
-                       style="width:16px;height:16px;accent-color:var(--role-color)"/>
-                This travel is out of province
-              </label>
-            </div>
+            <!-- is_out_of_province is auto-detected from province selection -->
+            <input type="hidden" name="is_out_of_province" id="isOutOfProvinceInput" value="off"/>
             <div class="col-12" style="margin-top:4px">
               <label class="form-label">Travel Scope</label>
               <div style="display:flex;gap:12px">
@@ -204,7 +196,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
     </div>
 
     {% else %}
-    <!-- ── SECRETARY LAYOUT: Two column with sidebar ── -->
+    <!-- ── SECRETARY LAYOUT ── -->
     <div class="row g-3">
       <div class="col-lg-8">
 
@@ -251,12 +243,26 @@ textarea.form-control { resize:vertical; min-height:90px; }
           </div>
           <div class="card-body-custom">
             <div class="row g-3">
-              <div class="col-12">
-                <label class="form-label">Destination *</label>
-                <input type="text" name="destination" id="fieldDestination" class="form-control"
-                       placeholder="e.g. Cebu City, Metro Cebu"
-                       value="{{ post.destination|default:'' }}" required/>
+
+              <!-- Province -->
+              <div class="col-md-6">
+                <label class="form-label">Province *</label>
+                <select id="provinceSelect" class="form-select" onchange="loadCities(this.value)" required>
+                  <option value="">Select Province</option>
+                </select>
               </div>
+
+              <!-- City/Municipality -->
+              <div class="col-md-6">
+                <label class="form-label">City / Municipality *</label>
+                <select id="citySelect" class="form-select" name="destination" onchange="updateDestination()" required disabled>
+                  <option value="">Select Province first</option>
+                </select>
+              </div>
+
+              <!-- Hidden fallback for auto-filled destination from travel order extraction -->
+              <input type="hidden" id="fieldDestination" name="destination_autofill" value="{{ post.destination|default:'' }}"/>
+
               <div class="col-md-6">
                 <label class="form-label">Start Date *</label>
                 <input type="date" name="start_date" id="fieldStartDate" class="form-control"
@@ -277,14 +283,8 @@ textarea.form-control { resize:vertical; min-height:90px; }
                 <textarea name="notes" class="form-control" style="min-height:60px"
                           placeholder="Any additional notes...">{{ post.notes|default:'' }}</textarea>
               </div>
-              <div class="col-12">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;color:var(--text-primary)">
-                  <input type="checkbox" name="is_out_of_province"
-                         {% if post.is_out_of_province %}checked{% endif %}
-                         style="width:16px;height:16px;accent-color:var(--role-color)"/>
-                  This travel is out of province
-                </label>
-              </div>
+              <!-- is_out_of_province is auto-detected from province selection -->
+              <input type="hidden" name="is_out_of_province" id="isOutOfProvinceInput" value="off"/>
             </div>
           </div>
         </div>
@@ -424,12 +424,12 @@ document.querySelectorAll('.participant-tag').forEach(tag => {
   collegeMap[tag.dataset.id] = tag.dataset.college;
 });
 
-// ── PSGC Location Dropdowns (Employee only) ──────────────────────────
-{% if user.role == 'EMPLOYEE' %}
+// ── PSGC Location Dropdowns (Employee AND Secretary) ─────────────────
 async function loadProvinces() {
   const select = document.getElementById('provinceSelect');
+  if (!select) return;
   try {
-    const res = await fetch('https://psgc.cloud/api/provinces');
+    const res  = await fetch('https://psgc.cloud/api/provinces');
     const data = await res.json();
     data.sort((a, b) => a.name.localeCompare(b.name));
     data.forEach(p => {
@@ -444,7 +444,9 @@ async function loadProvinces() {
 }
 
 async function loadCities(provinceCode) {
-  const citySelect = document.getElementById('citySelect');
+  const citySelect     = document.getElementById('citySelect');
+  const provinceSelect = document.getElementById('provinceSelect');
+  if (!citySelect) return;
   citySelect.disabled = true;
   citySelect.innerHTML = '<option value="">Loading...</option>';
   if (!provinceCode) {
@@ -452,18 +454,41 @@ async function loadCities(provinceCode) {
     return;
   }
   try {
-    const res = await fetch(`https://psgc.cloud/api/provinces/${provinceCode}/cities-municipalities`);
-    const data = await res.json();
+    const res          = await fetch(`https://psgc.cloud/api/provinces/${provinceCode}/cities-municipalities`);
+    const data         = await res.json();
+    const provinceName = provinceSelect.options[provinceSelect.selectedIndex].text;
     data.sort((a, b) => a.name.localeCompare(b.name));
     citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
-    const provinceName = document.getElementById('provinceSelect').options[document.getElementById('provinceSelect').selectedIndex].text;
     data.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = `${c.name}, ${provinceName}`;
+      const opt       = document.createElement('option');
+      opt.value       = `${c.name}, ${provinceName}`;
       opt.textContent = c.name;
       citySelect.appendChild(opt);
     });
     citySelect.disabled = false;
+
+    // Auto-detect out of province — not Bohol = out of province
+    const isOutOfProvince = !provinceName.toLowerCase().includes('bohol');
+    const hiddenInput     = document.getElementById('isOutOfProvinceInput');
+    if (hiddenInput) hiddenInput.value = isOutOfProvince ? 'on' : 'off';
+
+    // Show a small status badge under the province dropdown
+    let badge = document.getElementById('outOfProvinceBadge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'outOfProvinceBadge';
+      badge.style.cssText = 'font-size:12px;margin-top:6px;display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;width:fit-content';
+      provinceSelect.parentNode.appendChild(badge);
+    }
+    if (isOutOfProvince) {
+      badge.style.background = '#fef3c7';
+      badge.style.color      = '#92400e';
+      badge.innerHTML        = '<i class="bi bi-airplane"></i> Out of province — detected automatically';
+    } else {
+      badge.style.background = '#f0fdfa';
+      badge.style.color      = '#0f766e';
+      badge.innerHTML        = '<i class="bi bi-geo-alt"></i> Within Bohol';
+    }
   } catch(e) {
     citySelect.innerHTML = '<option value="">Failed to load</option>';
     console.error(e);
@@ -471,11 +496,59 @@ async function loadCities(provinceCode) {
 }
 
 function updateDestination() {
-  // destination is already set via the city select name="destination"
+  // destination value is set directly via the city select name="destination"
 }
 
-loadProvinces();
-{% endif %}
+// When auto-fill sets the destination from extraction, try to match it in the dropdowns.
+// If it can't match (extraction gives a free-text value), fall back to a visible text input.
+function setDestinationFromExtraction(destText) {
+  if (!destText) return;
+  // Show a fallback text input so the secretary can see/edit the extracted destination
+  const citySelect = document.getElementById('citySelect');
+  const provinceSelect = document.getElementById('provinceSelect');
+
+  // Insert a visible read-only note below the dropdowns showing extracted value
+  let note = document.getElementById('extractedDestNote');
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'extractedDestNote';
+    note.style.cssText = 'font-size:12px;color:#0f766e;background:#f0fdfa;border:1px solid #99f6e4;border-radius:6px;padding:6px 10px;margin-top:6px;display:flex;align-items:center;gap:6px';
+    citySelect.parentNode.appendChild(note);
+  }
+  note.innerHTML = `<i class="bi bi-magic"></i> Extracted destination: <strong>${destText}</strong> — select above to override, or it will be saved as-is.`;
+
+  // Also keep the hidden field updated so the view can fall back to it if dropdown not selected
+  const hidden = document.getElementById('fieldDestination');
+  if (hidden) hidden.value = destText;
+}
+
+// On form submit: if city dropdown is still disabled/empty, use the hidden fallback value
+document.addEventListener('DOMContentLoaded', () => {
+  loadProvinces();
+
+  const form = document.getElementById('travelForm');
+  if (form) {
+    form.addEventListener('submit', function() {
+      const citySelect = document.getElementById('citySelect');
+      const hidden     = document.getElementById('fieldDestination');
+      // If dropdown has a value, it already carries name="destination" — nothing to do.
+      // If dropdown is empty/disabled, inject a hidden input with the fallback text.
+      if (citySelect && (!citySelect.value || citySelect.disabled)) {
+        const fallback = hidden ? hidden.value : '';
+        if (fallback) {
+          // Remove name from citySelect so it doesn't submit empty
+          citySelect.removeAttribute('name');
+          // Create a real hidden input with the fallback destination
+          const inp = document.createElement('input');
+          inp.type  = 'hidden';
+          inp.name  = 'destination';
+          inp.value = fallback;
+          form.appendChild(inp);
+        }
+      }
+    });
+  }
+});
 
 // ── Upload/Extract (Secretary only) ─────────────────────────────────
 {% if user.role != 'EMPLOYEE' %}
@@ -497,10 +570,10 @@ function handleDrop(e) {
 
 function handleFileSelect(file) {
   if (!file) return;
-  const zone = document.getElementById('uploadZone');
+  const zone     = document.getElementById('uploadZone');
   const progress = document.getElementById('uploadProgress');
   const errorDiv = document.getElementById('uploadError');
-  const bar = document.getElementById('extractionBarFill');
+  const bar      = document.getElementById('extractionBarFill');
   const progText = document.getElementById('progressText');
 
   zone.classList.add('uploading'); progress.style.display = 'block'; errorDiv.style.display = 'none';
@@ -519,7 +592,7 @@ function handleFileSelect(file) {
       clearInterval(ticker); clearInterval(stepTicker); bar.style.width = '100%';
       setTimeout(() => {
         zone.classList.remove('uploading'); progress.style.display = 'none'; bar.style.width = '0%';
-        if (data.error) { showUploadError(data.error); return; }
+        if (data.error)   { showUploadError(data.error); return; }
         if (!data.success) { showUploadError(data.error || 'Extraction failed.'); return; }
         prefillForm(data); showExtractionResults(data);
         document.getElementById('uploadSection').style.display = 'none';
@@ -540,10 +613,11 @@ function showUploadError(msg) {
 }
 
 function prefillForm(data) {
-  if (data.destination) document.getElementById('fieldDestination').value = data.destination;
-  if (data.start_date)  document.getElementById('fieldStartDate').value   = data.start_date;
-  if (data.end_date)    document.getElementById('fieldEndDate').value      = data.end_date;
-  if (data.purpose)     document.getElementById('fieldPurpose').value      = data.purpose;
+  // For secretary: show extracted destination as a note (can't auto-select dropdowns without knowing the code)
+  if (data.destination) setDestinationFromExtraction(data.destination);
+  if (data.start_date)  document.getElementById('fieldStartDate').value = data.start_date;
+  if (data.end_date)    document.getElementById('fieldEndDate').value   = data.end_date;
+  if (data.purpose)     document.getElementById('fieldPurpose').value   = data.purpose;
 }
 
 function showExtractionResults(data) {
@@ -554,10 +628,10 @@ function showExtractionResults(data) {
 
   const allTravelers = [...(data.matched_travelers || []), ...(data.unmatched_travelers || [])];
   if (allTravelers.length > 0) {
-    const card = document.getElementById('extractedTravelersCard');
-    const list = document.getElementById('travelerTagsList');
+    const card    = document.getElementById('extractedTravelersCard');
+    const list    = document.getElementById('travelerTagsList');
     const badgeEl = document.getElementById('travelerSummaryBadge');
-    const matched = data.matched_travelers.length;
+    const matched   = data.matched_travelers.length;
     const unmatched = data.unmatched_count || 0;
     card.style.display = 'block'; list.innerHTML = '';
     badgeEl.innerHTML = `<span style="color:#166534;font-weight:600">${matched} matched</span>${unmatched > 0 ? `&nbsp;·&nbsp;<span style="color:#c2410c;font-weight:600">${unmatched} not found</span>` : ''}`;
@@ -614,9 +688,9 @@ function toggleParticipant(el) {
 function updateSummary() {
   if (isEmployee) return;
   const includeCreator = document.getElementById('includeCreator');
-  const creatorCount = includeCreator && includeCreator.checked ? 1 : 0;
-  const count = selectedIds.size + creatorCount + unmatchedTravelerCount;
-  const countEl = document.getElementById('selectedCount');
+  const creatorCount   = includeCreator && includeCreator.checked ? 1 : 0;
+  const count          = selectedIds.size + creatorCount + unmatchedTravelerCount;
+  const countEl        = document.getElementById('selectedCount');
   if (countEl) countEl.textContent = selectedIds.size + ' selected';
   const summCountEl = document.getElementById('summaryCount');
   if (summCountEl) summCountEl.textContent = count;
@@ -625,9 +699,9 @@ function updateSummary() {
   if (scopeManualOverride) { isMultiCollege = scopeManualOverride === 'CAMPUS'; }
   else { const colleges = new Set([...selectedIds].map(id => collegeMap[id]).filter(Boolean)); isMultiCollege = colleges.size > 1; }
 
-  const scopeEl = document.getElementById('scopeIndicator');
+  const scopeEl  = document.getElementById('scopeIndicator');
   const summScope = document.getElementById('summaryScope');
-  const hintEl = document.getElementById('scopeHint');
+  const hintEl   = document.getElementById('scopeHint');
   if (isMultiCollege) {
     const style = 'background:#f3e8ff;color:#6b21a8';
     if (scopeEl)   { scopeEl.setAttribute('style', style);   scopeEl.innerHTML   = '<i class="bi bi-diagram-3"></i> Campus scope'; }
@@ -649,12 +723,13 @@ function filterParticipants(query) {
 
 function validateDates() {
   const start = document.getElementById('fieldStartDate').value;
-  const end   = document.getElementById('fieldEndDate') ? document.getElementById('fieldEndDate').value : '';
+  const endEl = document.getElementById('fieldEndDate');
+  const end   = endEl ? endEl.value : '';
   if (start && end && end < start) {
-    document.getElementById('fieldEndDate').setCustomValidity('End date cannot be before start date.');
-    document.getElementById('fieldEndDate').reportValidity();
-  } else if (document.getElementById('fieldEndDate')) {
-    document.getElementById('fieldEndDate').setCustomValidity('');
+    endEl.setCustomValidity('End date cannot be before start date.');
+    endEl.reportValidity();
+  } else if (endEl) {
+    endEl.setCustomValidity('');
   }
 }
 </script>

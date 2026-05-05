@@ -210,6 +210,23 @@ def campus_secretary_dashboard(request, user=None):
     # Scope data
     scope_college = travels_year.filter(scope='COLLEGE').count()
     scope_campus  = travels_year.filter(scope='CAMPUS').count()
+
+    # College breakdown for donut chart
+    from accounts.models import College
+    college_breakdown = []
+    for college in College.objects.all().order_by('name'):
+        count = travels_year.filter(
+            participants__college_name=college.name
+        ).distinct().count()
+        if count > 0:
+            college_breakdown.append({'name': college.name, 'count': count})
+
+    from accounts.models import College
+    college_breakdown = []
+    for college in College.objects.all().order_by('name'):
+        count = travels_year.filter(participants__college_name=college.name).distinct().count()
+        if count > 0:
+            college_breakdown.append({'name': college.name, 'count': count})
     
     # Monthly data
     monthly_raw = (
@@ -259,6 +276,8 @@ def campus_secretary_dashboard(request, user=None):
         'monthly_labels':        monthly_labels,
         'monthly_data':          monthly_data,
         'top_destinations':      top_destinations,
+        'college_breakdown': college_breakdown,
+        'college_breakdown': college_breakdown,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -503,7 +522,7 @@ def travel_detail(request, pk):
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
-
+ 
     travel = get_object_or_404(
         TravelRecord.objects.select_related(
             'created_by', 'budget_source',
@@ -511,19 +530,19 @@ def travel_detail(request, pk):
         ).prefetch_related('participants__user', 'participants__documents'),
         pk=pk
     )
-
+ 
     is_participant = travel.participants.filter(user=user).exists()
     is_creator     = travel.created_by == user
     is_secretary   = user.role in ['DEPT_SEC', 'CAMPUS_SEC']
     is_admin       = user.role == 'ADMIN'
-
+ 
     if not (is_participant or is_creator or is_secretary or is_admin):
         from django.contrib import messages
         messages.error(request, 'You do not have access to this travel record.')
         return redirect('accounts:dashboard')
-
+ 
     all_participants = travel.participants.select_related('user').all()
-
+ 
     if user.role in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
         participant_hubs = []
         for p in all_participants:
@@ -555,12 +574,12 @@ def travel_detail(request, pk):
                 'participant':  my_participant,
                 'docs_by_type': docs_by_type,
             })
-
+ 
     can_tag_budget = False
     can_route      = False
     budget_sources = []
     route_colleges = []
-
+ 
     if user.role == 'DEPT_SEC' and user.college:
         if travel.scope == 'COLLEGE':
             travel_colleges = set(
@@ -573,7 +592,7 @@ def travel_detail(request, pk):
         elif travel.scope == 'CAMPUS' and travel.funding_college == user.college:
             can_tag_budget = True
             budget_sources = get_sources_for_secretary(user)
-
+ 
     elif user.role == 'CAMPUS_SEC' and user.campus:
         if travel.scope == 'CAMPUS':
             travel_campuses = set(
@@ -593,14 +612,10 @@ def travel_detail(request, pk):
                     route_colleges = College.objects.filter(name__in=involved_college_names)
                 else:
                     can_tag_budget = False
-
+ 
     # ── Per-participant expense summary — filtered by role ──────────────
-    # DEPT_SEC   → only their college's participants
-    # CAMPUS_SEC → all participants (campus-wide view)
-    # EMPLOYEE   → only themselves
-    # ADMIN      → all participants
     from decimal import Decimal
-
+ 
     if user.role == 'DEPT_SEC' and user.college:
         expense_participants = travel.participants.select_related('user').filter(
             college_name=user.college.name
@@ -609,13 +624,12 @@ def travel_detail(request, pk):
         my_p = travel.participants.filter(user=user).first()
         expense_participants = travel.participants.filter(id=my_p.id) if my_p else travel.participants.none()
     else:
-        # CAMPUS_SEC and ADMIN see all
         expense_participants = travel.participants.select_related('user').all()
-
+ 
     participant_expense_summary = []
     total_submitted = Decimal('0')
     all_submitted   = True
-
+ 
     for p in expense_participants:
         amount_doc = ParticipantDocument.objects.filter(
             participant=p,
@@ -629,24 +643,24 @@ def travel_detail(request, pk):
                 doc_type__in=['BURS', 'ITINERARY'],
                 extracted_amount__isnull=False
             ).order_by('-uploaded_at').first()
-
+ 
         submitted_amount = amount_doc.extracted_amount if amount_doc else None
-
+ 
         if submitted_amount is not None:
             total_submitted += submitted_amount
         else:
             all_submitted = False
-
+ 
         participant_expense_summary.append({
             'participant': p,
             'amount':      submitted_amount,
             'has_amount':  submitted_amount is not None,
             'doc_type':    amount_doc.get_doc_type_display() if amount_doc else None,
         })
-
-    # ── Unregistered travelers — now from TravelParticipant rows ────────
+ 
+    # ── Unregistered travelers ──────────────────────────────────────────
     from .models import TravelInvite
-
+ 
     unregistered_travelers = []
     if is_secretary:
         active_invite_names = set(
@@ -658,10 +672,10 @@ def travel_detail(request, pk):
             p.name for p in all_participants
             if not p.is_registered and p.name not in active_invite_names
         ]
-
+ 
     # ── Completeness percentage — filtered by role ──────────────────────
     doc_types_count = len(ParticipantDocument.DOC_TYPE_CHOICES)
-
+ 
     if user.role == 'EMPLOYEE':
         my_participant = travel.participants.filter(user=user).first()
         if my_participant:
@@ -670,7 +684,7 @@ def travel_detail(request, pk):
             completeness_percentage = round((uploaded / total_possible) * 100) if total_possible else 0
         else:
             completeness_percentage = 0
-
+ 
     elif user.role in ['DEPT_SEC', 'CAMPUS_SEC']:
         if user.role == 'DEPT_SEC' and user.college:
             relevant_participants = travel.participants.filter(college_name=user.college.name)
@@ -689,10 +703,11 @@ def travel_detail(request, pk):
             completeness_percentage = round((uploaded / total_possible) * 100) if total_possible else 0
         else:
             completeness_percentage = 0
-
+ 
     else:
         completeness_percentage = travel.completeness_percentage
-        # ── Liquidation summary ─────────────────────────────────────────
+ 
+    # ── Liquidation summary ─────────────────────────────────────────────
     liquidation_summary = []
     for p in expense_participants:
         planned_doc = p.documents.filter(
@@ -714,7 +729,19 @@ def travel_detail(request, pk):
                 'difference':     diff,
                 'difference_abs': abs(diff) if diff else None,
             })
-
+ 
+    # ── Missing itinerary participants (for budget tag block) ───────────
+    missing_itinerary_participants = []
+    if is_secretary and not travel.is_budget_tagged:
+        for tp in travel.participants.filter(is_registered=True).select_related('user'):
+            has_amount = ParticipantDocument.objects.filter(
+                participant=tp,
+                doc_type='ITINERARY',
+                extracted_amount__isnull=False
+            ).exists()
+            if not has_amount:
+                missing_itinerary_participants.append(tp.get_display_name())
+ 
     context = {
         'user':             user,
         'travel':           travel,
@@ -728,12 +755,13 @@ def travel_detail(request, pk):
         'is_admin':         is_admin,
         'is_creator':       is_creator or is_participant,
         'today':            timezone.now().date(),
-        'participant_expense_summary': participant_expense_summary,
-        'total_submitted':             total_submitted,
-        'all_submitted':               all_submitted,
-        'unregistered_travelers':      unregistered_travelers,
-        'completeness_percentage':     completeness_percentage,
-        'liquidation_summary': liquidation_summary,
+        'participant_expense_summary':      participant_expense_summary,
+        'total_submitted':                  total_submitted,
+        'all_submitted':                    all_submitted,
+        'unregistered_travelers':           unregistered_travelers,
+        'completeness_percentage':          completeness_percentage,
+        'liquidation_summary':              liquidation_summary,
+        'missing_itinerary_participants':   missing_itinerary_participants,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
@@ -803,12 +831,12 @@ def tag_budget(request, pk):
         from django.contrib import messages
         messages.error(request, 'Only secretaries can tag budget sources.')
         return redirect('travel_app:travel_detail', pk=pk)
-
+ 
     travel = get_object_or_404(TravelRecord, pk=pk)
-
+ 
     if request.method == 'POST':
         action = request.POST.get('action', 'tag')
-
+ 
         if action == 'route' and user.role == 'CAMPUS_SEC':
             from accounts.models import College
             college_id = request.POST.get('funding_college_id')
@@ -816,7 +844,7 @@ def tag_budget(request, pk):
                 college = College.objects.get(id=college_id)
                 travel.funding_college = college
                 travel.save(update_fields=['funding_college'])
-
+ 
                 dept_secs = User.objects.filter(
                     role='DEPT_SEC', college=college,
                     is_active=True, is_approved=True
@@ -833,31 +861,54 @@ def tag_budget(request, pk):
                         ),
                         travel_record=travel,
                     )
-
+ 
                 from django.contrib import messages
                 messages.success(request, f'Travel routed to {college.name} Secretary for budget tagging.')
             except College.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'College not found.')
-
+ 
         elif action == 'tag':
+            # ── BLOCK if any registered participant is missing itinerary amount ──
+            participants_all = travel.participants.filter(is_registered=True).select_related('user')
+            missing = []
+            for tp in participants_all:
+                has_amount = ParticipantDocument.objects.filter(
+                    participant=tp,
+                    doc_type='ITINERARY',
+                    extracted_amount__isnull=False
+                ).exists()
+                if not has_amount:
+                    missing.append(tp.get_display_name())
+ 
+            if missing:
+                from django.contrib import messages
+                names = ', '.join(missing)
+                messages.error(
+                    request,
+                    f'Cannot tag budget yet. The following participant(s) have not submitted '
+                    f'an itinerary with an amount: {names}.'
+                )
+                return redirect('travel_app:travel_detail', pk=pk)
+            # ── end block ──
+ 
             budget_source_id = request.POST.get('budget_source_id')
             try:
                 source = BudgetSource.objects.get(id=budget_source_id, is_active=True)
-
+ 
                 allowed = False
                 if user.role == 'DEPT_SEC' and source.budget_scope == 'COLLEGE':
                     allowed = True
                 elif user.role == 'CAMPUS_SEC' and source.budget_scope == 'CAMPUS':
                     allowed = True
-
+ 
                 if not allowed:
                     from django.contrib import messages
                     messages.error(request, 'You cannot use this budget source.')
                 else:
                     from django.utils import timezone as tz
                     from decimal import Decimal, InvalidOperation
-
+ 
                     raw_amount = request.POST.get('amount', '').strip().replace(',', '')
                     try:
                         amount_deducted = Decimal(raw_amount) if raw_amount else Decimal('0')
@@ -865,16 +916,16 @@ def tag_budget(request, pk):
                             amount_deducted = Decimal('0')
                     except InvalidOperation:
                         amount_deducted = Decimal('0')
-
+ 
                     is_retag = travel.is_budget_tagged
                     old_source = travel.budget_source
                     old_amount = travel.amount_deducted or Decimal('0')
-
+ 
                     # ── STEP 1: Restore old source if re-tagging ──────────────
                     if is_retag and old_source:
                         participants = travel.participants.select_related('user').all()
                         participant_count = participants.count()
-
+ 
                         for tp in participants:
                             individual_amount = ParticipantDocument.objects.filter(
                                 participant=tp,
@@ -883,12 +934,12 @@ def tag_budget(request, pk):
                             ).order_by('-uploaded_at').values_list(
                                 'extracted_amount', flat=True
                             ).first()
-
+ 
                             if individual_amount is not None:
                                 restore_amount = Decimal(str(individual_amount))
                             else:
                                 restore_amount = old_amount / participant_count if participant_count else Decimal('0')
-
+ 
                             try:
                                 old_usage = BudgetUsage.objects.get(
                                     user=tp.user,
@@ -898,7 +949,7 @@ def tag_budget(request, pk):
                                 old_usage.restore(restore_amount)
                             except BudgetUsage.DoesNotExist:
                                 pass
-
+ 
                     # ── STEP 2: Update travel record ──────────────────────────
                     travel.budget_source    = source
                     travel.budget_tagged_by = user
@@ -908,11 +959,11 @@ def tag_budget(request, pk):
                         'budget_source', 'budget_tagged_by',
                         'budget_tagged_at', 'amount_deducted'
                     ])
-
+ 
                     # ── STEP 3: Deduct from new source ────────────────────────
                     participants = travel.participants.select_related('user').all()
                     participant_count = participants.count()
-
+ 
                     if participant_count > 0:
                         for tp in participants:
                             individual_amount = ParticipantDocument.objects.filter(
@@ -922,15 +973,15 @@ def tag_budget(request, pk):
                             ).order_by('-uploaded_at').values_list(
                                 'extracted_amount', flat=True
                             ).first()
-
+ 
                             if individual_amount is not None:
                                 deduct_amount = Decimal(str(individual_amount))
                             else:
                                 deduct_amount = amount_deducted / participant_count
-
+ 
                             usage, _ = source.get_or_create_usage(tp.user)
                             usage.deduct(deduct_amount)
-
+ 
                     from django.contrib import messages
                     if is_retag:
                         messages.success(
@@ -945,15 +996,17 @@ def tag_budget(request, pk):
                             f'Budget source "{source.budget_name}" assigned. '
                             f'₱{amount_deducted:,.2f} deducted.'
                         )
-
+ 
             except BudgetSource.DoesNotExist:
                 from django.contrib import messages
                 messages.error(request, 'Invalid budget source.')
             except Exception as e:
                 from django.contrib import messages
                 messages.error(request, f'Error tagging budget: {str(e)}')
-
+ 
     return redirect('travel_app:travel_detail', pk=pk)
+ 
+
 
 # ══════════════════════════════════════════════════════════════════════
 # ALL TRAVELS
@@ -2759,7 +2812,7 @@ def budget_report_view(request):
     if user.role == 'DEPT_SEC':
         available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE')
     elif user.role == 'CAMPUS_SEC':
-        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope__in=['COLLEGE','CAMPUS'])
+        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='CAMPUS')
     else:
         available_sources = BudgetSource.objects.filter(fiscal_year=year)
 
