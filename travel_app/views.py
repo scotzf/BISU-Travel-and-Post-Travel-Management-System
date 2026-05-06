@@ -815,7 +815,9 @@ def upload_document(request, pk):
         from django.contrib import messages
         messages.success(request, f'{doc.get_doc_type_display()} uploaded successfully.')
 
-    return redirect('travel_app:travel_detail', pk=pk)
+    tab = request.POST.get('tab', '')
+    url = f"/travel/travels/{pk}/" + (f"?tab={tab}" if tab else "")
+    return redirect(url)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1860,7 +1862,9 @@ def set_document_amount(request, doc_id):
         else:
             messages.success(request, f'Amount of ₱{amount:,.2f} saved.')
 
-    return redirect('travel_app:travel_detail', pk=travel.id)
+    tab = request.POST.get('tab', '')
+    url = f"/travel/travels/{travel.id}/" + (f"?tab={tab}" if tab else "")
+    return redirect(url)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1906,7 +1910,9 @@ def replace_document(request, doc_id):
         from django.contrib import messages
         messages.success(request, f'{doc.get_doc_type_display()} replaced successfully.')
 
-    return redirect('travel_app:travel_detail', pk=travel.id)
+    tab = request.POST.get('tab', '')
+    url = f"/travel/travels/{travel.id}/" + (f"?tab={tab}" if tab else "")
+    return redirect(url)
 
 
 # ══════════════════════════════════════════════════════════════════════

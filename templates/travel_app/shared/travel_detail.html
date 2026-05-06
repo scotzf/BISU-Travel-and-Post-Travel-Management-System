@@ -137,7 +137,7 @@
                     <span style="color:var(--text-muted);flex-shrink:0">{{ doc.uploaded_at|date:"M j, Y" }}</span>
 
                     {# Amount badge for BURS / ITINERARY / ACTUAL_ITINERARY #}
-                    {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' or doc.doc_type == 'ACTUAL_ITINERARY' %}
+                    {% if doc.doc_type == 'ITINERARY' or doc.doc_type == 'ACTUAL_ITINERARY' %}
                       {% if doc.extracted_amount %}
                         <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:{% if doc.doc_type == 'ACTUAL_ITINERARY' %}#f3e8ff;color:#6b21a8{% else %}#dcfce7;color:#166534{% endif %};font-size:11px;font-weight:600;flex-shrink:0">
                           {{ doc.extracted_amount|peso }}
@@ -152,6 +152,7 @@
                     {% if is_creator or is_secretary or is_admin %}
                     <form method="post" action="{% url 'travel_app:replace_document' doc.id %}" enctype="multipart/form-data" id="replaceForm_{{ doc.id }}" style="display:inline;flex-shrink:0">
                       {% csrf_token %}
+                      <input type="hidden" name="tab" value="hub_{{ hub.participant.id }}"/>
                       <input type="file" id="replaceFile_{{ doc.id }}" name="file" style="display:none" onchange="document.getElementById('replaceForm_{{ doc.id }}').submit()"/>
                       <button type="button" onclick="document.getElementById('replaceFile_{{ doc.id }}').click()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:11px;cursor:pointer;">
                         <i class="bi bi-arrow-repeat"></i> Replace
@@ -162,7 +163,7 @@
                   </div>
 
                   {# Amount entry form for BURS / ITINERARY / ACTUAL_ITINERARY #}
-                  {% if doc.doc_type == 'BURS' or doc.doc_type == 'ITINERARY' or doc.doc_type == 'ACTUAL_ITINERARY' %}
+                  {% if doc.doc_type == 'ITINERARY' or doc.doc_type == 'ACTUAL_ITINERARY' %}
                   {% if is_creator or is_secretary or is_admin %}
                   <div style="padding:8px 0;border-bottom:1px solid var(--border)">
 
@@ -175,6 +176,7 @@
                     {% endif %}
 
                     <form method="post" action="{% url 'travel_app:set_document_amount' doc.id %}" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <input type="hidden" name="tab" value="hub_{{ hub.participant.id }}"/>
                       {% csrf_token %}
                       <span style="font-size:12px;color:var(--text-muted)">{% if doc.extracted_amount %}Edit amount:{% else %}Enter amount:{% endif %}</span>
                       <input type="number" name="amount" step="0.01" min="0" value="{% if doc.extracted_amount %}{{ doc.extracted_amount }}{% endif %}" placeholder="0.00"
@@ -195,6 +197,7 @@
                   <form method="post" action="{% url 'travel_app:upload_document' travel.id %}" enctype="multipart/form-data" id="form_{{ hub.participant.id }}_{{ doc_type }}">
                     {% csrf_token %}
                     <input type="hidden" name="doc_type" value="{{ doc_type }}"/>
+                    <input type="hidden" name="tab" value="hub_{{ hub.participant.id }}"/>
                     <input type="hidden" name="participant_id" value="{{ hub.participant.id }}"/>
                     <div class="upload-area" onclick="document.getElementById('file_{{ hub.participant.id }}_{{ doc_type }}').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event,'{{ hub.participant.id }}','{{ doc_type }}')">
                       <input type="file" id="file_{{ hub.participant.id }}_{{ doc_type }}" name="file" onchange="autoSubmit('form_{{ hub.participant.id }}_{{ doc_type }}')"/>
@@ -572,7 +575,27 @@
 
 {% block extra_js %}
 <script>
-function switchParticipant(hubId,tabEl){document.querySelectorAll('[id^="hub_"]').forEach(el=>el.style.display='none');document.querySelectorAll('.participant-tab').forEach(el=>el.classList.remove('active'));document.getElementById(hubId).style.display='block';tabEl.classList.add('active');}
+function switchParticipant(hubId,tabEl){
+  document.querySelectorAll('[id^="hub_"]').forEach(el=>el.style.display='none');
+  document.querySelectorAll('.participant-tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById(hubId).style.display='block';
+  tabEl.classList.add('active');
+  const url=new URL(window.location);url.searchParams.set('tab',hubId);history.replaceState(null,'',url);
+}
+// Restore active tab from URL on page load
+(function(){
+  const params=new URLSearchParams(window.location.search);
+  const tab=params.get('tab');
+  if(tab){
+    const hubEl=document.getElementById(tab);
+    const tabEl=document.querySelector('.participant-tab[onclick*="'+tab+'"]');
+    if(hubEl&&tabEl){
+      document.querySelectorAll('[id^="hub_"]').forEach(el=>el.style.display='none');
+      document.querySelectorAll('.participant-tab').forEach(el=>el.classList.remove('active'));
+      hubEl.style.display='block';tabEl.classList.add('active');
+    }
+  }
+})();
 function toggleSlot(id){const el=document.getElementById(id);const parts=id.replace('slot_','').split('_');const key=parts[parts.length-1];const pid=parts.slice(0,parts.length-1).join('_');const ch=document.getElementById('chevron_'+pid+'_'+key);const open=el.style.display==='none';el.style.display=open?'block':'none';if(ch)ch.style.transform=open?'rotate(180deg)':'';}
 function autoSubmit(formId){document.getElementById(formId).submit();}
 function handleDrop(event,participantId,docType){event.preventDefault();event.currentTarget.classList.remove('dragover');const file=event.dataTransfer.files[0];const input=document.getElementById('file_'+participantId+'_'+docType);const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;autoSubmit('form_'+participantId+'_'+docType);}
