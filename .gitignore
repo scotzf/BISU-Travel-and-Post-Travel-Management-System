@@ -6,6 +6,7 @@ __pycache__/
 .vscode/
 # C extensions
 *.so
+create_admin.py
 
 # Distribution / packaging
 .Python
