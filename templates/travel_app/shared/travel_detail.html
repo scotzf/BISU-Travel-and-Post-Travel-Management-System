@@ -369,11 +369,13 @@
       </div>
       {% endif %}
 
-      {% if is_secretary and unregistered_travelers %}
+      {% if is_secretary and unregistered_travelers or is_secretary and active_invites %}
       <div style="padding:10px 16px;background:var(--surface-2);border-top:1px solid var(--border)">
         <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
           <i class="bi bi-person-x"></i> Unregistered Participants
         </div>
+
+        {# Not yet invited #}
         {% for name in unregistered_travelers %}
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">
           <div style="display:flex;align-items:center;gap:8px">
@@ -394,8 +396,48 @@
           </form>
         </div>
         {% endfor %}
+
+        {# Already invited — show link modal button #}
+        {% for inv in active_invites %}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:30px;height:30px;border-radius:50%;background:#fef9c3;display:flex;align-items:center;justify-content:center;font-size:14px;color:#854d0e;flex-shrink:0">
+              <i class="bi bi-envelope-check"></i>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:500;color:var(--text-primary)">{{ inv.name }}</div>
+              <div style="font-size:11px;color:#854d0e">Invite sent — pending registration</div>
+            </div>
+          </div>
+          <button type="button"
+            onclick="showInviteModal('{{ inv.name }}', '{{ inv.url }}')"
+            style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:6px;border:1px solid #854d0e;background:#fef9c3;color:#854d0e;font-size:11px;font-weight:600;cursor:pointer;">
+            <i class="bi bi-link-45deg"></i> View Link
+          </button>
+        </div>
+        {% endfor %}
+
       </div>
       {% endif %}
+
+      <!-- Invite Link Modal -->
+      <div id="inviteLinkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
+        <div style="background:var(--surface);border-radius:12px;padding:28px;max-width:480px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+          <div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:4px">
+            <i class="bi bi-envelope-check"></i> Invite Link
+          </div>
+          <div id="inviteModalName" style="font-size:12px;color:var(--text-muted);margin-bottom:16px"></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;word-break:break-all;color:var(--text-primary);margin-bottom:12px" id="inviteModalUrl"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="document.getElementById('inviteLinkModal').style.display='none'"
+              style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-size:13px;cursor:pointer">Close</button>
+            <button onclick="copyInviteLink()"
+              style="padding:8px 16px;border-radius:8px;border:none;background:var(--role-color);color:white;font-size:13px;font-weight:600;cursor:pointer">
+              <i class="bi bi-clipboard"></i> Copy Link
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Budget Source card -->
@@ -601,5 +643,18 @@ function autoSubmit(formId){document.getElementById(formId).submit();}
 function handleDrop(event,participantId,docType){event.preventDefault();event.currentTarget.classList.remove('dragover');const file=event.dataTransfer.files[0];const input=document.getElementById('file_'+participantId+'_'+docType);const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;autoSubmit('form_'+participantId+'_'+docType);}
 function showPanel(name){document.getElementById('panel_campus').style.display=name==='campus'?'':'none';document.getElementById('panel_college').style.display=name==='college'?'':'none';document.getElementById('btn_campus').className=name==='campus'?'btn-primary-custom':'btn-secondary-custom';document.getElementById('btn_college').className=name==='college'?'btn-primary-custom':'btn-secondary-custom';}
 function toggleScopeForm(){const form=document.getElementById('scopeChangeForm');form.style.display=form.style.display==='none'?'block':'none';}
+function showInviteModal(name, url){
+  document.getElementById('inviteModalName').textContent = 'For: ' + name;
+  document.getElementById('inviteModalUrl').textContent  = url;
+  document.getElementById('inviteLinkModal').style.display = 'flex';
+}
+function copyInviteLink(){
+  const url = document.getElementById('inviteModalUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = event.target.closest('button');
+    btn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+    setTimeout(() => btn.innerHTML = '<i class="bi bi-clipboard"></i> Copy Link', 2000);
+  });
+}
 </script>
 {% endblock %}

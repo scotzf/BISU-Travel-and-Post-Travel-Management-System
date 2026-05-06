@@ -664,15 +664,31 @@ def travel_detail(request, pk):
     from .models import TravelInvite
  
     unregistered_travelers = []
+    active_invites = []
     if is_secretary:
-        active_invite_names = set(
-            TravelInvite.objects.filter(
-                travel=travel, is_used=False
-            ).values_list('invited_name', flat=True)
+        active_invite_objs = TravelInvite.objects.filter(
+            travel=travel, is_used=False
+        )
+        active_invite_names = set(o.invited_name for o in active_invite_objs)
+
+        # Build invite list with URLs for the modal
+        for inv in active_invite_objs:
+            active_invites.append({
+                'name': inv.invited_name,
+                'url':  request.build_absolute_uri(f'/invite/{inv.token}/'),
+                'expires_at': inv.expires_at,
+            })
+
+        # Only show unregistered participants who haven't been invited yet
+        registered_names = set(
+            p.user.get_full_name().lower()
+            for p in all_participants if p.is_registered and p.user
         )
         unregistered_travelers = [
             p.name for p in all_participants
-            if not p.is_registered and p.name not in active_invite_names
+            if not p.is_registered
+            and p.name not in active_invite_names
+            and p.name.lower() not in registered_names
         ]
  
     # ── Completeness percentage — filtered by role ──────────────────────
@@ -761,6 +777,7 @@ def travel_detail(request, pk):
         'total_submitted':                  total_submitted,
         'all_submitted':                    all_submitted,
         'unregistered_travelers':           unregistered_travelers,
+        'active_invites':                   active_invites,
         'completeness_percentage':          completeness_percentage,
         'liquidation_summary':              liquidation_summary,
         'missing_itinerary_participants':   missing_itinerary_participants,
