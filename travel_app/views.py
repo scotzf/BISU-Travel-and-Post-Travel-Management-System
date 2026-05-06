@@ -441,7 +441,8 @@ def create_travel(request):
                         except User.DoesNotExist:
                             pass
 
-                travel.refresh_scope()
+                if not scope_override:
+                    travel.refresh_scope()
                 unregistered_names = request.POST.getlist('unregistered_travelers')
                 for name in unregistered_names:
                     name = name.strip()
@@ -778,6 +779,7 @@ def travel_detail(request, pk):
         'all_submitted':                    all_submitted,
         'unregistered_travelers':           unregistered_travelers,
         'active_invites':                   active_invites,
+        'all_users':                        User.objects.filter(is_active=True, is_approved=True, role='EMPLOYEE').order_by('last_name','first_name'),
         'completeness_percentage':          completeness_percentage,
         'liquidation_summary':              liquidation_summary,
         'missing_itinerary_participants':   missing_itinerary_participants,
@@ -2027,67 +2029,50 @@ def liquidation_calculator(request):
 @csrf_protect
 @never_cache
 def invite_participant(request, pk):
-    """Secretary sends an invite link for an unregistered participant."""
+    """Secretary matches an unregistered participant to a registered user."""
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
     if user.role not in ['DEPT_SEC', 'CAMPUS_SEC']:
         from django.contrib import messages
-        messages.error(request, 'Only secretaries can invite participants.')
+        messages.error(request, 'Only secretaries can match participants.')
         return redirect('travel_app:travel_detail', pk=pk)
 
     travel = get_object_or_404(TravelRecord, pk=pk)
 
     if request.method == 'POST':
-        from django.utils import timezone as tz
-        from datetime import timedelta
-        from .models import TravelInvite
+        unregistered_name = request.POST.get('unregistered_name', '').strip()
+        matched_user_id   = request.POST.get('matched_user_id', '').strip()
 
-        invited_name = request.POST.get('invited_name', '').strip()
-        if not invited_name:
+        if not unregistered_name or not matched_user_id:
             from django.contrib import messages
-            messages.error(request, 'Name is required.')
+            messages.error(request, 'Please select a user to match.')
             return redirect('travel_app:travel_detail', pk=pk)
 
-        # Check if invite already exists for this name + travel
-        existing = TravelInvite.objects.filter(
-            travel=travel,
-            invited_name__iexact=invited_name,
-            is_used=False
-        ).first()
-
-        if existing and existing.is_valid():
+        try:
+            matched_user = User.objects.get(id=matched_user_id, is_active=True, is_approved=True)
+            TravelParticipant.objects.filter(
+                travel_record=travel,
+                is_registered=False,
+                name__iexact=unregistered_name
+            ).delete()
+            TravelParticipant.objects.get_or_create(
+                travel_record=travel,
+                user=matched_user,
+                defaults={
+                    'is_registered': True,
+                    'college_name': matched_user.college.name if matched_user.college else '',
+                    'campus_name': matched_user.campus.name if matched_user.campus else '',
+                }
+            )
+            travel.refresh_scope()
             from django.contrib import messages
-            invite_url = request.build_absolute_uri(
-                f'/invite/{existing.token}/'
-            )
-            messages.info(
-                request,
-                f'An active invite already exists for {invited_name}. '
-                f'Share this link: {invite_url}'
-            )
-            return redirect('travel_app:travel_detail', pk=pk)
-
-        invite = TravelInvite.objects.create(
-            travel=travel,
-            invited_name=invited_name,
-            invited_by=user,
-            expires_at=tz.now() + timedelta(days=7),
-        )
-
-        invite_url = request.build_absolute_uri(
-            f'/invite/{invite.token}/'
-        )
-
-        from django.contrib import messages
-        messages.success(
-            request,
-            f'Invite created for {invited_name}. '
-            f'Share this link with them: {invite_url}'
-        )
+            messages.success(request, f'{unregistered_name} matched to {matched_user.get_full_name()} successfully.')
+        except User.DoesNotExist:
+            from django.contrib import messages
+            messages.error(request, 'Selected user not found.')
 
     return redirect('travel_app:travel_detail', pk=pk)
-
 
 # ══════════════════════════════════════════════════════════════════════
 # AUTO-LINK AFTER APPROVAL
