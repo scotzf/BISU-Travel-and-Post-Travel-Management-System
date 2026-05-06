@@ -115,6 +115,6 @@
 <a href="{% url 'accounts:profile' %}" class="nav-item-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}">
   <i class="bi bi-person"></i> Profile
 </a>
-<a href="{% url 'accounts:logout' %}" class="nav-item-link">
+<a href="#" class="nav-item-link" onclick="document.getElementById('logoutModal').style.display='flex';return false;">
   <i class="bi bi-box-arrow-right"></i> Logout
 </a>

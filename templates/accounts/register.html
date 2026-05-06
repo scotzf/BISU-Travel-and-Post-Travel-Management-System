@@ -343,9 +343,42 @@
 
                             <!-- Submit Button -->
                             <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                                <button type="button" class="btn btn-success btn-lg" onclick="showConfirmModal()">
                                     <i class="bi bi-person-check"></i> Create Account
                                 </button>
+                            </div>
+
+                            <!-- Confirmation Modal -->
+                            <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+                              <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content" style="border-radius:15px;border:none">
+                                  <div class="modal-header" style="background:linear-gradient(135deg,#28a745 0%,#20c997 100%);border-radius:15px 15px 0 0;border:none">
+                                    <h5 class="modal-title text-white"><i class="bi bi-person-check"></i> Confirm Registration</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                  </div>
+                                  <div class="modal-body p-4">
+                                    <p class="text-muted mb-3">Please confirm your account details before submitting:</p>
+                                    <table class="table table-sm">
+                                      <tbody>
+                                        <tr><td class="text-muted" style="width:40%">Name</td><td id="confirm_name" class="fw-bold"></td></tr>
+                                        <tr><td class="text-muted">Email</td><td id="confirm_email" class="fw-bold"></td></tr>
+                                        <tr><td class="text-muted">Role</td><td id="confirm_role" class="fw-bold"></td></tr>
+                                        <tr><td class="text-muted">Campus</td><td id="confirm_campus" class="fw-bold"></td></tr>
+                                        <tr><td class="text-muted">College</td><td id="confirm_college" class="fw-bold"></td></tr>
+                                      </tbody>
+                                    </table>
+                                    <div class="alert alert-warning mt-3 mb-0" style="font-size:13px">
+                                      <i class="bi bi-info-circle"></i> Your account will be pending administrator approval after registration.
+                                    </div>
+                                  </div>
+                                  <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> Cancel</button>
+                                    <button type="button" class="btn btn-success" id="submitBtn" onclick="document.getElementById('registrationForm').submit()">
+                                      <i class="bi bi-check2"></i> Yes, Create Account
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                         </form>
 
@@ -418,19 +451,30 @@
             roleSelect.addEventListener('change', updateCollegeField);
         });
         
+        function showConfirmModal() {
+            const first  = document.getElementById('id_first_name').value.trim();
+            const last   = document.getElementById('id_last_name').value.trim();
+            const email  = document.getElementById('id_email').value.trim();
+            const roleEl = document.getElementById('id_role');
+            const campusEl  = document.getElementById('id_campus');
+            const collegeEl = document.getElementById('id_college');
+            const role   = roleEl.options[roleEl.selectedIndex]?.text || '—';
+            const campus = campusEl.options[campusEl.selectedIndex]?.text || '—';
+            const college = collegeEl.options[collegeEl.selectedIndex]?.text || '—';
+
+            document.getElementById('confirm_name').textContent   = `${first} ${last}` || '—';
+            document.getElementById('confirm_email').textContent  = email || '—';
+            document.getElementById('confirm_role').textContent   = role;
+            document.getElementById('confirm_campus').textContent = campus;
+            document.getElementById('confirm_college').textContent = college;
+
+            new bootstrap.Modal(document.getElementById('confirmModal')).show();
+        }
+
         // Prevent Double Submission
-        document.getElementById('registrationForm').addEventListener('submit', function(e) {
-            const submitBtn = document.getElementById('submitBtn');
-            
-            // Check if already submitting
-            if (submitBtn.disabled) {
-                e.preventDefault();
-                return false;
-            }
-            
-            // Disable button and show loading state
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
+        document.getElementById('submitBtn').addEventListener('click', function() {
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
         });
     </script>
 </body>

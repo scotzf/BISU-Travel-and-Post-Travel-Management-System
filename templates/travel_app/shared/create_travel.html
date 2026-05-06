@@ -188,7 +188,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
       </div>
 
       <div style="display:flex;justify-content:flex-end">
-        <button type="submit" class="btn-primary-custom" style="padding:10px 32px">
+        <button type="button" class="btn-primary-custom" style="padding:10px 32px" onclick="showTravelConfirmModal()">
           <i class="bi bi-plus-lg"></i> Create Travel Record
         </button>
       </div>
@@ -397,7 +397,7 @@ textarea.form-control { resize:vertical; min-height:90px; }
               </label>
             </div>
             {% endif %}
-            <button type="submit" class="btn-primary-custom" style="width:100%;margin-top:16px;justify-content:center">
+            <button type="button" class="btn-primary-custom" style="width:100%;margin-top:16px;justify-content:center" onclick="showTravelConfirmModal()">
               <i class="bi bi-plus-lg"></i> Create Travel Record
             </button>
           </div>
@@ -408,6 +408,38 @@ textarea.form-control { resize:vertical; min-height:90px; }
 
   </form>
 </div>
+
+<!-- Travel Confirmation Modal -->
+<div class="modal fade" id="travelConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:12px;border:none">
+      <div class="modal-header" style="background:var(--role-color);border-radius:12px 12px 0 0;border:none">
+        <h5 class="modal-title text-white"><i class="bi bi-airplane"></i> Confirm Travel Record</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="text-muted mb-3" style="font-size:13px">Please review the details before creating:</p>
+        <table class="table table-sm" style="font-size:13px">
+          <tbody>
+            <tr><td class="text-muted" style="width:35%">Destination</td><td id="tc_destination" class="fw-bold"></td></tr>
+            <tr><td class="text-muted">Start Date</td><td id="tc_start" class="fw-bold"></td></tr>
+            <tr><td class="text-muted">End Date</td><td id="tc_end" class="fw-bold"></td></tr>
+            <tr><td class="text-muted">Purpose</td><td id="tc_purpose"></td></tr>
+            <tr><td class="text-muted">Scope</td><td id="tc_scope" class="fw-bold"></td></tr>
+            <tr><td class="text-muted">Out of Province</td><td id="tc_province" class="fw-bold"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" style="padding:8px 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-size:13px;cursor:pointer" data-bs-dismiss="modal"><i class="bi bi-pencil"></i> Edit</button>
+        <button type="button" id="travelSubmitBtn" class="btn-primary-custom" onclick="document.getElementById('travelForm').submit();this.disabled=true;this.textContent='Creating...'">
+          <i class="bi bi-check2"></i> Confirm & Create
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -731,6 +763,27 @@ function validateDates() {
   } else if (endEl) {
     endEl.setCustomValidity('');
   }
+}
+
+function showTravelConfirmModal() {
+  const destEl    = document.getElementById('citySelect');
+  const dest      = destEl && destEl.value ? destEl.value : (document.getElementById('fieldDestination') ? document.getElementById('fieldDestination').value : '—');
+  const start     = document.getElementById('fieldStartDate')?.value || '—';
+  const end       = document.getElementById('fieldEndDate')?.value || '—';
+  const purpose   = document.getElementById('fieldPurpose')?.value?.trim() || '—';
+  const scopeEl   = document.getElementById('scopeOverride');
+  const scope     = scopeEl ? (scopeEl.options[scopeEl.selectedIndex]?.text || 'Auto') : (document.querySelector('input[name="scope_override"]:checked')?.value || '—');
+  const provinceEl = document.getElementById('isOutOfProvinceInput');
+  const outOfProv  = provinceEl ? (provinceEl.value === 'on' ? 'Yes' : 'No') : '—';
+
+  document.getElementById('tc_destination').textContent = dest || '—';
+  document.getElementById('tc_start').textContent       = start;
+  document.getElementById('tc_end').textContent         = end || 'Not set';
+  document.getElementById('tc_purpose').textContent     = purpose.length > 80 ? purpose.slice(0,80)+'…' : purpose;
+  document.getElementById('tc_scope').textContent       = scope;
+  document.getElementById('tc_province').textContent    = outOfProv;
+
+  new bootstrap.Modal(document.getElementById('travelConfirmModal')).show();
 }
 </script>
 {% endblock %}

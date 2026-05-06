@@ -777,7 +777,7 @@
       <i class="bi bi-person"></i>
       <span class="d-none d-md-inline">{{ request.session.first_name }}</span>
     </a>
-    <a href="{% url 'accounts:logout' %}" class="topbar-btn" title="Logout">
+    <a href="#" class="topbar-btn" title="Logout" onclick="document.getElementById('logoutModal').style.display='flex';return false;">
       <i class="bi bi-box-arrow-right"></i>
     </a>
   </div>
@@ -846,5 +846,16 @@
 </script>
 
 {% block extra_js %}{% endblock %}
+<!-- Logout Modal -->
+<div id="logoutModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:12px;padding:28px;max-width:360px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+    <div style="font-size:18px;font-weight:600;color:var(--text-primary);margin-bottom:8px"><i class="bi bi-box-arrow-right"></i> Confirm Logout</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Are you sure you want to log out?</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="document.getElementById('logoutModal').style.display='none'" style="padding:8px 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-size:13px;cursor:pointer">Cancel</button>
+      <a href="{% url 'accounts:logout' %}" style="padding:8px 18px;border-radius:8px;border:none;background:#dc2626;color:white;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none"><i class="bi bi-box-arrow-right"></i> Yes, Logout</a>
+    </div>
+  </div>
+</div>
 </body>
 </html>
