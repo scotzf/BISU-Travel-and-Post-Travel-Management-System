@@ -846,6 +846,101 @@
 </script>
 
 {% block extra_js %}{% endblock %}
+
+<!-- Onboarding Tour -->
+<div id="tourOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:16px;padding:32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.4);position:relative">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div id="tourIcon" style="font-size:28px"></div>
+      <div id="tourStep" style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px"></div>
+    </div>
+    <div id="tourTitle" style="font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:10px"></div>
+    <div id="tourBody" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:24px"></div>
+    <div style="display:flex;gap:6px;margin-bottom:20px" id="tourDots"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <button onclick="skipTour()" style="font-size:12px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0">Skip tour</button>
+      <div style="display:flex;gap:8px">
+        <button id="tourBack" onclick="tourNav(-1)" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-size:13px;cursor:pointer">Back</button>
+        <button id="tourNext" onclick="tourNav(1)" style="padding:8px 20px;border-radius:8px;border:none;background:var(--role-color);color:white;font-size:13px;font-weight:600;cursor:pointer">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const USER_ROLE = "{{ request.session.role|default:'' }}";
+const TOUR_KEY  = "bisu_tour_done_" + USER_ROLE;
+
+const tours = {
+  EMPLOYEE: [
+    { icon:"✈️", title:"Welcome to BISU Travel Hub!", body:"This quick tour will show you how to use the system. It only takes a minute!" },
+    { icon:"➕", title:"Creating a Travel Record", body:"Go to <strong>New Travel</strong> from the sidebar. Select your province and city, set the dates, and describe the purpose of your travel." },
+    { icon:"📄", title:"Uploading Documents", body:"After your travel is created, open it and upload your documents (Travel Order, Itinerary, etc.) under your name in the Document Folder." },
+    { icon:"💰", title:"Setting Your Amount", body:"On your Itinerary document, enter the amount of your travel expenses. This helps the secretary tag the correct budget." },
+    { icon:"🧾", title:"Liquidation", body:"After travel, upload your <strong>Actual Itinerary</strong> and enter the actual amount spent. The system will automatically compute the difference." },
+    { icon:"✅", title:"You are all set!", body:"That is everything you need to know. You can always ask your secretary if you need help. Happy travels!" },
+  ],
+  DEPT_SEC: [
+    { icon:"👋", title:"Welcome, Secretary!", body:"This tour will walk you through managing travel records for your college." },
+    { icon:"➕", title:"Creating Travel Records", body:"Use <strong>New Travel</strong> to create travel records. You can auto-fill details by uploading a Travel Order, and select participants from your college." },
+    { icon:"📁", title:"Managing Documents", body:"Open any travel record to view the Document Folder. You can upload, replace, and set amounts for each participant document." },
+    { icon:"🏷️", title:"Tagging Budget", body:"Once all participants have submitted their itinerary with an amount, you can tag a budget source. Go to the Budget Source card on the right side of the travel detail page." },
+    { icon:"🧾", title:"Liquidation", body:"After travel, participants upload their Actual Itinerary. Enter the actual amount to liquidate — the system will automatically adjust the budget." },
+    { icon:"📊", title:"Reports", body:"Go to <strong>Reports</strong> from the sidebar to view travel records and budget reports. You can filter by month and export as PDF." },
+    { icon:"✅", title:"You are all set!", body:"You now know the key features. Explore the dashboard for a summary of your college travels and budget usage." },
+  ],
+  CAMPUS_SEC: [
+    { icon:"👋", title:"Welcome, Campus Secretary!", body:"This tour covers the key features available to you as Campus Secretary." },
+    { icon:"➕", title:"Creating Campus Travels", body:"Use <strong>New Travel</strong> to create travel records. You can select participants from all colleges on your campus." },
+    { icon:"🏷️", title:"Tagging Budget", body:"For campus-scoped travels, tag a Campus budget source directly. For college-scoped travels, you can route them to the appropriate Dept Secretary." },
+    { icon:"📊", title:"Reports", body:"The Reports page shows campus-wide travel records and budget usage. Filter by month and source, and export as PDF." },
+    { icon:"📈", title:"Dashboard", body:"Your dashboard shows monthly travel volume, travel by college breakdown, top destinations, and budget source usage across the campus." },
+    { icon:"✅", title:"You are all set!", body:"You have full visibility across all colleges. Use the dashboard and reports to monitor travel activity and budget health." },
+  ],
+};
+
+let tourSteps = [];
+let tourIndex = 0;
+
+function renderTour() {
+  const step = tourSteps[tourIndex];
+  document.getElementById("tourIcon").textContent  = step.icon;
+  document.getElementById("tourTitle").textContent = step.title;
+  document.getElementById("tourBody").innerHTML    = step.body;
+  document.getElementById("tourStep").textContent  = "Step " + (tourIndex+1) + " of " + tourSteps.length;
+  document.getElementById("tourBack").style.display = tourIndex === 0 ? "none" : "";
+  document.getElementById("tourNext").textContent   = tourIndex === tourSteps.length-1 ? "Finish" : "Next";
+  const dots = document.getElementById("tourDots");
+  dots.innerHTML = "";
+  tourSteps.forEach(function(_,i) {
+    const d = document.createElement("div");
+    d.style.cssText = "width:8px;height:8px;border-radius:50%;background:" + (i===tourIndex ? "var(--role-color)" : "var(--border)") + ";transition:background .2s";
+    dots.appendChild(d);
+  });
+}
+
+function tourNav(dir) {
+  tourIndex += dir;
+  if (tourIndex >= tourSteps.length) { skipTour(); return; }
+  if (tourIndex < 0) tourIndex = 0;
+  renderTour();
+}
+
+function skipTour() {
+  document.getElementById("tourOverlay").style.display = "none";
+  localStorage.setItem(TOUR_KEY, "1");
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  if (!USER_ROLE || USER_ROLE === "ADMIN") return;
+  if (localStorage.getItem(TOUR_KEY)) return;
+  tourSteps = tours[USER_ROLE] || [];
+  if (!tourSteps.length) return;
+  tourIndex = 0;
+  renderTour();
+  document.getElementById("tourOverlay").style.display = "flex";
+});
+</script>
+
 <!-- Logout Modal -->
 <div id="logoutModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
   <div style="background:var(--surface);border-radius:12px;padding:28px;max-width:360px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
