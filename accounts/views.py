@@ -768,9 +768,28 @@ def invite_register(request, token):
                     )
 
                     # Mark invite as used and link to new user
-                    invite.is_used    = True
+                    # Mark invite as used and link to new user
+                    invite.is_used     = True
                     invite.accepted_by = new_user
                     invite.save(update_fields=['is_used', 'accepted_by'])
+
+                    # Replace unregistered participant row with registered user
+                    from travel_app.models import TravelParticipant
+                    TravelParticipant.objects.filter(
+                        travel_record=invite.travel,
+                        is_registered=False,
+                        name__iexact=invite.invited_name
+                    ).delete()
+                    TravelParticipant.objects.get_or_create(
+                        travel_record=invite.travel,
+                        user=new_user,
+                        defaults={
+                            'is_registered': True,
+                            'college_name': college.name if college else '',
+                            'campus_name': campus.name if campus else '',
+                        }
+                    )
+                    invite.travel.refresh_scope()
 
                     messages.warning(
                         request,

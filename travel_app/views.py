@@ -177,6 +177,7 @@ def dept_secretary_dashboard(request, user=None):
         'monthly_labels':        monthly_labels,
         'monthly_data':          monthly_data,
         'top_destinations':      top_destinations,
+        'college_breakdown':      [],
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -276,6 +277,7 @@ def campus_secretary_dashboard(request, user=None):
         'monthly_labels':        monthly_labels,
         'monthly_data':          monthly_data,
         'top_destinations':      top_destinations,
+        'college_breakdown':      [],
         'college_breakdown': college_breakdown,
         'college_breakdown': college_breakdown,
     }
@@ -2040,7 +2042,7 @@ def invite_participant(request, pk):
         if existing and existing.is_valid():
             from django.contrib import messages
             invite_url = request.build_absolute_uri(
-                f'/accounts/invite/{existing.token}/'
+                f'/invite/{existing.token}/'
             )
             messages.info(
                 request,
@@ -2057,7 +2059,7 @@ def invite_participant(request, pk):
         )
 
         invite_url = request.build_absolute_uri(
-            f'/accounts/invite/{invite.token}/'
+            f'/invite/{invite.token}/'
         )
 
         from django.contrib import messages
