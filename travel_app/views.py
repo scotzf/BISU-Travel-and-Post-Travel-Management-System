@@ -544,8 +544,15 @@ def travel_detail(request, pk):
     all_participants = travel.participants.select_related('user').all()
  
     if user.role in ['DEPT_SEC', 'CAMPUS_SEC', 'ADMIN']:
+        if user.role == 'DEPT_SEC' and user.college:
+            if travel.scope == 'CAMPUS' and travel.funding_college == user.college:
+                hub_participants = all_participants
+            else:
+                hub_participants = all_participants.filter(college_name=user.college.name)
+        else:
+            hub_participants = all_participants
         participant_hubs = []
-        for p in all_participants:
+        for p in hub_participants:
             docs_by_type = {}
             for doc_type, doc_label in ParticipantDocument.DOC_TYPE_CHOICES:
                 docs = p.documents.filter(doc_type=doc_type).order_by('-uploaded_at')
@@ -617,9 +624,12 @@ def travel_detail(request, pk):
     from decimal import Decimal
  
     if user.role == 'DEPT_SEC' and user.college:
-        expense_participants = travel.participants.select_related('user').filter(
-            college_name=user.college.name
-        )
+        if travel.scope == 'CAMPUS' and travel.funding_college == user.college:
+            expense_participants = travel.participants.select_related('user').all()
+        else:
+            expense_participants = travel.participants.select_related('user').filter(
+                college_name=user.college.name
+            )
     elif user.role == 'EMPLOYEE':
         my_p = travel.participants.filter(user=user).first()
         expense_participants = travel.participants.filter(id=my_p.id) if my_p else travel.participants.none()
@@ -2381,9 +2391,28 @@ def reports_view(request):
             emp_qs = emp_qs.filter(start_date__lte=request.GET.get('end_date'))
         from django.core.paginator import Paginator
         emp_ordered = emp_qs.order_by('start_date')
-        if request.GET.get('show_amounts'):
-            employee_total = sum(float(t.amount_deducted or 0) for t in emp_ordered)
-        emp_paginator = Paginator(list(emp_ordered), 10)
+        emp_rows = []
+        employee_total = 0
+        for t in emp_ordered:
+            participant = t.participants.filter(user=user).first()
+            itinerary = None
+            if participant:
+                itinerary = participant.documents.filter(
+                    doc_type='ACTUAL_ITINERARY', is_confirmed=True
+                ).first() or participant.documents.filter(
+                    doc_type='ITINERARY', extracted_amount__isnull=False
+                ).first()
+            amount = float(itinerary.extracted_amount) if itinerary and itinerary.extracted_amount else 0
+            if request.GET.get('show_amounts'):
+                employee_total += amount
+            emp_rows.append({
+                'purpose': t.purpose,
+                'start_date': t.start_date,
+                'end_date': t.end_date,
+                'destination': t.destination,
+                'amount_deducted': amount,
+            })
+        emp_paginator = Paginator(emp_rows, 10)
         try:
             employee_travels = emp_paginator.page(request.GET.get('page', 1))
         except Exception:
@@ -2436,7 +2465,12 @@ def reports_view(request):
             total = 0
             for t in src_travels:
                 for p in t.participants.filter(user__isnull=False):
-                    amount = float(t.amount_deducted or 0)
+                    itinerary = p.documents.filter(
+                        doc_type='ACTUAL_ITINERARY', is_confirmed=True
+                    ).first() or p.documents.filter(
+                        doc_type='ITINERARY', extracted_amount__isnull=False
+                    ).first()
+                    amount = float(itinerary.extracted_amount) if itinerary and itinerary.extracted_amount else 0
                     total += amount
                     rows.append({
                         'name':        p.get_display_name(),
@@ -2921,7 +2955,12 @@ def budget_report_view(request):
         total = 0
         for t in src_travels:
             for p in t.participants.filter(user__isnull=False):
-                amount = float(t.amount_deducted or 0)
+                itinerary = p.documents.filter(
+                    doc_type='ACTUAL_ITINERARY', is_confirmed=True
+                ).first() or p.documents.filter(
+                    doc_type='ITINERARY', extracted_amount__isnull=False
+                ).first()
+                amount = float(itinerary.extracted_amount) if itinerary and itinerary.extracted_amount else 0
                 total += amount
                 rows.append({
                     'name':        p.get_display_name(),
