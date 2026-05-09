@@ -128,6 +128,8 @@ def dept_secretary_dashboard(request, user=None):
     # Scope data
     scope_college = travels_year.filter(scope='COLLEGE').count()
     scope_campus  = travels_year.filter(scope='CAMPUS').count()
+    in_province   = travels_year.filter(is_out_of_province=False).count()
+    out_of_province_count = travels_year.filter(is_out_of_province=True).count()
     
     # Monthly data
     monthly_raw = (
@@ -177,7 +179,10 @@ def dept_secretary_dashboard(request, user=None):
         'monthly_labels':        monthly_labels,
         'monthly_data':          monthly_data,
         'top_destinations':      top_destinations,
-        'college_breakdown':      [],
+        'college_breakdown':      [
+            {'name': 'In-Province', 'count': in_province},
+            {'name': 'Out-of-Province', 'count': out_of_province_count},
+        ],
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
@@ -211,6 +216,8 @@ def campus_secretary_dashboard(request, user=None):
     # Scope data
     scope_college = travels_year.filter(scope='COLLEGE').count()
     scope_campus  = travels_year.filter(scope='CAMPUS').count()
+    in_province   = travels_year.filter(is_out_of_province=False).count()
+    out_of_province_count = travels_year.filter(is_out_of_province=True).count()
 
     # College breakdown for donut chart
     from accounts.models import College
@@ -277,8 +284,6 @@ def campus_secretary_dashboard(request, user=None):
         'monthly_labels':        monthly_labels,
         'monthly_data':          monthly_data,
         'top_destinations':      top_destinations,
-        'college_breakdown':      [],
-        'college_breakdown': college_breakdown,
         'college_breakdown': college_breakdown,
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
@@ -737,7 +742,7 @@ def travel_detail(request, pk):
             doc_type='ACTUAL_ITINERARY',
             extracted_amount__isnull=False
         ).order_by('-uploaded_at').first()
-        if planned_doc or actual_doc:
+        if actual_doc:
             planned = planned_doc.extracted_amount if planned_doc else None
             actual  = actual_doc.extracted_amount if actual_doc else None
             diff    = (actual - planned) if (planned and actual) else None
@@ -824,6 +829,20 @@ def upload_document(request, pk):
                 from django.contrib import messages
                 messages.error(request, 'You are not a participant in this travel.')
                 return redirect('travel_app:travel_detail', pk=pk)
+
+        # Block duplicate ITINERARY or ACTUAL_ITINERARY uploads
+        if doc_type in ['ITINERARY', 'ACTUAL_ITINERARY']:
+            already_exists = ParticipantDocument.objects.filter(
+                participant=participant,
+                doc_type=doc_type
+            ).exists()
+            if already_exists:
+                from django.contrib import messages
+                label = 'Itinerary' if doc_type == 'ITINERARY' else 'Actual Itinerary'
+                messages.error(request, f'{label} already uploaded. Use Replace to update it.')
+                tab = request.POST.get('tab', '')
+                url = f"/travel/travels/{pk}/" + (f"?tab={tab}" if tab else "")
+                return redirect(url)
 
         doc = ParticipantDocument.objects.create(
             participant=participant,
@@ -1926,7 +1945,15 @@ def replace_document(request, doc_id):
         doc.file        = file
         doc.uploaded_by = user
         doc.uploaded_at = timezone.now()
-        doc.save(update_fields=['file', 'uploaded_by', 'uploaded_at'])
+        # Reset confirmation if ACTUAL_ITINERARY replaced — forces re-liquidation
+        if doc.doc_type == 'ACTUAL_ITINERARY':
+            doc.is_confirmed = False
+            doc.confirmed_by = None
+            doc.confirmed_at = None
+            doc.extracted_amount = None
+            doc.save(update_fields=['file', 'uploaded_by', 'uploaded_at', 'is_confirmed', 'confirmed_by', 'confirmed_at', 'extracted_amount'])
+        else:
+            doc.save(update_fields=['file', 'uploaded_by', 'uploaded_at'])
 
         from django.contrib import messages
         messages.success(request, f'{doc.get_doc_type_display()} replaced successfully.')
@@ -2288,7 +2315,7 @@ def reports_view(request):
 
     # --- Available budget sources for dropdown ---
     if user.role == 'DEPT_SEC':
-        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE')
+        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE', college=user.college)
     elif user.role == 'CAMPUS_SEC':
         available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope__in=['COLLEGE','CAMPUS'])
     else:
@@ -2820,7 +2847,7 @@ def budget_report_view(request):
 
     # Available sources
     if user.role == 'DEPT_SEC':
-        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE')
+        available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE', college=user.college)
     elif user.role == 'CAMPUS_SEC':
         available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='CAMPUS')
     else:

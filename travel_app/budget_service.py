@@ -149,29 +149,34 @@ def liquidate_participant(participant, actual_amount):
 
     original_amount = Decimal(str(original_doc.extracted_amount))
 
-    # Check if there's a PREVIOUS actual itinerary that was already applied
-    # We look for the previously confirmed actual itinerary doc (not the current one)
-    previous_actual_doc = ParticipantDocument.objects.filter(
+    # Check if a previous liquidation was already applied.
+    # We track what was previously applied via the usage.used_amount vs original_amount.
+    # The current used_amount already reflects the last applied actual.
+    # Strategy: fully restore to original_amount first, then apply new actual.
+    #
+    # Current used_amount = original_amount +/- previous_adjustment
+    # Step 1: restore back to what it was BEFORE any liquidation (i.e. original_amount deducted)
+    # Step 2: apply new actual vs original difference
+    #
+    # We detect a previous liquidation if any confirmed ACTUAL_ITINERARY exists.
+    previous_liquidated = ParticipantDocument.objects.filter(
         participant=participant,
         doc_type='ACTUAL_ITINERARY',
+        is_confirmed=True,
         extracted_amount__isnull=False,
-        is_confirmed=True,  # only already-applied ones
-    ).order_by('-uploaded_at').first()
+    ).exists()
 
-    if previous_actual_doc:
-        # We already applied a liquidation before.
-        # The budget currently reflects: original deducted → then adjusted by previous actual.
-        # Now we need to reverse the PREVIOUS adjustment and apply the NEW one.
-        previous_actual = Decimal(str(previous_actual_doc.extracted_amount))
-        previous_diff   = previous_actual - original_amount
-
-        # Reverse the previous adjustment
-        if previous_diff < 0:
-            # We previously restored abs(diff) — undo that restore by deducting it back
-            usage.deduct(abs(previous_diff))
-        elif previous_diff > 0:
-            # We previously deducted extra — undo that by restoring it
-            usage.restore(previous_diff)
+    if previous_liquidated:
+        # Fully reset usage back to original_amount by computing current adjustment.
+        # used_amount currently = original + prev_diff (could be + or -)
+        # We want used_amount = original, so:
+        current_used = usage.used_amount
+        target_used  = original_amount  # what it should be before new liquidation
+        correction   = current_used - target_used
+        if correction > 0:
+            usage.restore(correction)
+        elif correction < 0:
+            usage.deduct(abs(correction))
 
     # Now apply the new actual amount vs original
     difference = actual_amount - original_amount

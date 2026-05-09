@@ -46,7 +46,7 @@
       <canvas id="monthlyChart" height="100"></canvas>
     </div>
     <div style="background:var(--card);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem">
-      <p style="font-size:14px;font-weight:500;margin:0 0 1rem">Travel by scope</p>
+      <p style="font-size:14px;font-weight:500;margin:0 0 1rem">Travel by province</p>
       <canvas id="scopeChart" height="160"></canvas>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
         {% for item in college_breakdown %}
@@ -56,11 +56,7 @@
           <span style="margin-left:auto;font-weight:500">{{ item.count }}</span>
         </div>
         {% endfor %}
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <div style="width:10px;height:10px;border-radius:50%;background:#1D9E75;flex-shrink:0"></div>
-          <span style="color:var(--text-muted)">Campus-scoped</span>
-          <span style="margin-left:auto;font-weight:500">{{ scope_campus }}</span>
-        </div>
+
       </div>
     </div>
   </div>
@@ -117,9 +113,9 @@ new Chart(document.getElementById('monthlyChart'), {
 
 const collegeBreakdown = {{ college_breakdown|safe }};
 const collegeColors = ['#6366f1','#0ea5e9','#16a34a','#ea580c','#7c3aed','#0f766e'];
-const donutLabels = collegeBreakdown.map(c => c.name).concat(['Campus-scoped']);
-const donutData   = collegeBreakdown.map(c => c.count).concat([{{ scope_campus }}]);
-const donutColors = collegeBreakdown.map((_, i) => collegeColors[i % collegeColors.length]).concat(['#1D9E75']);
+const donutLabels = collegeBreakdown.map(c => c.name);
+const donutData   = collegeBreakdown.map(c => c.count);
+const donutColors = collegeBreakdown.map((_, i) => collegeColors[i % collegeColors.length]);
 collegeBreakdown.forEach((_, i) => {
   document.querySelectorAll('.college-dot-' + (i+1)).forEach(d => d.style.background = collegeColors[i % collegeColors.length]);
 });
