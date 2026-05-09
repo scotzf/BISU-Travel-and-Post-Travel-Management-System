@@ -16,10 +16,6 @@ from .models import (
 from .budget_service import get_sources_for_secretary
 
 
-# ══════════════════════════════════════════════════════════════════════
-# HELPERS
-# ══════════════════════════════════════════════════════════════════════
-
 def require_role(roles):
     def decorator(view_func):
         def wrapper(request, *args, **kwargs):
@@ -43,7 +39,6 @@ def _travel_stats_for_queryset(qs):
         'upcoming_travels':   sum(1 for t in travels if t.start_date > today),
         'incomplete_travels': sum(1 for t in travels if t.completeness_percentage < 100),
     }
-
 
 
 def _notify_if_duplicate(travel, creator):
@@ -77,10 +72,6 @@ def _notify_if_duplicate(travel, creator):
         )
 
 
-# ══════════════════════════════════════════════════════════════════════
-# EMPLOYEE DASHBOARD
-# ══════════════════════════════════════════════════════════════════════
-
 @never_cache
 @require_role(['EMPLOYEE'])
 def employee_dashboard(request, user=None):
@@ -97,10 +88,6 @@ def employee_dashboard(request, user=None):
     }
     return render(request, 'travel_app/employee/dashboard.html', context)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# DEPT SECRETARY DASHBOARD
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 @require_role(['DEPT_SEC'])
@@ -125,13 +112,11 @@ def dept_secretary_dashboard(request, user=None):
     ).values('user').distinct().count()
     out_of_province = travels_year.filter(is_out_of_province=True).count()
     
-    # Scope data
     scope_college = travels_year.filter(scope='COLLEGE').count()
     scope_campus  = travels_year.filter(scope='CAMPUS').count()
     in_province   = travels_year.filter(is_out_of_province=False).count()
     out_of_province_count = travels_year.filter(is_out_of_province=True).count()
     
-    # Monthly data
     monthly_raw = (
         travels_year
         .annotate(month=TruncMonth('start_date'))
@@ -145,14 +130,12 @@ def dept_secretary_dashboard(request, user=None):
     monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     monthly_data   = [monthly_counts[i] for i in range(1, 13)]
     
-    # Top destinations
     top_destinations = (
         travels_year
         .values('destination')
         .annotate(count=Count('id'))
         .order_by('-count')[:5]
     )
-    # Normalize budget sources for template
     for src in budget_sources:
         allocated = float(src.get('allocated', 0))
         used = float(src.get('used', 0))
@@ -187,10 +170,6 @@ def dept_secretary_dashboard(request, user=None):
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# CAMPUS SECRETARY DASHBOARD
-# ══════════════════════════════════════════════════════════════════════
-
 @never_cache
 @require_role(['CAMPUS_SEC'])
 def campus_secretary_dashboard(request, user=None):
@@ -213,13 +192,10 @@ def campus_secretary_dashboard(request, user=None):
     ).values('user').distinct().count()
     out_of_province = travels_year.filter(is_out_of_province=True).count()
     
-    # Scope data
     scope_college = travels_year.filter(scope='COLLEGE').count()
     scope_campus  = travels_year.filter(scope='CAMPUS').count()
     in_province   = travels_year.filter(is_out_of_province=False).count()
     out_of_province_count = travels_year.filter(is_out_of_province=True).count()
-
-   
 
     from accounts.models import College
     college_breakdown = []
@@ -228,7 +204,6 @@ def campus_secretary_dashboard(request, user=None):
         if count > 0:
             college_breakdown.append({'name': college.name, 'count': count})
     
-    # Monthly data
     monthly_raw = (
         travels_year
         .annotate(month=TruncMonth('start_date'))
@@ -242,14 +217,12 @@ def campus_secretary_dashboard(request, user=None):
     monthly_labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     monthly_data   = [monthly_counts[i] for i in range(1, 13)]
     
-    # Top destinations
     top_destinations = (
         travels_year
         .values('destination')
         .annotate(count=Count('id'))
         .order_by('-count')[:5]
     )
-    # Normalize budget sources for template
     for src in budget_sources:
         allocated = float(src.get('allocated', 0))
         used = float(src.get('used', 0))
@@ -280,10 +253,6 @@ def campus_secretary_dashboard(request, user=None):
     }
     return render(request, 'travel_app/secretary/dashboard.html', context)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# ADMIN DASHBOARD
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 @require_role(['ADMIN'])
@@ -335,10 +304,6 @@ def admin_dashboard(request, user=None):
     return render(request, 'travel_app/admin/dashboard.html', context)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# CREATE TRAVEL
-# ══════════════════════════════════════════════════════════════════════
-
 @csrf_protect
 @never_cache
 def create_travel(request):
@@ -359,7 +324,7 @@ def create_travel(request):
             is_active=True,
             role='EMPLOYEE'
         ).exclude(id=user.id).order_by('last_name', 'first_name')
-    else:  # CAMPUS_SEC
+    else:
         available_participants = User.objects.filter(
             campus=user.campus,
             is_approved=True,
@@ -396,7 +361,6 @@ def create_travel(request):
                 'available_participants': available_participants,
                 'post': request.POST,
             })
-        
 
         try:
             with transaction.atomic():
@@ -417,10 +381,8 @@ def create_travel(request):
                     travel.save(update_fields=['scope'])
 
                 if user.role == 'EMPLOYEE':
-                    # Employee is always a participant in their own travel
                     TravelParticipant.objects.get_or_create(travel_record=travel, user=user)
                 elif request.POST.get('include_creator') == 'yes':
-                    # Secretary opted in via checkbox
                     TravelParticipant.objects.get_or_create(travel_record=travel, user=user)
 
                 for pid in matched_traveler_ids:
@@ -463,7 +425,6 @@ def create_travel(request):
                         full_path = default_storage.path(temp_path)
                         file_name = os.path.basename(temp_path)
 
-                        # Collect doc IDs to run extraction after transaction
                         doc_ids = []
 
                         for participant in travel.participants.all():
@@ -486,8 +447,6 @@ def create_travel(request):
 
                         default_storage.delete(temp_path)
 
-                        # Queue Celery tasks AFTER transaction completes
-                        # so the docs exist in DB when the task runs
                         for doc_id in doc_ids:
                             extract_document_task.delay(doc_id)
 
@@ -514,9 +473,6 @@ def create_travel(request):
     })
 
 
-# ══════════════════════════════════════════════════════════════════════
-# TRAVEL DETAIL
-# ══════════════════════════════════════════════════════════════════════
 @never_cache
 def travel_detail(request, pk):
     user = get_authenticated_user(request)
@@ -620,7 +576,6 @@ def travel_detail(request, pk):
                 else:
                     can_tag_budget = False
  
-    # ── Per-participant expense summary — filtered by role ──────────────
     from decimal import Decimal
  
     if user.role == 'DEPT_SEC' and user.college:
@@ -668,7 +623,6 @@ def travel_detail(request, pk):
             'doc_type':    amount_doc.get_doc_type_display() if amount_doc else None,
         })
  
-    # ── Unregistered travelers ──────────────────────────────────────────
     from .models import TravelInvite
  
     unregistered_travelers = []
@@ -679,7 +633,6 @@ def travel_detail(request, pk):
         )
         active_invite_names = set(o.invited_name for o in active_invite_objs)
 
-        # Build invite list with URLs for the modal
         for inv in active_invite_objs:
             active_invites.append({
                 'name': inv.invited_name,
@@ -687,7 +640,6 @@ def travel_detail(request, pk):
                 'expires_at': inv.expires_at,
             })
 
-        # Only show unregistered participants who haven't been invited yet
         registered_names = set(
             p.user.get_full_name().lower()
             for p in all_participants if p.is_registered and p.user
@@ -699,7 +651,6 @@ def travel_detail(request, pk):
             and p.name.lower() not in registered_names
         ]
  
-    # ── Completeness percentage — filtered by role ──────────────────────
     doc_types_count = len(ParticipantDocument.DOC_TYPE_CHOICES)
  
     if user.role == 'EMPLOYEE':
@@ -733,7 +684,6 @@ def travel_detail(request, pk):
     else:
         completeness_percentage = travel.completeness_percentage
  
-    # ── Liquidation summary ─────────────────────────────────────────────
     liquidation_summary = []
     for p in expense_participants:
         planned_doc = p.documents.filter(
@@ -756,7 +706,6 @@ def travel_detail(request, pk):
                 'difference_abs': abs(diff) if diff else None,
             })
  
-    # ── Missing itinerary participants (for budget tag block) ───────────
     missing_itinerary_participants = []
     if is_secretary and not travel.is_budget_tagged:
         for tp in travel.participants.filter(is_registered=True).select_related('user'):
@@ -767,7 +716,7 @@ def travel_detail(request, pk):
             ).exists()
             if not has_amount:
                 missing_itinerary_participants.append(tp.get_display_name())
-    # ── Unregistered participants (blocks budget tagging) ──
+
     unregistered_for_tag = [
         p.name for p in travel.participants.filter(is_registered=False)
     ]
@@ -798,9 +747,6 @@ def travel_detail(request, pk):
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
-# ══════════════════════════════════════════════════════════════════════
-# UPLOAD DOCUMENT
-# ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
 @never_cache
@@ -837,7 +783,6 @@ def upload_document(request, pk):
                 messages.error(request, 'You are not a participant in this travel.')
                 return redirect('travel_app:travel_detail', pk=pk)
 
-        # Block duplicate ITINERARY or ACTUAL_ITINERARY uploads
         if doc_type in ['ITINERARY', 'ACTUAL_ITINERARY']:
             already_exists = ParticipantDocument.objects.filter(
                 participant=participant,
@@ -867,9 +812,6 @@ def upload_document(request, pk):
     return redirect(url)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# TAG BUDGET
-# ══════════════════════════════════════════════════════════════════════
 @csrf_protect
 @never_cache
 def tag_budget(request, pk):
@@ -918,7 +860,6 @@ def tag_budget(request, pk):
                 messages.error(request, 'College not found.')
  
         elif action == 'tag':
-            # ── BLOCK if any participant is unregistered ──
             unregistered = travel.participants.filter(is_registered=False)
             if unregistered.exists():
                 from django.contrib import messages
@@ -928,8 +869,7 @@ def tag_budget(request, pk):
                     f'Cannot tag budget yet. The following participant(s) are not matched to a registered user: {names}.'
                 )
                 return redirect('travel_app:travel_detail', pk=pk)
-            # ── end block ──
-            # ── BLOCK if any registered participant is missing itinerary amount ──
+
             participants_all = travel.participants.filter(is_registered=True).select_related('user')
             missing = []
             for tp in participants_all:
@@ -941,7 +881,6 @@ def tag_budget(request, pk):
                 if not has_amount:
                     missing.append(tp.get_display_name())
             
-            
             if missing:
                 from django.contrib import messages
                 names = ', '.join(missing)
@@ -951,7 +890,6 @@ def tag_budget(request, pk):
                     f'an itinerary with an amount: {names}.'
                 )
                 return redirect('travel_app:travel_detail', pk=pk)
-            # ── end block ──
  
             budget_source_id = request.POST.get('budget_source_id')
             try:
@@ -982,7 +920,6 @@ def tag_budget(request, pk):
                     old_source = travel.budget_source
                     old_amount = travel.amount_deducted or Decimal('0')
  
-                    # ── STEP 1: Restore old source if re-tagging ──────────────
                     if is_retag and old_source:
                         participants = travel.participants.select_related('user').all()
                         participant_count = participants.count()
@@ -1011,7 +948,6 @@ def tag_budget(request, pk):
                             except BudgetUsage.DoesNotExist:
                                 pass
  
-                    # ── STEP 2: Update travel record ──────────────────────────
                     travel.budget_source    = source
                     travel.budget_tagged_by = user
                     travel.budget_tagged_at = tz.now()
@@ -1021,7 +957,6 @@ def tag_budget(request, pk):
                         'budget_tagged_at', 'amount_deducted'
                     ])
  
-                    # ── STEP 3: Deduct from new source ────────────────────────
                     participants = travel.participants.select_related('user').all()
                     participant_count = participants.count()
  
@@ -1066,12 +1001,8 @@ def tag_budget(request, pk):
                 messages.error(request, f'Error tagging budget: {str(e)}')
  
     return redirect('travel_app:travel_detail', pk=pk)
- 
 
 
-# ══════════════════════════════════════════════════════════════════════
-# ALL TRAVELS
-# ══════════════════════════════════════════════════════════════════════
 @never_cache
 def all_travels(request):
     user = get_authenticated_user(request)
@@ -1116,7 +1047,6 @@ def all_travels(request):
 
     total = travels.count()
 
-    # Pagination — 20 per page
     from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
     paginator = Paginator(travels, 20)
     page_num  = request.GET.get('page', 1)
@@ -1142,9 +1072,6 @@ def all_travels(request):
     }
     return render(request, 'travel_app/shared/all_travels.html', context)
 
-# ══════════════════════════════════════════════════════════════════════
-# MY TRAVELS + STATS
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 @require_role(['EMPLOYEE'])
@@ -1152,9 +1079,6 @@ def my_travels(request, user=None):
     return redirect('travel_app:all_travels')
 
 
-# ══════════════════════════════════════════════════════════════════════
-# BUDGET (MERGED VIEW)
-# ══════════════════════════════════════════════════════════════════════
 @never_cache
 def budget_view(request):
     user = get_authenticated_user(request)
@@ -1232,7 +1156,6 @@ def budget_view(request):
 
         return redirect(f"{request.path}?year={year}")
 
-    # Build source list
     if user.role == 'ADMIN':
         sources = BudgetSource.objects.filter(fiscal_year=year).order_by('budget_scope', 'budget_name')
     elif user.role == 'DEPT_SEC':
@@ -1287,10 +1210,6 @@ def budget_view(request):
     }
     return render(request, 'travel_app/shared/budget.html', context)
 
-# ══════════════════════════════════════════════════════════════════════
-# MANAGE BUDGET SOURCES (Admin)
-# ══════════════════════════════════════════════════════════════════════
-# Replace your existing manage_budget_sources view with this
 
 @csrf_protect
 @never_cache
@@ -1307,7 +1226,6 @@ def manage_budget_sources(request):
     today = timezone.now().date()
     year  = int(request.GET.get('year', today.year))
 
-    # Fiscal year choices: current year + next year only
     fiscal_year_choices = [today.year, today.year + 1]
 
     if request.method == 'POST' and user.role != 'ADMIN':
@@ -1373,14 +1291,13 @@ def manage_budget_sources(request):
 
         return redirect(f"{request.path}?year={year}")
 
-    # Build source list depending on role
     if user.role == 'ADMIN':
         sources = BudgetSource.objects.filter(fiscal_year=year).order_by('budget_scope', 'budget_name')
     elif user.role == 'DEPT_SEC':
         sources = BudgetSource.objects.filter(
             fiscal_year=year, budget_scope='COLLEGE'
         ).order_by('budget_name')
-    else:  # CAMPUS_SEC
+    else:
         sources = BudgetSource.objects.filter(
             fiscal_year=year, budget_scope='CAMPUS'
         ).order_by('budget_name')
@@ -1389,7 +1306,6 @@ def manage_budget_sources(request):
     for source in sources:
         usages     = BudgetUsage.objects.filter(budget_source=source, year=year)
         total_used = sum(u.used_amount for u in usages)
-        # Amount is as-is — no multiplication
         allocated  = source.budget_amount
         remaining  = allocated - total_used
         pct        = round((total_used / allocated * 100), 1) if allocated > 0 else 0
@@ -1415,10 +1331,6 @@ def manage_budget_sources(request):
     }
     return render(request, 'travel_app/admin/manage_budget_sources.html', context)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# BUDGET OVERVIEW
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 def budget_overview(request):
@@ -1461,7 +1373,6 @@ def budget_overview(request):
                     'status':     u.status,
                 } for u in usages]
 
-            # Always use source.budget_amount as the total — never sum usage rows
             total_alloc  = source.budget_amount
             total_used   = sum(u.used_amount for u in usages)
             tagged_count = source.travel_records.count()
@@ -1481,7 +1392,7 @@ def budget_overview(request):
         overview = [{
             'source':          item['source'],
             'rows':            [],
-            'total_allocated': item['source'].budget_amount,  # always use source amount
+            'total_allocated': item['source'].budget_amount,
             'total_used':      item.get('used', 0),
             'total_remaining': item['source'].budget_amount - item.get('used', 0),
             'percentage':      item.get('percentage', 0),
@@ -1498,10 +1409,6 @@ def budget_overview(request):
     }
     return render(request, 'travel_app/shared/budget_overview.html', context)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# SECRETARY QUEUE
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 def secretary_queue(request):
@@ -1541,10 +1448,6 @@ def secretary_queue(request):
     }
     return render(request, 'travel_app/secretary/queue.html', context)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# DOWNLOAD ZIP
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 def download_zip(request, pk):
@@ -1599,10 +1502,6 @@ def download_zip(request, pk):
     response['Content-Disposition'] = f'attachment; filename="{zip_name}"'
     return response
 
-
-# ══════════════════════════════════════════════════════════════════════
-# CONFIRM / REJECT EXTRACTION
-# ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
 @never_cache
@@ -1663,19 +1562,11 @@ def reject_extraction(request, doc_id):
     return redirect('travel_app:travel_detail', pk=travel.id)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# STATS VIEW
-# ══════════════════════════════════════════════════════════════════════
-
 from django.db.models import Count, Sum, Avg, Q
 from django.db.models.functions import TruncMonth, TruncYear
 from datetime import date, timedelta
 import json as json_module
 
-
-# ══════════════════════════════════════════════════════════════════════
-# EXTRACT TRAVEL ORDER (AJAX)
-# ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
 @never_cache
@@ -1778,10 +1669,6 @@ def extract_travel_order_ajax(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# CHANGE SCOPE
-# ══════════════════════════════════════════════════════════════════════
-
 @csrf_protect
 @never_cache
 def change_scope(request, pk):
@@ -1813,10 +1700,6 @@ def change_scope(request, pk):
 
     return redirect('travel_app:travel_detail', pk=pk)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# LOOKUP TRAVELER (AJAX)
-# ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
 @never_cache
@@ -1854,10 +1737,6 @@ def lookup_traveler_ajax(request):
     return JsonResponse({'found': False})
 
 
-# ══════════════════════════════════════════════════════════════════════
-# SET DOCUMENT AMOUNT
-# ══════════════════════════════════════════════════════════════════════
-
 @csrf_protect
 @never_cache
 def set_document_amount(request, doc_id):
@@ -1882,7 +1761,6 @@ def set_document_amount(request, doc_id):
         messages.error(request, 'Amount can only be set on BURS, Itinerary, or Actual Itinerary documents.')
         return redirect('travel_app:travel_detail', pk=travel.id)
     
-    # Lock: block amount change if budget is tagged and this participant is liquidated
     if doc.doc_type in ('ITINERARY', 'ACTUAL_ITINERARY'):
         participant = doc.participant
         is_liquidated = (
@@ -1920,7 +1798,6 @@ def set_document_amount(request, doc_id):
 
         from django.contrib import messages
 
-        # If this is an actual itinerary and budget is already tagged, liquidate
         if doc.doc_type == 'ACTUAL_ITINERARY' and travel.is_budget_tagged:
             from .budget_service import liquidate_participant
             result = liquidate_participant(doc.participant, amount)
@@ -1942,10 +1819,6 @@ def set_document_amount(request, doc_id):
     url = f"/travel/travels/{travel.id}/" + (f"?tab={tab}" if tab else "")
     return redirect(url)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# REPLACE DOCUMENT
-# ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
 @never_cache
@@ -1971,7 +1844,6 @@ def replace_document(request, doc_id):
         messages.error(request, 'Travel Order cannot be replaced.')
         return redirect('travel_app:travel_detail', pk=travel.id)
     
-    # Lock: block replace if budget is tagged and this participant is liquidated
     if doc.doc_type in ('ITINERARY', 'ACTUAL_ITINERARY'):
         participant = doc.participant
         is_liquidated = (
@@ -1998,7 +1870,6 @@ def replace_document(request, doc_id):
         doc.file        = file
         doc.uploaded_by = user
         doc.uploaded_at = timezone.now()
-        # Reset confirmation if ACTUAL_ITINERARY replaced — forces re-liquidation
         if doc.doc_type == 'ACTUAL_ITINERARY':
             doc.is_confirmed = False
             doc.confirmed_by = None
@@ -2015,10 +1886,6 @@ def replace_document(request, doc_id):
     url = f"/travel/travels/{travel.id}/" + (f"?tab={tab}" if tab else "")
     return redirect(url)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# LIQUIDATION CALCULATOR
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 def liquidation_calculator(request):
@@ -2037,7 +1904,7 @@ def liquidation_calculator(request):
         travels = TravelRecord.objects.filter(
             participants__campus_name=user.campus.name if user.campus else ''
         ).distinct()
-    else:  # ADMIN
+    else:
         travels = TravelRecord.objects.all()
 
     travels = travels.filter(budget_source__isnull=False).order_by('-start_date')
@@ -2101,15 +1968,10 @@ def liquidation_calculator(request):
     }
     return render(request, 'travel_app/shared/liquidation_calculator.html', context)
 
-# ══════════════════════════════════════════════════════════════════════
-# INVITE UNREGISTERED PARTICIPANT
-# Add these to travel_app/views.py
-# ══════════════════════════════════════════════════════════════════════
 
 @csrf_protect
 @never_cache
 def invite_participant(request, pk):
-    """Secretary matches an unregistered participant to a registered user."""
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
@@ -2154,16 +2016,8 @@ def invite_participant(request, pk):
 
     return redirect('travel_app:travel_detail', pk=pk)
 
-# ══════════════════════════════════════════════════════════════════════
-# AUTO-LINK AFTER APPROVAL
-# Add this function and call it from accounts approve_user view
-# ══════════════════════════════════════════════════════════════════════
 
 def link_invited_user_to_travels(accepted_user):
-    """
-    Called after an invited user is approved.
-    Links them to their travel records and transfers any pre-uploaded documents.
-    """
     from .models import TravelInvite, TravelParticipant, ParticipantDocument
 
     invites = TravelInvite.objects.filter(
@@ -2174,29 +2028,20 @@ def link_invited_user_to_travels(accepted_user):
     for invite in invites:
         travel = invite.travel
 
-        # Create TravelParticipant if not already exists
         participant, created = TravelParticipant.objects.get_or_create(
             travel_record=travel,
             user=accepted_user,
         )
 
-        # Transfer any documents that were uploaded under this invite
-        # Documents uploaded before registration are stored with a temp note
         ParticipantDocument.objects.filter(
             notes__contains=f'[INVITE:{invite.token}]'
         ).update(participant=participant)
 
-        # Refresh travel scope
         travel.refresh_scope()
 
-# ══════════════════════════════════════════════════════════════════════
-# NOTIFICATIONS
-# Add these views to the bottom of travel_app/views.py
-# ══════════════════════════════════════════════════════════════════════
 
 @never_cache
 def notifications_list(request):
-    """Full notifications page — all notifications for the user."""
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
@@ -2205,7 +2050,6 @@ def notifications_list(request):
         user=user
     ).select_related('travel_record').order_by('-created_at')
 
-    # Mark all as read when the page is visited
     Notification.objects.filter(user=user, is_read=False).update(is_read=True)
 
     context = {
@@ -2219,7 +2063,6 @@ def notifications_list(request):
 @csrf_protect
 @never_cache
 def mark_notification_read(request, notif_id):
-    """Mark a single notification as read and redirect to its travel."""
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
@@ -2236,7 +2079,6 @@ def mark_notification_read(request, notif_id):
 @csrf_protect
 @never_cache
 def mark_all_notifications_read(request):
-    """Mark all notifications as read for the current user."""
     user = get_authenticated_user(request)
     if not user:
         return redirect('accounts:login')
@@ -2247,9 +2089,6 @@ def mark_all_notifications_read(request):
     return redirect('travel_app:notifications_list')
 
 
-# ══════════════════════════════════════════════════════════════════════
-# REPORTS
-# ══════════════════════════════════════════════════════════════════════
 @never_cache
 def reports_view(request):
     user = get_authenticated_user(request)
@@ -2262,7 +2101,6 @@ def reports_view(request):
     today = timezone.now().date()
     year = int(request.GET.get('year', today.year))
 
-    # --- Scope travels by role ---
     if user.role == 'EMPLOYEE':
         travels = TravelRecord.objects.filter(
             participants__user=user
@@ -2275,18 +2113,16 @@ def reports_view(request):
         travels = TravelRecord.objects.filter(
             participants__campus_name=user.campus.name if user.campus else ''
         ).distinct()
-    else:  # ADMIN
+    else:
         travels = TravelRecord.objects.all()
 
     travels_year = travels.filter(start_date__year=year)
 
-    # --- Summary counts ---
     total_travels     = travels_year.count()
     total_this_month  = travels_year.filter(start_date__month=today.month).count()
     out_of_province   = travels_year.filter(is_out_of_province=True).count()
     untagged_count    = travels_year.filter(budget_source__isnull=True).count()
 
-    # --- Monthly travel volume ---
     monthly_raw = (
         travels_year
         .annotate(month=TruncMonth('start_date'))
@@ -2301,11 +2137,9 @@ def reports_view(request):
                       'Jul','Aug','Sep','Oct','Nov','Dec']
     monthly_data = [monthly_counts[i] for i in range(1, 13)]
 
-    # --- Budget summary ---
     budget_sources = get_sources_for_secretary(user, year=year)
     total_budget_used = sum(item.get('used', 0) for item in budget_sources)
 
-    # --- Top destinations ---
     top_destinations = (
         travels_year
         .values('destination')
@@ -2313,7 +2147,6 @@ def reports_view(request):
         .order_by('-count')[:8]
     )
 
-    # --- Top travelers (not for employee) ---
     top_travelers = []
     if user.role != 'EMPLOYEE':
         top_travelers = (
@@ -2324,7 +2157,6 @@ def reports_view(request):
             .order_by('-count')[:8]
         )
 
-    # --- Anomalies ---
     anomalies = []
     no_docs = travels_year.annotate(
         doc_count=Count('participants__documents')
@@ -2350,7 +2182,7 @@ def reports_view(request):
         .values_list('start_date__year', flat=True).distinct(),
         reverse=True
     ) or [today.year]
-    # --- Available faculty for dropdown ---
+
     if user.role == 'EMPLOYEE':
         available_faculty = []
     elif user.role == 'DEPT_SEC':
@@ -2366,7 +2198,6 @@ def reports_view(request):
             is_active=True, is_approved=True
         ).order_by('last_name', 'first_name')
 
-    # --- Available budget sources for dropdown ---
     if user.role == 'DEPT_SEC':
         available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE', college=user.college)
     elif user.role == 'CAMPUS_SEC':
@@ -2374,7 +2205,6 @@ def reports_view(request):
     else:
         available_sources = BudgetSource.objects.filter(fiscal_year=year)
 
-    # --- Months list ---
     MONTH_NAMES = ['January','February','March','April','May','June',
                    'July','August','September','October','November','December']
     months = [{'num': i+1, 'name': MONTH_NAMES[i]} for i in range(12)]
@@ -2419,7 +2249,6 @@ def reports_view(request):
             employee_travels = emp_paginator.page(1)
         employee_paginator = emp_paginator
 
-    # --- Records by faculty ---
     records_by_faculty = []
     if user.role != 'EMPLOYEE':
         rec_faculty_id = request.GET.get('faculty', 'all')
@@ -2447,7 +2276,6 @@ def reports_view(request):
                     'fid':       f.id,
                 })
 
-    # --- Budget blocks ---
     budget_blocks = []
     if user.role != 'EMPLOYEE':
         bud_month     = int(request.GET.get('month', today.month))
@@ -2516,9 +2344,6 @@ def reports_view(request):
     return render(request, 'travel_app/shared/reports.html', context)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# DUPLICATE PARTICIPANT TRAVEL CHECK
-# ══════════════════════════════════════════════════════════════════════
 def get_overlapping_participants(participant_ids, start_date, end_date, exclude_travel_id=None):
     from django.db.models import Q
     overlaps = []
@@ -2545,9 +2370,7 @@ def get_overlapping_participants(participant_ids, start_date, end_date, exclude_
             })
     return overlaps
 
-# ══════════════════════════════════════════════════════════════════════
-# PDF REPORTS
-# ══════════════════════════════════════════════════════════════════════
+
 import io
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
@@ -2572,7 +2395,6 @@ def generate_budget_report(request):
     year       = int(request.GET.get('year',  date.today().year))
     source_id  = request.GET.get('budget_source', 'all')
 
-    # Scope travels by role
     if user.role == 'DEPT_SEC':
         travels = TravelRecord.objects.filter(
             participants__college_name=user.college.name if user.college else ''
@@ -2586,7 +2408,6 @@ def generate_budget_report(request):
 
     travels = travels.filter(start_date__year=year, start_date__month=month)
 
-    # Get budget sources in scope
     if user.role == 'DEPT_SEC':
         sources = BudgetSource.objects.filter(
             fiscal_year=year,
@@ -2603,7 +2424,6 @@ def generate_budget_report(request):
     if source_id != 'all':
         sources = sources.filter(id=source_id)
 
-    # Build PDF
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                             leftMargin=1.5*cm, rightMargin=1.5*cm,
@@ -2649,7 +2469,6 @@ def generate_budget_report(request):
         if not source_travels.exists():
             continue
 
-        # Source header
         src_header = Table(
             [[f'Budget Source: {source.budget_name}', f'Budget: \u20b1{source.budget_amount:,.2f}']],
             colWidths=[16*cm, 9*cm]
@@ -2695,7 +2514,6 @@ def generate_budget_report(request):
         story.append(t)
         story.append(Spacer(1, 0.7*cm))
 
-    # Signature
     story.append(Spacer(1, 0.5*cm))
     sig_data = [
         ['Prepared by:'],
@@ -2734,7 +2552,6 @@ def generate_travel_records(request):
     end_date     = request.GET.get('end_date', '')
     show_amounts = request.GET.get('show_amounts') == 'yes'
 
-    # Scope by role
     if user.role == 'EMPLOYEE':
         faculty_users = [user]
     elif user.role == 'DEPT_SEC':
@@ -2753,7 +2570,6 @@ def generate_travel_records(request):
     if faculty_id != 'all' and user.role != 'EMPLOYEE':
         faculty_users = [u for u in faculty_users if str(u.id) == faculty_id]
 
-    # Base travel filter
     def get_travels(faculty_user):
         qs = TravelRecord.objects.filter(
             participants__user=faculty_user
@@ -2764,7 +2580,6 @@ def generate_travel_records(request):
             qs = qs.filter(start_date__lte=end_date)
         return qs
 
-    # Build PDF
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                             leftMargin=1.5*cm, rightMargin=1.5*cm,
@@ -2865,7 +2680,6 @@ def generate_travel_records(request):
         story.append(t)
         story.append(Spacer(1, 0.6*cm))
 
-    # Signature
     story.append(Spacer(1, 0.5*cm))
     sig_data = [
         ['Prepared by:'],
@@ -2890,9 +2704,7 @@ def generate_travel_records(request):
     response['Content-Disposition'] = f'attachment; filename="travel_records.pdf"'
     return response
 
-# ══════════════════════════════════════════════════════════════════════
-# BUDGET REPORT VIEW
-# ══════════════════════════════════════════════════════════════════════
+
 @never_cache
 def budget_report_view(request):
     user = get_authenticated_user(request)
@@ -2910,7 +2722,6 @@ def budget_report_view(request):
     bud_source_id = request.GET.get('budget_source', 'all')
     page_num      = request.GET.get('page', 1)
 
-    # Scope travels by role
     if user.role == 'DEPT_SEC':
         travels = TravelRecord.objects.filter(
             participants__college_name=user.college.name if user.college else ''
@@ -2922,7 +2733,6 @@ def budget_report_view(request):
     else:
         travels = TravelRecord.objects.all()
 
-    # Available sources
     if user.role == 'DEPT_SEC':
         available_sources = BudgetSource.objects.filter(fiscal_year=year, budget_scope='COLLEGE', college=user.college)
     elif user.role == 'CAMPUS_SEC':
@@ -2970,7 +2780,6 @@ def budget_report_view(request):
                     'amount':      f'{amount:,.2f}',
                 })
 
-        # Paginate rows
         paginator = Paginator(rows, 10)
         try:
             page_rows = paginator.page(page_num)
