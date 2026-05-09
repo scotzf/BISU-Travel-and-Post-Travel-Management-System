@@ -150,6 +150,16 @@
                     </a>
                     {% if doc.doc_type != 'TRAVEL_ORDER' %}
                     {% if is_creator or is_secretary or is_admin %}
+                    {# Lock Replace if this doc is confirmed and budget is tagged (liquidated) #}
+                    {% if doc.is_confirmed and travel.is_budget_tagged and doc.doc_type == 'ACTUAL_ITINERARY' %}
+                    <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;font-size:11px;flex-shrink:0" title="Locked after liquidation">
+                      <i class="bi bi-lock-fill"></i> Locked
+                    </span>
+                    {% elif travel.is_budget_tagged and doc.doc_type == 'ITINERARY' %}
+                    <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;font-size:11px;flex-shrink:0" title="Locked after budget is tagged">
+                      <i class="bi bi-lock-fill"></i> Locked
+                    </span>
+                    {% else %}
                     <form method="post" action="{% url 'travel_app:replace_document' doc.id %}" enctype="multipart/form-data" id="replaceForm_{{ doc.id }}" style="display:inline;flex-shrink:0">
                       {% csrf_token %}
                       <input type="hidden" name="tab" value="hub_{{ hub.participant.id }}"/>
@@ -160,11 +170,30 @@
                     </form>
                     {% endif %}
                     {% endif %}
+                    {% endif %}
                   </div>
 
                   {# Amount entry form for BURS / ITINERARY / ACTUAL_ITINERARY #}
                   {% if doc.doc_type == 'ITINERARY' or doc.doc_type == 'ACTUAL_ITINERARY' %}
                   {% if is_creator or is_secretary or is_admin %}
+                  {# Lock: hide amount form if liquidated (actual confirmed + budget tagged) or itinerary locked (budget tagged) #}
+                  {% if doc.is_confirmed and travel.is_budget_tagged and doc.doc_type == 'ACTUAL_ITINERARY' %}
+                  <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+                    <i class="bi bi-lock-fill" style="color:#991b1b;font-size:13px"></i>
+                    <span style="font-size:12px;color:#991b1b;font-weight:500">Liquidation confirmed — amount is locked.</span>
+                    {% if doc.extracted_amount %}
+                    <span style="font-size:12px;color:#166534;font-weight:600;background:#dcfce7;padding:2px 8px;border-radius:6px">{{ doc.extracted_amount|peso }}</span>
+                    {% endif %}
+                  </div>
+                  {% elif travel.is_budget_tagged and doc.doc_type == 'ITINERARY' %}
+                  <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+                    <i class="bi bi-lock-fill" style="color:#991b1b;font-size:13px"></i>
+                    <span style="font-size:12px;color:#991b1b;font-weight:500">Budget tagged — itinerary amount is locked.</span>
+                    {% if doc.extracted_amount %}
+                    <span style="font-size:12px;color:#166534;font-weight:600;background:#dcfce7;padding:2px 8px;border-radius:6px">{{ doc.extracted_amount|peso }}</span>
+                    {% endif %}
+                  </div>
+                  {% else %}
                   <div style="padding:8px 0;border-bottom:1px solid var(--border)">
 
                     {# Liquidation hint for ACTUAL_ITINERARY #}
@@ -187,6 +216,7 @@
                       </button>
                     </form>
                   </div>
+                  {% endif %}
                   {% endif %}
                   {% endif %}
 
@@ -540,6 +570,23 @@
         {% endif %}
         {% endif %}
 
+        {# ── UNREGISTERED PARTICIPANTS WARNING — blocks tagging ── #}
+        {% if not travel.is_budget_tagged and is_secretary and unregistered_for_tag %}
+        <div style="margin-bottom:16px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;font-size:12px;color:#991b1b;display:flex;gap:10px;align-items:flex-start">
+          <i class="bi bi-person-x-fill" style="flex-shrink:0;font-size:16px;margin-top:1px"></i>
+          <div>
+            <div style="font-weight:700;margin-bottom:5px;font-size:13px">Cannot tag budget yet</div>
+            <div style="margin-bottom:6px">The following participant(s) are not matched to a registered user:</div>
+            <ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:2px">
+              {% for name in unregistered_for_tag %}
+              <li style="font-weight:600">{{ name }}</li>
+              {% endfor %}
+            </ul>
+            <div style="margin-top:6px">Please use <strong>Match User</strong> in the Participants section above.</div>
+          </div>
+        </div>
+        {% endif %}
+
         {# ── MISSING ITINERARY WARNING — blocks tagging ── #}
         {% if not travel.is_budget_tagged and is_secretary and missing_itinerary_participants %}
         <div style="margin-bottom:16px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;font-size:12px;color:#991b1b;display:flex;gap:10px;align-items:flex-start">
@@ -581,7 +628,7 @@
                 <i class="bi bi-exclamation-triangle"></i> Re-tagging will return {{ travel.amount_deducted|peso }} to "{{ travel.budget_source.budget_name }}" and deduct the new amount from the selected source.
               </div>
               {% endif %}
-              <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center" {% if missing_itinerary_participants %}disabled title="All participants must submit itinerary first"{% endif %}><i class="bi bi-tag"></i> {% if travel.is_budget_tagged %}Update Budget Tag{% else %}Tag Campus Budget{% endif %}</button>
+              <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center" {% if missing_itinerary_participants or unregistered_for_tag %}disabled title="All participants must be matched and submit itinerary first"{% endif %}><i class="bi bi-tag"></i> {% if travel.is_budget_tagged %}Update Budget Tag{% else %}Tag Campus Budget{% endif %}</button>
             </form>
           </div>
           <div id="panel_college" style="display:none">
@@ -615,7 +662,7 @@
               <i class="bi bi-exclamation-triangle"></i> Re-tagging will return {{ travel.amount_deducted|peso }} to "{{ travel.budget_source.budget_name }}" and deduct the new amount from the selected source.
             </div>
             {% endif %}
-            <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center" {% if missing_itinerary_participants %}disabled title="All participants must submit itinerary first"{% endif %}><i class="bi bi-tag"></i> {% if travel.is_budget_tagged %}Update Budget Tag{% else %}Tag Budget{% endif %}</button>
+            <button type="submit" class="btn-primary-custom" style="width:100%;justify-content:center" {% if missing_itinerary_participants or unregistered_for_tag %}disabled title="All participants must be matched and submit itinerary first"{% endif %}><i class="bi bi-tag"></i> {% if travel.is_budget_tagged %}Update Budget Tag{% else %}Tag Budget{% endif %}</button>
           </form>
         {% endif %}
 

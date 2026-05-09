@@ -219,15 +219,7 @@ def campus_secretary_dashboard(request, user=None):
     in_province   = travels_year.filter(is_out_of_province=False).count()
     out_of_province_count = travels_year.filter(is_out_of_province=True).count()
 
-    # College breakdown for donut chart
-    from accounts.models import College
-    college_breakdown = []
-    for college in College.objects.all().order_by('name'):
-        count = travels_year.filter(
-            participants__college_name=college.name
-        ).distinct().count()
-        if count > 0:
-            college_breakdown.append({'name': college.name, 'count': count})
+   
 
     from accounts.models import College
     college_breakdown = []
@@ -765,7 +757,11 @@ def travel_detail(request, pk):
             ).exists()
             if not has_amount:
                 missing_itinerary_participants.append(tp.get_display_name())
- 
+    # ── Unregistered participants (blocks budget tagging) ──
+    unregistered_for_tag = [
+        p.name for p in travel.participants.filter(is_registered=False)
+    ]
+    
     context = {
         'user':             user,
         'travel':           travel,
@@ -788,6 +784,7 @@ def travel_detail(request, pk):
         'completeness_percentage':          completeness_percentage,
         'liquidation_summary':              liquidation_summary,
         'missing_itinerary_participants':   missing_itinerary_participants,
+        'unregistered_for_tag': unregistered_for_tag,
     }
     return render(request, 'travel_app/shared/travel_detail.html', context)
 
@@ -911,6 +908,17 @@ def tag_budget(request, pk):
                 messages.error(request, 'College not found.')
  
         elif action == 'tag':
+            # ── BLOCK if any participant is unregistered ──
+            unregistered = travel.participants.filter(is_registered=False)
+            if unregistered.exists():
+                from django.contrib import messages
+                names = ', '.join([p.name for p in unregistered])
+                messages.error(
+                    request,
+                    f'Cannot tag budget yet. The following participant(s) are not matched to a registered user: {names}.'
+                )
+                return redirect('travel_app:travel_detail', pk=pk)
+            # ── end block ──
             # ── BLOCK if any registered participant is missing itinerary amount ──
             participants_all = travel.participants.filter(is_registered=True).select_related('user')
             missing = []
@@ -922,7 +930,8 @@ def tag_budget(request, pk):
                 ).exists()
                 if not has_amount:
                     missing.append(tp.get_display_name())
- 
+            
+            
             if missing:
                 from django.contrib import messages
                 names = ', '.join(missing)
@@ -1862,6 +1871,23 @@ def set_document_amount(request, doc_id):
         from django.contrib import messages
         messages.error(request, 'Amount can only be set on BURS, Itinerary, or Actual Itinerary documents.')
         return redirect('travel_app:travel_detail', pk=travel.id)
+    
+    # Lock: block amount change if budget is tagged and this participant is liquidated
+    if doc.doc_type in ('ITINERARY', 'ACTUAL_ITINERARY'):
+        participant = doc.participant
+        is_liquidated = (
+            travel.is_budget_tagged and
+            participant.documents.filter(
+                doc_type='ACTUAL_ITINERARY',
+                is_confirmed=True
+            ).exists()
+        )
+        if is_liquidated:
+            from django.contrib import messages
+            messages.error(request, 'Cannot change amount. Liquidation has already been confirmed for this participant.')
+            tab = request.POST.get('tab', '')
+            url = f"/travel/travels/{travel.id}/" + (f"?tab={tab}" if tab else "")
+            return redirect(url)
 
     if request.method == 'POST':
         from decimal import Decimal, InvalidOperation
@@ -1934,6 +1960,23 @@ def replace_document(request, doc_id):
         from django.contrib import messages
         messages.error(request, 'Travel Order cannot be replaced.')
         return redirect('travel_app:travel_detail', pk=travel.id)
+    
+    # Lock: block replace if budget is tagged and this participant is liquidated
+    if doc.doc_type in ('ITINERARY', 'ACTUAL_ITINERARY'):
+        participant = doc.participant
+        is_liquidated = (
+            travel.is_budget_tagged and
+            participant.documents.filter(
+                doc_type='ACTUAL_ITINERARY',
+                is_confirmed=True
+            ).exists()
+        )
+        if is_liquidated:
+            from django.contrib import messages
+            messages.error(request, 'This document is locked. Liquidation has already been confirmed for this participant.')
+            tab = request.POST.get('tab', '')
+            url = f"/travel/travels/{travel.id}/" + (f"?tab={tab}" if tab else "")
+            return redirect(url)
 
     if request.method == 'POST':
         file = request.FILES.get('file')
