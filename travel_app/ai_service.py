@@ -1,4 +1,3 @@
-# travel_app/ai_service.py
 import os
 import re
 import json
@@ -17,23 +16,9 @@ if platform.system() == 'Windows':
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 
-# ══════════════════════════════════════════════════════════════════════
-# DOC TYPE GROUPS
-# ══════════════════════════════════════════════════════════════════════
-
-# Full extraction — destination, dates, purpose, traveler names
 FULL_EXTRACTION_TYPES = {'TRAVEL_ORDER'}
-
-# Amount only — for budget deduction confirmation
 AMOUNT_ONLY_TYPES = {'BURS', 'ITINERARY'}
-
-# No extraction — just store the file
 SKIP_EXTRACTION_TYPES = {'DV', 'CERTIFICATE', 'RECEIPTS', 'POST_REPORT', 'LETTER_REQUEST'}
-
-
-# ══════════════════════════════════════════════════════════════════════
-# TEXT EXTRACTION
-# ══════════════════════════════════════════════════════════════════════
 
 def extract_text_from_file(file_path):
     ext = os.path.splitext(file_path)[1].lower()
@@ -136,11 +121,6 @@ def _extract_from_text(file_path):
         logger.error(f"Text extraction error: {e}")
         return None, 'error'
 
-
-# ══════════════════════════════════════════════════════════════════════
-# OLLAMA CALLS
-# ══════════════════════════════════════════════════════════════════════
-
 def _call_ollama(prompt):
     """Base Ollama call. Returns raw response string or None."""
     try:
@@ -180,11 +160,6 @@ def _parse_json_response(raw):
     except json.JSONDecodeError as e:
         logger.error(f"JSON parse error: {e}")
     return None
-
-
-# ══════════════════════════════════════════════════════════════════════
-# TRAVEL ORDER EXTRACTION (full)
-# ══════════════════════════════════════════════════════════════════════
 
 def _extract_travel_order(text):
     """
@@ -229,7 +204,7 @@ Rules:
     if not result:
         result = _fallback_travel_order(text)
         raw = _call_ollama(prompt)
-        print("OLLAMA RAW RESPONSE:", raw)  # check your terminal
+        print("OLLAMA RAW RESPONSE:", raw)  
         result = _parse_json_response(raw)
         print("PARSED RESULT:", result)
 
@@ -242,7 +217,6 @@ def _fallback_travel_order(text):
 
     result = {'traveler_names': [], 'confidence': 'low'}
 
-    # ── Destination ───────────────────────────────────────────────────
     CITY_PATTERN = (
         r'(Tagbilaran|Cebu|Manila|Davao|Cagayan de Oro|'
         r'Dumaguete|Bacolod|Iloilo|Zamboanga|Bohol|'
@@ -253,7 +227,6 @@ def _fallback_travel_order(text):
     if city:
         result['destination'] = city.group(0).strip()
 
-    # ── Travel dates (range like "November 5-7, 2025") ────────────────
     range_pattern = (
         r'(January|February|March|April|May|June|July|August|'
         r'September|October|November|December)'
@@ -275,13 +248,11 @@ def _fallback_travel_order(text):
         except ValueError:
             pass
     else:
-        # Single date pattern — look for it in body text, not document date line
         MONTH_PATTERN = (
             r'(January|February|March|April|May|June|'
             r'July|August|September|October|November|December)'
             r'\s+\d{1,2},?\s+\d{4}'
         )
-        # Skip the "Date :" line, find dates in the body
         body_lines = [
             l for l in text.split('\n')
             if not re.match(r'^\s*Date\s*:', l, re.IGNORECASE)
@@ -300,7 +271,6 @@ def _fallback_travel_order(text):
         if len(dates) > 1:
             result['end_date'] = parse(dates[-1].group(0))
 
-    # ── Traveler names (lines after "To :") ───────────────────────────
     lines      = text.split('\n')
     in_to_block = False
     names       = []
@@ -308,10 +278,8 @@ def _fallback_travel_order(text):
     for line in lines:
         stripped = line.strip()
 
-        # Detect start of "To :" block
         if re.match(r'^To\s*:', stripped, re.IGNORECASE):
             in_to_block = True
-            # Name may be on same line as "To :"
             name_part = re.sub(r'^To\s*:\s*', '', stripped, flags=re.IGNORECASE).strip()
             name_part = re.sub(r'\s*-\s*.+$', '', name_part).strip()  # strip role
             if name_part:
@@ -319,11 +287,9 @@ def _fallback_travel_order(text):
             continue
 
         if in_to_block:
-            # Empty line or a line starting a new section ends the block
             if not stripped or re.match(r'^(Date|Subject|Sir|Ma\'am|You are|Your travel)', stripped, re.IGNORECASE):
                 in_to_block = False
                 continue
-            # Strip role descriptions after dash
             name_part = re.sub(r'\s*-\s*.+$', '', stripped).strip()
             if name_part and len(name_part) > 2:
                 names.append(name_part)
@@ -392,11 +358,6 @@ def _fallback_travel_order(text):
 
     return result
 
-
-# ══════════════════════════════════════════════════════════════════════
-# AMOUNT EXTRACTION (BURS / ITINERARY)
-# ══════════════════════════════════════════════════════════════════════
-
 def _extract_amount(text, doc_type):
     """
     Extract the total amount from a BURS or Itinerary document.
@@ -449,11 +410,6 @@ def _fallback_amount(text):
 
     return result
 
-
-# ══════════════════════════════════════════════════════════════════════
-# MAIN ENTRY POINT
-# ══════════════════════════════════════════════════════════════════════
-
 def extract_from_document(travel_document):
     """
     Main extraction entry point called after a TravelDocument is saved.
@@ -468,19 +424,13 @@ def extract_from_document(travel_document):
 
     doc      = travel_document
     doc_type = doc.doc_type
-
-    # ── Skip types with no extraction ────────────────────────────────
     if doc_type in SKIP_EXTRACTION_TYPES:
         doc.extraction_attempted = False
         doc.save(update_fields=['extraction_attempted'])
         logger.info(f"Doc {doc.id} ({doc_type}) — skipped, no extraction needed")
         return
-
-    # ── Mark as attempted ─────────────────────────────────────────────
     doc.extraction_attempted = True
     doc.save(update_fields=['extraction_attempted'])
-
-    # ── Extract raw text ──────────────────────────────────────────────
     try:
         file_path = doc.file.path
     except Exception:
@@ -494,8 +444,6 @@ def extract_from_document(travel_document):
         return
 
     logger.info(f"Doc {doc.id} ({doc_type}) — text extracted via {method}, {len(text)} chars")
-
-    # ── Route to correct extractor ────────────────────────────────────
     if doc_type in FULL_EXTRACTION_TYPES:
         result = _extract_travel_order(text)
         _save_travel_order_result(doc, result)

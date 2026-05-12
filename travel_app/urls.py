@@ -4,22 +4,14 @@ from . import views
 app_name = 'travel_app'
 
 urlpatterns = [
-    # ── Employee ──────────────────────────────────────────────────────
+
     path('employee/',               views.employee_dashboard,         name='employee_dashboard'),
     path('employee/travels/',       views.my_travels,                 name='my_travels'),
-
-    # ── Secretary ─────────────────────────────────────────────────────
     path('dept-secretary/',         views.dept_secretary_dashboard,   name='dept_secretary_dashboard'),
     path('campus-secretary/',       views.campus_secretary_dashboard, name='campus_secretary_dashboard'),
     path('secretary/queue/',        views.secretary_queue,            name='secretary_queue'),
-
-    # ── Admin ─────────────────────────────────────────────────────────
     path('admin-panel/',            views.admin_dashboard,            name='admin_dashboard'),
-
-    # ── Budget sources (admin + secretaries) ──────────────────────────
     path('budget/',                 views.budget_view,                name='budget'),
-
-    # ── Travel records ────────────────────────────────────────────────
     path('travels/',                views.all_travels,                name='all_travels'),
     path('travels/extract-travel-order/', views.extract_travel_order_ajax, name='extract_travel_order_ajax'),
     path('travels/lookup-traveler/', views.lookup_traveler_ajax,      name='lookup_traveler_ajax'),
@@ -29,25 +21,16 @@ urlpatterns = [
     path('travels/<int:pk>/budget/',views.tag_budget,                 name='tag_budget'),
     path('travels/<int:pk>/download-zip/', views.download_zip,        name='download_zip'),
     path('travels/<int:pk>/change-scope/', views.change_scope,        name='change_scope'),
-
-    # ── Documents ─────────────────────────────────────────────────────
     path('documents/<int:doc_id>/confirm/',    views.confirm_extraction,   name='confirm_extraction'),
     path('documents/<int:doc_id>/reject/',     views.reject_extraction,    name='reject_extraction'),
     path('documents/<int:doc_id>/replace/',    views.replace_document,     name='replace_document'),
     path('documents/<int:doc_id>/set-amount/', views.set_document_amount,  name='set_document_amount'),
-
-    # ── Budget & overview ─────────────────────────────────────────────
     path('liquidation/',            views.liquidation_calculator,     name='liquidation_calculator'),
-
     path('reports/',                  views.reports_view,               name='reports'),
     path('reports/budget-pdf/',         views.generate_budget_report,   name='generate_budget_report'),
     path('reports/travel-records-pdf/',  views.generate_travel_records,  name='generate_travel_records'),
     path('reports/budget/',              views.budget_report_view,          name='budget_report'),
-    # ── Reports ───────────────────────────────────────────────────────
-
-
     path('travels/<int:pk>/invite/', views.invite_participant, name='invite_participant'),
-    # Notifications
     path('notifications/',                    views.notifications_list,          name='notifications_list'),
     path('notifications/<int:notif_id>/read/', views.mark_notification_read,      name='mark_notification_read'),
     path('notifications/mark-all-read/',       views.mark_all_notifications_read, name='mark_all_notifications_read'),

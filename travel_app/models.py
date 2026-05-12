@@ -2,11 +2,6 @@ from django.db import models
 from django.utils.timezone import now
 from django.core.validators import MinValueValidator
 
-
-# ══════════════════════════════════════════════════════════════════════
-# BUDGET SOURCES
-# ══════════════════════════════════════════════════════════════════════
-
 class BudgetSource(models.Model):
     SCOPE_CHOICES = [
         ('COLLEGE', 'College-Level'),
@@ -56,22 +51,9 @@ class BudgetSource(models.Model):
         verbose_name_plural = 'Budget Sources'
 
 
-# ══════════════════════════════════════════════════════════════════════
-# BUDGET USAGE  (merged — replaces BudgetUsage + CampusBudgetUsage)
-# ══════════════════════════════════════════════════════════════════════
 
 class BudgetUsage(models.Model):
-    """
-    Tracks spending per user per budget source per year.
-
-    - user.college  → tells us which college this belongs to
-    - user.campus   → tells us which campus this belongs to
-    - budget_source.budget_scope → tells us if it's COLLEGE or CAMPUS level
-
-    This replaces both the old BudgetUsage and CampusBudgetUsage models.
-    Allows answering: "How much did employee X spend this year?"
-    Secretaries can aggregate by user__college or user__campus.
-    """
+  
     user = models.ForeignKey(
         'accounts.User',
         on_delete=models.CASCADE,
@@ -122,12 +104,6 @@ class BudgetUsage(models.Model):
         verbose_name = 'Budget Usage'
         verbose_name_plural = 'Budget Usage Records'
 
-
-
-
-# ══════════════════════════════════════════════════════════════════════
-# TRAVEL RECORD
-# ══════════════════════════════════════════════════════════════════════
 
 class TravelRecord(models.Model):
     SCOPE_CHOICES = [
@@ -232,9 +208,6 @@ class TravelRecord(models.Model):
         verbose_name_plural = 'Travel Records'
 
 
-# ══════════════════════════════════════════════════════════════════════
-# TRAVEL PARTICIPANTS
-# ══════════════════════════════════════════════════════════════════════
 class TravelParticipant(models.Model):
     """
     One row per person per travel.
@@ -250,7 +223,7 @@ class TravelParticipant(models.Model):
     user          = models.ForeignKey(
         'accounts.User', on_delete=models.CASCADE,
         related_name='travel_participations',
-        null=True, blank=True,                    # nullable for unregistered
+        null=True, blank=True,                   
     )
     name          = models.CharField(
         max_length=200, blank=True,
@@ -299,10 +272,6 @@ class TravelParticipant(models.Model):
         verbose_name = 'Travel Participant'
         verbose_name_plural = 'Travel Participants'
 
-
-# ══════════════════════════════════════════════════════════════════════
-# PARTICIPANT DOCUMENT
-# ══════════════════════════════════════════════════════════════════════
 
 class ParticipantDocument(models.Model):
     DOC_TYPE_CHOICES = [
@@ -359,10 +328,6 @@ class ParticipantDocument(models.Model):
         verbose_name_plural = 'Participant Documents'
 
 
-# ══════════════════════════════════════════════════════════════════════
-# NOTIFICATIONS
-# ══════════════════════════════════════════════════════════════════════
-
 class Notification(models.Model):
     NOTIFICATION_TYPE_CHOICES = [
         ('TRAVEL_CREATED',      'Travel Created'),
@@ -392,7 +357,6 @@ class Notification(models.Model):
     class Meta:
         ordering = ['-created_at']
         
-# Add this to travel_app/models.py at the bottom
 
 import uuid
 

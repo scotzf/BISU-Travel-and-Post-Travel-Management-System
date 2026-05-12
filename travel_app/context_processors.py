@@ -19,7 +19,7 @@ def secretary_queue_count(request):
             own = TravelRecord.objects.filter(
                 scope='COLLEGE',
                 budget_source__isnull=True,
-                participants__college_name=user.college.name  # FIXED: was college_snapshot
+                participants__college_name=user.college.name  
             ).distinct().count()
             routed = TravelRecord.objects.filter(
                 scope='CAMPUS',
@@ -33,7 +33,7 @@ def secretary_queue_count(request):
                 scope='CAMPUS',
                 budget_source__isnull=True,
                 funding_college__isnull=True,
-                participants__campus_name=user.campus.name  # FIXED: was campus_snapshot
+                participants__campus_name=user.campus.name  
             ).distinct().count()
         else:
             count = 0
@@ -45,10 +45,7 @@ def secretary_queue_count(request):
 
 
 def unread_notifications(request):
-    """
-    Injects unread_notifications (count) and recent_notifications (list)
-    into every template context for the logged-in user.
-    """
+    
     if not request.session.get('user_id'):
         return {}
 
@@ -61,7 +58,6 @@ def unread_notifications(request):
         unread = Notification.objects.filter(user=user, is_read=False)
         count  = unread.count()
 
-        # Send the 6 most recent unread for the dropdown
         recent = unread.select_related('travel_record').order_by('-created_at')[:6]
 
         return {

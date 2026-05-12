@@ -1,5 +1,3 @@
-# travel_app/budget_service.py
-
 from decimal import Decimal
 from django.db import transaction
 from .models import BudgetSource, BudgetUsage
@@ -33,7 +31,6 @@ def get_budget_status(budget_source, user=None):
     else:
         usages     = BudgetUsage.objects.filter(budget_source=budget_source, year=budget_source.fiscal_year)
         total_used = sum(u.used_amount for u in usages)
-        # Always use source.budget_amount as total — never sum usage rows
         total_alloc = budget_source.budget_amount
         pct         = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
         return {
@@ -70,7 +67,6 @@ def get_sources_for_secretary(user, year=None):
         for s in sources:
             usages     = BudgetUsage.objects.filter(budget_source=s, year=year, user__college=user.college)
             total_used = sum(u.used_amount for u in usages)
-            # Always use source.budget_amount — never sum allocated_amount from rows
             total_alloc = s.budget_amount
             pct         = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
             result.append({
@@ -89,7 +85,6 @@ def get_sources_for_secretary(user, year=None):
         for s in sources:
             usages     = BudgetUsage.objects.filter(budget_source=s, year=year, user__campus=user.campus)
             total_used = sum(u.used_amount for u in usages)
-            # Always use source.budget_amount — never sum allocated_amount from rows
             total_alloc = s.budget_amount
             pct         = round((total_used / total_alloc * 100), 1) if total_alloc > 0 else 0
             result.append({
@@ -148,17 +143,6 @@ def liquidate_participant(participant, actual_amount):
         }
 
     original_amount = Decimal(str(original_doc.extracted_amount))
-
-    # Check if a previous liquidation was already applied.
-    # We track what was previously applied via the usage.used_amount vs original_amount.
-    # The current used_amount already reflects the last applied actual.
-    # Strategy: fully restore to original_amount first, then apply new actual.
-    #
-    # Current used_amount = original_amount +/- previous_adjustment
-    # Step 1: restore back to what it was BEFORE any liquidation (i.e. original_amount deducted)
-    # Step 2: apply new actual vs original difference
-    #
-    # We detect a previous liquidation if any confirmed ACTUAL_ITINERARY exists.
     previous_liquidated = ParticipantDocument.objects.filter(
         participant=participant,
         doc_type='ACTUAL_ITINERARY',
@@ -167,18 +151,14 @@ def liquidate_participant(participant, actual_amount):
     ).exists()
 
     if previous_liquidated:
-        # Fully reset usage back to original_amount by computing current adjustment.
-        # used_amount currently = original + prev_diff (could be + or -)
-        # We want used_amount = original, so:
         current_used = usage.used_amount
-        target_used  = original_amount  # what it should be before new liquidation
+        target_used  = original_amount  
         correction   = current_used - target_used
         if correction > 0:
             usage.restore(correction)
         elif correction < 0:
             usage.deduct(abs(correction))
 
-    # Now apply the new actual amount vs original
     difference = actual_amount - original_amount
 
     if difference < 0:
