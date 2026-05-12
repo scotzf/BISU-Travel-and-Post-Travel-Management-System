@@ -2792,13 +2792,20 @@ def budget_report_view(request):
         rows = []
         total = 0
         for t in src_travels:
-            for p in t.participants.filter(user__isnull=False):
-                itinerary = p.documents.filter(
-                    doc_type='ACTUAL_ITINERARY', is_confirmed=True
-                ).first() or p.documents.filter(
-                    doc_type='ITINERARY', extracted_amount__isnull=False
-                ).first()
-                amount = float(itinerary.extracted_amount) if itinerary and itinerary.extracted_amount else 0
+            t_participants = t.participants.filter(user__isnull=False)
+            p_count = t_participants.count()
+            for p in t_participants:
+                individual = ParticipantDocument.objects.filter(
+                    participant=p,
+                    doc_type__in=['BURS', 'ITINERARY'],
+                    extracted_amount__isnull=False,
+                ).order_by('-uploaded_at').values_list('extracted_amount', flat=True).first()
+                if individual is not None:
+                    amount = float(individual)
+                elif t.amount_deducted and p_count:
+                    amount = float(t.amount_deducted) / p_count
+                else:
+                    amount = 0
                 total += amount
                 rows.append({
                     'name':        p.get_display_name(),
@@ -2808,6 +2815,13 @@ def budget_report_view(request):
                     'amount':      f'{amount:,.2f}',
                 })
 
+        all_time_used = float(sum(
+            BudgetUsage.objects.filter(
+                budget_source=source,
+                year=year,
+            ).values_list('used_amount', flat=True)
+        ))
+
         paginator = Paginator(rows, 10)
         try:
             page_rows = paginator.page(page_num)
@@ -2815,13 +2829,14 @@ def budget_report_view(request):
             page_rows = paginator.page(1)
 
         budget_blocks.append({
-            'name':      source.budget_name,
-            'budget':    float(source.budget_amount),
-            'total':     total,
-            'balance':   float(source.budget_amount) - total,
-            'rows':      page_rows,
-            'paginator': paginator,
-            'source_id': source.id,
+            'name':         source.budget_name,
+            'budget':       float(source.budget_amount),
+            'total':        total,
+            'all_time_used': all_time_used,
+            'balance':      float(source.budget_amount) - all_time_used,
+            'rows':         page_rows,
+            'paginator':    paginator,
+            'source_id':    source.id,
         })
 
     context = {
