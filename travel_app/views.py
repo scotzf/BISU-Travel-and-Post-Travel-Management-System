@@ -2372,13 +2372,43 @@ def get_overlapping_participants(participant_ids, start_date, end_date, exclude_
 
 
 import io
+import os as _os
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.utils import ImageReader
 from django.http import HttpResponse
+
+from django.conf import settings as _settings
+_HEADER_IMAGE_PATH = _os.path.join(str(_settings.BASE_DIR), 'static', 'header.jpeg')
+
+def _draw_header(canvas, doc):
+    canvas.saveState()
+    page_width, page_height = landscape(A4)
+    margin     = 1.5 * cm
+    img_w      = page_width - 2 * margin
+    img_h      = img_w * (184 / 1262)
+    y_img      = page_height - margin - img_h
+    try:
+        img = ImageReader(_HEADER_IMAGE_PATH)
+        canvas.drawImage(
+            img,
+            x=margin,
+            y=y_img,
+            width=img_w,
+            height=img_h,
+            preserveAspectRatio=False,
+            mask='auto',
+        )
+    except Exception:
+        pass
+    canvas.setStrokeColor(colors.HexColor('#1a3a6b'))
+    canvas.setLineWidth(0.8)
+    canvas.line(margin, y_img - 0.2 * cm, page_width - margin, y_img - 0.2 * cm)
+    canvas.restoreState()
 
 @never_cache
 def generate_budget_report(request):
@@ -2427,7 +2457,7 @@ def generate_budget_report(request):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                             leftMargin=1.5*cm, rightMargin=1.5*cm,
-                            topMargin=1.5*cm, bottomMargin=1.5*cm)
+                            topMargin=6.2*cm, bottomMargin=1.5*cm)
 
     title_style = ParagraphStyle('title', fontSize=16, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=2)
     date_style  = ParagraphStyle('date',  fontSize=11, fontName='Helvetica',      alignment=TA_CENTER, spaceAfter=20)
@@ -2437,7 +2467,6 @@ def generate_budget_report(request):
                    'July','August','September','October','November','December']
 
     story = []
-    story.append(Spacer(1, 0.3*cm))
     story.append(Paragraph("Travel Reports", title_style))
     story.append(Paragraph(f"As of {MONTH_NAMES[month]} {year}", date_style))
 
@@ -2532,7 +2561,7 @@ def generate_budget_report(request):
     ]))
     story.append(sig_table)
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_draw_header, onLaterPages=_draw_header)
     buffer.seek(0)
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="budget_report_{MONTH_NAMES[month]}_{year}.pdf"'
@@ -2583,13 +2612,12 @@ def generate_travel_records(request):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                             leftMargin=1.5*cm, rightMargin=1.5*cm,
-                            topMargin=1.5*cm, bottomMargin=1.5*cm)
+                            topMargin=6.2*cm, bottomMargin=1.5*cm)
 
     title_style   = ParagraphStyle('title', fontSize=16, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=4)
     faculty_style = ParagraphStyle('fac',   fontSize=10, fontName='Helvetica-Bold', alignment=TA_LEFT,   spaceAfter=4)
 
     story = []
-    story.append(Spacer(1, 0.3*cm))
     story.append(Paragraph("Travel Records", title_style))
 
     date_str = ''
@@ -2698,7 +2726,7 @@ def generate_travel_records(request):
     ]))
     story.append(sig_table)
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_draw_header, onLaterPages=_draw_header)
     buffer.seek(0)
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="travel_records.pdf"'
